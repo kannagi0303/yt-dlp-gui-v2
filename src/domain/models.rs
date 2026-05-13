@@ -1,0 +1,556 @@
+#[derive(Clone)]
+pub struct VideoMetadata {
+    pub title: String,
+    pub uploader: String,
+    pub duration_text: String,
+    pub webpage_url: String,
+    pub description: String,
+    pub view_count_text: String,
+    pub upload_date_text: String,
+    pub thumbnail_hint: String,
+    pub thumbnail_url: String,
+    pub formats: Vec<FormatOption>,
+    pub subtitle_tracks: Vec<SubtitleOption>,
+    pub chapters: Vec<ChapterOption>,
+}
+
+impl VideoMetadata {
+    pub fn empty_preview() -> Self {
+        Self {
+            title: String::new(),
+            uploader: String::new(),
+            duration_text: String::new(),
+            webpage_url: String::new(),
+            description: String::new(),
+            view_count_text: String::new(),
+            upload_date_text: String::new(),
+            thumbnail_hint: "item.thumbnail".to_owned(),
+            thumbnail_url: String::new(),
+            formats: Vec::new(),
+            subtitle_tracks: Vec::new(),
+            chapters: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct ChapterOption {
+    pub id: String,
+    pub title: String,
+    pub start_text: String,
+    pub end_text: Option<String>,
+    pub download_sections: String,
+}
+
+impl ChapterOption {
+    pub fn new(
+        id: impl Into<String>,
+        title: impl Into<String>,
+        start_text: impl Into<String>,
+        end_text: Option<String>,
+        download_sections: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            title: title.into(),
+            start_text: start_text.into(),
+            end_text,
+            download_sections: download_sections.into(),
+        }
+    }
+
+    pub fn label(&self) -> String {
+        let range = match self.end_text.as_deref() {
+            Some(end) if !end.is_empty() => format!("{}–{}", self.start_text, end),
+            _ => format!("{}–end", self.start_text),
+        };
+
+        if self.title.trim().is_empty() {
+            range
+        } else {
+            format!("{}  {}", range, self.title)
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct SubtitleOption {
+    pub id: String,
+    pub source: SubtitleSource,
+    pub download_language_code: String,
+    pub source_language_code: String,
+    pub source_language_label: String,
+    pub target_language_code: Option<String>,
+    pub target_language_label: Option<String>,
+    pub ext: String,
+    pub url: String,
+}
+
+impl SubtitleOption {
+    pub fn new(
+        id: impl Into<String>,
+        source: SubtitleSource,
+        download_language_code: impl Into<String>,
+        source_language_code: impl Into<String>,
+        source_language_label: impl Into<String>,
+        target_language_code: Option<String>,
+        target_language_label: Option<String>,
+        ext: impl Into<String>,
+        url: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            source,
+            download_language_code: download_language_code.into(),
+            source_language_code: source_language_code.into(),
+            source_language_label: source_language_label.into(),
+            target_language_code,
+            target_language_label,
+            ext: ext.into(),
+            url: url.into(),
+        }
+    }
+
+    pub fn source_key(&self) -> String {
+        format!("{}:{}", self.source.key(), self.source_language_code)
+    }
+
+    pub fn source_label(&self) -> String {
+        format!(
+            "{} / {} ({})",
+            self.source.label(),
+            self.source_language_label,
+            self.source_language_code
+        )
+    }
+
+    pub fn target_label(&self) -> String {
+        match (&self.target_language_label, &self.target_language_code) {
+            (Some(label), Some(code)) => format!("{label} ({code})"),
+            (Some(label), None) => label.clone(),
+            (None, Some(code)) => code.clone(),
+            (None, None) => "picker.no_translation".to_owned(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SubtitleSource {
+    None,
+    Original,
+    Automatic,
+}
+
+impl SubtitleSource {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::None => "tools.subtitle_source.none",
+            Self::Original => "tools.subtitle_source.original",
+            Self::Automatic => "tools.subtitle_source.automatic",
+        }
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Original => "orig",
+            Self::Automatic => "auto",
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct FormatOption {
+    pub id: String,
+    pub label: String,
+    pub kind: MediaKind,
+    pub is_muxed: bool,
+    pub resolution: String,
+    pub dynamic_range: String,
+    pub fps: String,
+    pub ext: String,
+    pub codec: String,
+    pub sample_rate: String,
+    pub filesize: String,
+}
+
+impl FormatOption {
+    pub fn new(id: &str, label: &str, kind: MediaKind) -> Self {
+        Self {
+            id: id.to_owned(),
+            label: label.to_owned(),
+            kind,
+            is_muxed: kind == MediaKind::Muxed,
+            resolution: String::new(),
+            dynamic_range: String::new(),
+            fps: String::new(),
+            ext: String::new(),
+            codec: String::new(),
+            sample_rate: String::new(),
+            filesize: String::new(),
+        }
+    }
+
+    pub fn video(
+        id: &str,
+        label: &str,
+        kind: MediaKind,
+        resolution: &str,
+        dynamic_range: &str,
+        fps: &str,
+        ext: &str,
+        codec: &str,
+        filesize: &str,
+    ) -> Self {
+        Self {
+            id: id.to_owned(),
+            label: label.to_owned(),
+            kind,
+            is_muxed: kind == MediaKind::Muxed,
+            resolution: resolution.to_owned(),
+            dynamic_range: dynamic_range.to_owned(),
+            fps: fps.to_owned(),
+            ext: ext.to_owned(),
+            codec: codec.to_owned(),
+            sample_rate: String::new(),
+            filesize: filesize.to_owned(),
+        }
+    }
+
+    pub fn audio(
+        id: &str,
+        label: &str,
+        kind: MediaKind,
+        sample_rate: &str,
+        ext: &str,
+        codec: &str,
+        filesize: &str,
+    ) -> Self {
+        Self {
+            id: id.to_owned(),
+            label: label.to_owned(),
+            kind,
+            is_muxed: kind == MediaKind::Muxed,
+            resolution: String::new(),
+            dynamic_range: String::new(),
+            fps: String::new(),
+            ext: ext.to_owned(),
+            codec: codec.to_owned(),
+            sample_rate: sample_rate.to_owned(),
+            filesize: filesize.to_owned(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum MediaKind {
+    Video,
+    Audio,
+    Muxed,
+    Subtitle,
+    Other,
+}
+
+impl MediaKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Video => "video",
+            Self::Audio => "audio",
+            Self::Muxed => "muxed",
+            Self::Subtitle => "subtitle",
+            Self::Other => "other",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QualityPreset {
+    Best,
+    P1080,
+    P720,
+    AudioOnly,
+}
+
+impl QualityPreset {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Best => "domain.quality.best",
+            Self::P1080 => "1080p",
+            Self::P720 => "720p",
+            Self::AudioOnly => "domain.quality.audio_only",
+        }
+    }
+}
+
+pub struct DownloadOptions {
+    pub quality: QualityPreset,
+    pub write_thumbnail: bool,
+    pub embed_thumbnail: bool,
+    pub write_subtitles: bool,
+    pub embed_subtitles: bool,
+    pub write_chapters: bool,
+    pub embed_chapters: bool,
+    pub use_cookies: bool,
+    pub use_aria2: bool,
+    pub output_dir: String,
+}
+
+impl Default for DownloadOptions {
+    fn default() -> Self {
+        Self {
+            quality: QualityPreset::Best,
+            write_thumbnail: false,
+            embed_thumbnail: false,
+            write_subtitles: false,
+            embed_subtitles: false,
+            write_chapters: false,
+            embed_chapters: false,
+            use_cookies: false,
+            use_aria2: false,
+            output_dir: "Desktop".to_owned(),
+        }
+    }
+}
+
+pub type QueueItemId = u64;
+pub type WorkflowRunId = u64;
+
+#[derive(Clone)]
+pub struct QueueItem {
+    pub id: QueueItemId,
+    pub source_url: String,
+    pub title: String,
+    pub thumbnail_hint: String,
+    pub thumbnail_url: String,
+    pub duration_text: String,
+    pub cookie_policy: CookiePolicy,
+    pub metadata_state: MetadataState,
+    pub selection: DownloadSelection,
+    pub progress: ItemProgress,
+    pub workflows: Vec<WorkflowRun>,
+    pub completed_selection: Option<CompletedSelection>,
+    pub last_output_path: Option<String>,
+    pub last_error: Option<String>,
+}
+
+impl QueueItem {
+    pub fn new(id: QueueItemId, source_url: impl Into<String>, title: impl Into<String>) -> Self {
+        Self {
+            id,
+            source_url: source_url.into(),
+            title: title.into(),
+            thumbnail_hint: "item.thumbnail".to_owned(),
+            thumbnail_url: String::new(),
+            duration_text: String::new(),
+            cookie_policy: CookiePolicy::Unknown,
+            metadata_state: MetadataState::Queued,
+            selection: DownloadSelection::default(),
+            progress: ItemProgress::default(),
+            workflows: Vec::new(),
+            completed_selection: None,
+            last_output_path: None,
+            last_error: None,
+        }
+    }
+
+    pub fn metadata(&self) -> Option<&VideoMetadata> {
+        match &self.metadata_state {
+            MetadataState::Ready(metadata) => Some(metadata),
+            _ => None,
+        }
+    }
+
+    pub fn metadata_mut(&mut self) -> Option<&mut VideoMetadata> {
+        match &mut self.metadata_state {
+            MetadataState::Ready(metadata) => Some(metadata),
+            _ => None,
+        }
+    }
+
+    pub fn metadata_loaded(&self) -> bool {
+        matches!(self.metadata_state, MetadataState::Ready(_))
+    }
+
+    pub fn status_text(&self) -> &'static str {
+        if let Some(run) = self
+            .workflows
+            .iter()
+            .rev()
+            .find(|run| run.kind == WorkflowKind::DownloadMedia)
+        {
+            match run.state {
+                WorkflowState::Queued => return "item.status.queued",
+                WorkflowState::Running => return "item.status.running",
+                WorkflowState::Finished if self.last_error.is_some() => return "item.status.failed",
+                WorkflowState::Finished => return "item.status.finished",
+                WorkflowState::Failed => return "item.status.failed",
+                WorkflowState::Cancelled => return "item.status.cancelled",
+            }
+        }
+
+        match &self.metadata_state {
+            MetadataState::Idle => "item.status.idle",
+            MetadataState::Queued => "item.status.waiting_analysis",
+            MetadataState::Running => "item.status.analyzing",
+            MetadataState::Ready(_) => "item.status.queued",
+            MetadataState::Failed(_) => "item.status.analysis_failed",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CookiePolicy {
+    Unknown,
+    NotNeeded,
+    Required,
+}
+
+#[derive(Clone)]
+pub enum MetadataState {
+    Idle,
+    Queued,
+    Running,
+    Ready(VideoMetadata),
+    Failed(String),
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct DownloadSelection {
+    pub quality: QualityPreset,
+    pub video_selector: String,
+    pub audio_selector: String,
+    pub subtitle_selector: String,
+    pub subtitle_source: SubtitleSource,
+    pub write_thumbnail: bool,
+    pub embed_thumbnail: bool,
+    pub write_subtitles: bool,
+    pub embed_subtitles: bool,
+    pub write_chapters: bool,
+    pub embed_chapters: bool,
+    pub use_cookies: bool,
+    pub use_aria2: bool,
+    pub output_dir: String,
+    pub file_name: String,
+    pub download_sections: String,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct CompletedSelection {
+    pub video_selector: String,
+    pub audio_selector: String,
+    pub subtitle_selector: String,
+    pub file_name: String,
+    pub download_sections: String,
+    pub write_thumbnail: bool,
+    pub embed_thumbnail: bool,
+    pub write_subtitles: bool,
+    pub embed_subtitles: bool,
+    pub write_chapters: bool,
+    pub embed_chapters: bool,
+}
+
+impl CompletedSelection {
+    pub fn from_selection(selection: &DownloadSelection) -> Self {
+        Self {
+            video_selector: selection.video_selector.clone(),
+            audio_selector: selection.audio_selector.clone(),
+            subtitle_selector: selection.subtitle_selector.clone(),
+            file_name: selection.file_name.clone(),
+            download_sections: selection.download_sections.clone(),
+            write_thumbnail: selection.write_thumbnail,
+            embed_thumbnail: selection.embed_thumbnail,
+            write_subtitles: selection.write_subtitles,
+            embed_subtitles: selection.embed_subtitles,
+            write_chapters: selection.write_chapters,
+            embed_chapters: selection.embed_chapters,
+        }
+    }
+}
+
+impl Default for DownloadSelection {
+    fn default() -> Self {
+        Self {
+            quality: QualityPreset::Best,
+            video_selector: String::new(),
+            audio_selector: String::new(),
+            subtitle_selector: String::new(),
+            subtitle_source: SubtitleSource::None,
+            write_thumbnail: false,
+            embed_thumbnail: false,
+            write_subtitles: false,
+            embed_subtitles: false,
+            write_chapters: false,
+            embed_chapters: false,
+            use_cookies: false,
+            use_aria2: false,
+            output_dir: "Desktop".to_owned(),
+            file_name: String::new(),
+            download_sections: String::new(),
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ItemProgress {
+    pub video: f32,
+    pub audio: f32,
+    pub subtitle: f32,
+}
+
+#[derive(Clone)]
+pub struct WorkflowRun {
+    pub id: WorkflowRunId,
+    pub kind: WorkflowKind,
+    pub tool: ToolKind,
+    pub state: WorkflowState,
+    pub progress: f32,
+    pub detail: String,
+    pub output_path: Option<String>,
+    pub error: Option<String>,
+}
+
+impl WorkflowRun {
+    pub fn new(
+        id: WorkflowRunId,
+        kind: WorkflowKind,
+        tool: ToolKind,
+        state: WorkflowState,
+    ) -> Self {
+        Self {
+            id,
+            kind,
+            tool,
+            state,
+            progress: 0.0,
+            detail: String::new(),
+            output_path: None,
+            error: None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WorkflowKind {
+    AnalyzeMetadata,
+    DownloadMedia,
+    ExportMedia,
+    PostProcess,
+    Other,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ToolKind {
+    YtDlp,
+    Ffmpeg,
+    Aria2c,
+    Other(String),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WorkflowState {
+    Queued,
+    Running,
+    Finished,
+    Failed,
+    Cancelled,
+}

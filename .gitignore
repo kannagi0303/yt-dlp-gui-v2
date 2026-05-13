@@ -1,0 +1,27 @@
+# Rust build output.
+/target/
+
+# Local machine-first notes.
+/notes/
+/AGENTS.md
+
+# Local runtime data.
+/.codex-yt-dlp-temp/
+/cache/
+/download/
+
+# Local app config.
+/yt-dlp-gui.yaml
+
+# Local bundled tools and generated tool dumps.
+/tools/
+
+# Local build artifacts at repo root.
+/yt-dlp-gui.exe
+/*.pdb
+/*.zip
+
+# Common temporary files.
+*.tmp
+*.log
+.DS_Store

@@ -1,0 +1,568 @@
+pub fn text<'a>(key: &'a str) -> &'a str {
+    match key {
+        "tab.prepare" => "準備",
+        "tab.main" => "主頁",
+        "tab.advanced" => "進階",
+        "tab.options" => "選項",
+        "main.url_hint" => "貼上網址",
+        "action.download" => "下載",
+        "action.add" => "＋ 新增",
+        "action.stop" => "停止",
+        "action.stopping" => "停止中",
+        "action.cut" => "剪下",
+        "action.copy" => "複製",
+        "action.paste" => "貼上",
+        "action.clear" => "清除",
+        "item.thumbnail" => "縮圖",
+        "item.thumbnail_preview" => "縮圖預覽",
+        "notification.download_finished" => "下載完成",
+        "notification.download_failed" => "下載失敗",
+        "notification.download_finished_detail_prefix" => "已完成：",
+        "notification.download_finished_detail" => "下載已完成。",
+        "notification.windows_toast_windows_only" => "Windows Toast 只支援 Windows。",
+        "media.video" => "影片",
+        "media.audio" => "音訊",
+        "media.subtitle" => "字幕",
+        "media.section" => "範圍",
+        "item.file_name" => "檔名",
+        "main.target_folder" => "目標資料夾",
+        "picker.title.video" => "選擇影片格式",
+        "picker.title.audio" => "選擇音訊格式",
+        "picker.title.subtitle" => "選擇字幕",
+        "picker.title.section" => "選擇範圍",
+        "action.back" => "返回",
+        "picker.mode.filter" => "篩選式",
+        "picker.mode.table" => "列表式",
+        "action.confirm" => "確認",
+        "picker.empty_table" => "沒有可顯示的格式項目",
+        "picker.header.resolution" => "解析度",
+        "picker.header.range" => "範圍",
+        "picker.header.fps" => "FPS",
+        "picker.header.format" => "格式",
+        "picker.header.codec" => "編碼",
+        "picker.header.size" => "大小",
+        "picker.header.sample_rate" => "取樣率",
+        "picker.filter.resolution" => "解析度",
+        "picker.filter.range" => "範圍",
+        "picker.filter.fps" => "FPS",
+        "picker.filter.codec" => "編碼",
+        "picker.filter.sample_rate" => "取樣率",
+        "main.tooltip.missing_yt_dlp" => "缺少 yt-dlp，請至「選項」中安裝或指定 yt-dlp.exe。",
+        "advance.source" => "來源",
+        "advance.config" => "設定檔",
+        "advance.none" => "無",
+        "advance.network_access" => "網路與存取",
+        "advance.proxy" => "代理",
+        "advance.enable_proxy" => "啟用代理",
+        "advance.certificate" => "憑證",
+        "advance.skip_certificate_verification" => "略過憑證驗證",
+        "advance.use_cookies" => "使用 Cookie",
+        "advance.enable_cookies" => "啟用 Cookie",
+        "advance.cookie_source" => "Cookie 來源",
+        "advance.cookie_file" => "Cookie 檔案",
+        "advance.no_cookies_txt_selected" => "尚未選擇 cookies.txt",
+        "advance.browse" => "選檔",
+        "advance.select_netscape_cookies_txt" => "選擇 Netscape cookies.txt",
+        "advance.clear" => "清除",
+        "advance.browser" => "瀏覽器",
+        "advance.default" => "預設",
+        "advance.external_downloader" => "外部下載器",
+        "advance.use_aria2_for_faster_downloads" => "使用 Aria2 加速下載",
+        "advance.download_control" => "下載控制",
+        "advance.concurrent_fragments" => "並行分片",
+        "advance.1_default" => "1（預設）",
+        "advance.rate_limit" => "限速",
+        "advance.e_g_2m_800k_leave_empty_for_unlimited" => "例如 2M、800K，留空不限速",
+        "advance.chapters" => "章節",
+        "advance.chapter_download_compatibility_mode" => "章節下載相容模式",
+        "advance.file_time" => "檔案時間",
+        "advance.post_processing" => "後處理",
+        "advance.thumbnail" => "縮圖",
+        "advance.download" => "下載",
+        "advance.embed" => "嵌入",
+        "advance.subtitles" => "字幕",
+        "item.stop_download" => "停止下載",
+        "item.remove" => "刪除",
+        "item.save_as" => "另存新檔",
+        "item.error" => "錯誤",
+        "item.all" => "全部",
+        "item.queued" => "隊列",
+        "item.done" => "完成",
+        "item.failed" => "失敗",
+        "item.clear_all" => "清除全部",
+        "item.add_a_video_url" => "請新增影片網址",
+        "item.after_adding_choose_the_video_format_here" => "新增後可在這裡選擇影片格式。",
+        "item.after_adding_choose_the_audio_format_here" => "新增後可在這裡選擇音訊格式。",
+        "item.loading_thumbnail" => "縮圖載入中",
+        "item.file_actions" => "檔案操作",
+        "item.open_file" => "開啟檔案",
+        "item.open_folder" => "開啟所在資料夾",
+        "item.copy_path" => "複製路徑",
+        "item.opened_output_file" => "已開啟輸出檔案。",
+        "item.file_not_found_opened_the_output_location" => "檔案不存在，已開啟輸出位置。",
+        "item.opened_output_location" => "已開啟輸出位置。",
+        "item.copied_output_path" => "已複製輸出路徑。",
+        "item.file_actions_are_available_after_download_co" => "下載完成後可使用檔案操作",
+        "prepare.language" => "語言",
+        "prepare.back" => "返回",
+        "prepare.choose" => "選擇",
+        "prepare.auto_detect" => "自動偵測",
+        "prepare.install_the_required_tools_now_or_skip_and_h" => {
+            "安裝需要的工具，也可以略過後到選項處理。"
+        }
+        "prepare.required" => "必須",
+        "prepare.recommended" => "建議",
+        "prepare.optional" => "可選",
+        "prepare.missing" => "未安裝",
+        "prepare.install_later" => "需要時再安裝",
+        "prepare.downloading_100" => "下載中 100%",
+        "prepare.extracting_100" => "解壓中 100%",
+        "prepare.install_failed" => "安裝失敗",
+        "prepare.install_all" => "全部安裝",
+        "prepare.reinstall" => "重新安裝",
+        "prepare.installing" => "安裝中",
+        "prepare.skip" => "略過",
+        "prepare.install" => "安裝",
+        "prepare.another_tool_is_already_being_installed" => "已有其他工具正在安裝。",
+        "prepare.needs_attention" => "需要處理",
+        "options.this_url_contains_both_a_video_and_a_playlis" => "這個網址同時包含影片與播放清單",
+        "options.detected" => "偵測到 ",
+        "options.playlist_prompt" => "清單提示",
+        "options.which_one_should_be_loaded" => "要載入哪個？",
+        "options.both_video_and_playlist_were_detected" => "同時包含影片與清單",
+        "options.this_playlist_may_contain_many_items" => "這個清單可能包含很多項目。",
+        "options.video" => "影片",
+        "options.playlist" => "清單",
+        "options.cancel" => "取消",
+        "options.load" => "載入",
+        "options.behavior" => "行為",
+        "options.add_action" => "新增動作",
+        "options.download_directly" => "直接下載",
+        "options.clipboard_change" => "剪貼簿變更",
+        "options.run_immediately" => "立刻執行",
+        "options.playlist_2" => "播放清單",
+        "options.with_playlist" => "含播放清單",
+        "options.ask" => "詢問",
+        "options.single_video" => "單支影片",
+        "options.full_playlist" => "整份清單",
+        "options.high_risk_prompt" => "高風險提示",
+        "options.on" => "開啟",
+        "options.playlist_count" => "清單數量",
+        "options.limit" => "限制",
+        "options.max" => "最多:",
+        "options.items" => " 筆",
+        "options.language" => "語言",
+        "options.current_language" => "目前語言",
+        "options.back" => "返回",
+        "options.choose" => "選擇",
+        "options.auto_detect" => "自動偵測",
+        "options.tool_paths" => "工具路徑",
+        "options.file_actions" => "檔案操作",
+        "options.action_button" => "操作按鈕",
+        "options.cache" => "快取",
+        "options.cache_location" => "快取位置",
+        "options.appearance_window" => "外觀與視窗",
+        "options.notifications" => "通知",
+        "options.enable" => "啟用",
+        "options.ui_scale" => "介面縮放",
+        "options.apply" => "套用",
+        "options.current" => "目前",
+        "options.always_on_top" => "永遠置頂",
+        "options.window_position" => "視窗位置",
+        "options.remember" => "記住",
+        "options.window_size" => "視窗大小",
+        "options.reinstall" => "重新安裝",
+        "options.installing" => "安裝中",
+        "options.browse" => "選檔",
+        "options.install" => "安裝",
+        "options.file_not_found" => "檔案不存在：",
+        "options.will_install_to" => "將安裝到：",
+        "options.another_tool_is_being_installed_please_wait" => {
+            "已有其他工具正在安裝。請等目前作業結束。"
+        }
+        "options.install_to" => "安裝到：",
+        "options.executable" => "執行檔",
+        "main.clipboard_monitor_on_the_next_youtube_url_ch" => {
+            "剪貼簿監控：開啟。下一次 YouTube 網址變更後會立刻執行新增。"
+        }
+        "main.clipboard_monitor_on_the_next_youtube_url_ch_2" => {
+            "剪貼簿監控：開啟。下一次 YouTube 網址變更後會填入網址列。"
+        }
+        "main.clipboard_monitor_off_turning_it_on_only_mem" => {
+            "剪貼簿監控：關閉。按下後只會記住目前剪貼簿，下一次變更才會動作。"
+        }
+        "main.controlled_by_config" => "由設定檔控制：",
+        "main.controlled_by_config_2" => "由設定檔控制",
+        "main.actual_path" => "實際路徑：",
+        "picker.no_chapters_available" => "沒有可選擇的章節。",
+        "picker.choose_the_range_to_download_for_this_item_d" => {
+            "選擇這個項目要下載的範圍。預設為完整影片。"
+        }
+        "picker.chapter_compatibility_mode_is_on_chapter_dow" => {
+            "章節下載相容模式已開啟：選擇章節時會自動使用較穩定的單檔格式。"
+        }
+        "picker.subtitles_will_not_be_downloaded" => "將不下載字幕。",
+        "picker.no_subtitles_are_available_for_this_video" => "這個影片沒有可用字幕。",
+        "picker.no_subtitles_are_available_in_this_tab" => "這個分頁沒有可用字幕。",
+        "picker.source_language" => "來源語言",
+        "picker.translation_target" => "翻譯目標",
+        "picker.tip_youtube_auto_translated_subtitles_are_mo" => {
+            "提示：YouTube 自動翻譯字幕比原始字幕更容易被限流；只要原文時請選「無翻譯」。"
+        }
+        "picker.no_subtitles_are_available_for_this_source" => "這個來源沒有可用字幕。",
+        "picker.target" => "目標",
+        "picker.available_subtitles" => "可用字幕",
+        "picker.language" => "語言",
+        "picker.subtitle_tab.none" => "無字幕",
+        "picker.subtitle_tab.original" => "原始字幕",
+        "picker.subtitle_tab.automatic" => "自動字幕",
+        "config.youtube_playlist_mode.ask" => "詢問",
+        "config.youtube_playlist_mode.video" => "影片",
+        "config.youtube_playlist_mode.ignore" => "忽略",
+        "config.output_action.menu" => "跳出選單",
+        "config.output_action.open_folder" => "開啟所在資料夾",
+        "config.output_action.open_file" => "開啟檔案",
+        "tools.file_time.none" => "不處理",
+        "tools.file_time.use_upload_date" => "使用影片發布時間",
+        "tools.file_time.use_download_time" => "使用下載時間",
+        "tools.file_time.none_hint" => "不傳入 --mtime / --no-mtime，也不修改最終檔案時間。",
+        "tools.file_time.use_upload_date_hint" => {
+            "yt-dlp 回報最終檔案路徑後，將檔案修改時間設為影片發布日期。"
+        }
+        "tools.file_time.use_download_time_hint" => "--no-mtime",
+        "tools.cache_mode.default" => "預設",
+        "tools.cache_mode.v2_cache" => "yt-dlp-gui",
+        "tools.cache_mode.windows_temp" => "Windows",
+        "tools.subtitle_source.none" => "無字幕",
+        "tools.subtitle_source.original" => "原始字幕",
+        "tools.subtitle_source.automatic" => "自動字幕",
+        "tools.quality.best" => "最佳",
+        "tools.quality.audio_only" => "僅音訊",
+        "tools.youtube_playlist.channel_generated" => "YouTube 產生的頻道清單",
+        "tools.youtube_playlist.mix_radio" => "YouTube Mix / Radio",
+        "tools.youtube_playlist.music_album" => "YouTube Music 專輯/合輯",
+        "tools.youtube_playlist.liked_videos" => "喜歡的影片",
+        "tools.youtube_playlist.favorites_legacy" => "舊版收藏清單",
+        "prepare.severity.required" => "必要項目",
+        "prepare.severity.recommended" => "建議項目",
+        "prepare.severity.optional" => "可選項目",
+        "prepare.status.ready" => "已就緒",
+        "prepare.status.missing" => "未安裝",
+        "prepare.status.warning" => "需注意",
+        "prepare.status.failed" => "失敗",
+        "tool_install.stage.preparing" => "準備中",
+        "tool_install.stage.downloading" => "下載中",
+        "tool_install.stage.extracting" => "解壓中",
+        "tool_install.stage.installing" => "安裝中",
+        "tool_install.stage.completed" => "已完成",
+        "tool_install.stage.failed" => "失敗",
+        "domain.media.video" => "video",
+        "domain.media.audio" => "audio",
+        "domain.media.muxed" => "muxed",
+        "domain.media.subtitle" => "subtitle",
+        "domain.media.other" => "other",
+        "domain.quality.best" => "最佳",
+        "domain.quality.audio_only" => "僅音訊",
+        "prepare.severity.short.required" => "必須",
+        "prepare.severity.short.recommended" => "建議",
+        "prepare.severity.short.optional" => "可選",
+        "item.status.idle" => "未開始",
+        "item.status.queued" => "待下載",
+        "item.status.running" => "下載中",
+        "item.status.finished" => "完成",
+        "item.status.failed" => "下載失敗",
+        "item.status.cancelled" => "已取消",
+        "item.status.waiting_analysis" => "等待分析",
+        "item.status.analyzing" => "分析中",
+        "item.status.analysis_failed" => "分析失敗",
+        "picker.waiting_analysis" => "等待分析",
+        "picker.audio_from_video" => "由 Video 格式決定",
+        "picker.not_selected" => "未選擇",
+        "picker.full_video" => "完整影片",
+        "picker.no_translation" => "無翻譯",
+        "picker.until_end" => "結尾",
+        "state.clipboard_detected_url" => "Detected a YouTube URL from the clipboard.",
+        "state.no_url_to_analyze" => "There is no URL to analyze.",
+        "state.analyzing_source" => "Analyzing: {source}",
+        "state.batch_add_running" => "Batch add is still running.",
+        "state.no_url_to_add" => "There is no URL to add.",
+        "state.video_url_contains_playlist" => {
+            "Detected a video URL that also contains a playlist."
+        }
+        "state.detected_high_risk_playlist" => "Detected high-risk YouTube playlist: {kind}",
+        "state.no_url_to_download_now" => "There is no URL to download immediately.",
+        "state.download_now_single_video_only" => {
+            "Download now currently only handles one video URL."
+        }
+        "state.added_ready_download_now" => "Added and ready to download now: {title}",
+        "state.current_action_cancelled" => "Current action cancelled.",
+        "state.stopping_batch_add" => "Stopping batch add...",
+        "state.retrying_analysis_cookie" => "Retrying analysis with cookies: {source}",
+        "state.batch_no_new_items" => "No new items were found in the batch.",
+        "state.playlist_added_limited" => {
+            "Added {count} batch items from the playlist (limit applied)."
+        }
+        "state.batch_added_title" => "Added to batch: {title}",
+        "state.playlist_added" => "Added {count} batch items from the playlist.",
+        "state.batch_add_cancelled" => "Batch add cancelled.",
+        "state.batch_add_cancelled_with_count" => "Batch add cancelled; {count} items were added.",
+        "state.batch_add_interrupted" => "Batch add was interrupted.",
+        "state.deployment_complete" => "Deployment complete",
+        "state.tool_deployed" => "{tool} downloaded and deployed.",
+        "state.tool_deploy_failed" => "{tool} deployment failed: {error}",
+        "state.download_item_fallback" => "Download item",
+        "state.download_stopped" => "Download stopped.",
+        "state.no_url_to_add_batch" => "There is no URL to add to the batch.",
+        "state.batch_input_added" => "Added {count} queued items from batch input.",
+        "state.no_url_to_download" => "There is no URL to download.",
+        "state.download_already_running" => {
+            "A download is already running. Please wait for it to finish."
+        }
+        "state.no_runnable_batch_items" => "There are no runnable batch items.",
+        "state.no_download_to_stop" => "There is no download to stop.",
+        "state.stopping_download" => "Stopping download...",
+        "state.target_download_not_found" => "Target download item was not found.",
+        "state.analyze_before_download" => "Analyze the video before starting download.",
+        "state.downloading_title" => "Downloading: {title}",
+        "state.downloading_title_aria2_fallback" => {
+            "Downloading: {title} (Aria2 not found; using yt-dlp native download)"
+        }
+        "state.target_export_not_found" => "Target export item was not found.",
+        "state.cannot_export_item" => "This item cannot be exported right now.",
+        "state.analyze_before_export" => "Analyze the video before exporting.",
+        "state.choose_subtitles_before_export" => "Choose subtitles before exporting.",
+        "state.specify_file_extension" => "Specify a file extension.",
+        "state.exporting_video" => "Exporting video: {title}",
+        "state.exporting_audio" => "Exporting audio: {title}",
+        "state.exporting_subtitles" => "Exporting subtitles: {title}",
+        "state.cleared_queue" => "Queue cleared.",
+        "state.cannot_remove_running_item" => "Running items cannot be removed.",
+        "state.removed_item" => "Removed: {title}",
+        "state.controlled_by_config" => "Controlled by config",
+        "state.install_blocked_by_prepare" => "Handle {items} before installing dependency tools.",
+        "state.tool_deployment_running" => "{tool} deployment is still running.",
+        "state.no_tools_to_install" => "There are no tools to install.",
+        "state.no_selected_tools_to_install" => "There are no selected deployable items.",
+        "state.prepare_skipped" => {
+            "Prepare page skipped. You can handle dependency deployment later in Options."
+        }
+        "state.skip_failed" => "Skip failed: {error}",
+        "state.preparing_deployment" => "Preparing deployment",
+        "state.tool_downloading_deploying" => "{tool} downloading and deploying...",
+        "state.found" => "Found",
+        "state.not_found" => "Not found",
+        "state.clipboard_monitor_enabled_auto_add" => {
+            "Clipboard monitor enabled; the next YouTube URL change will be added immediately."
+        }
+        "state.clipboard_monitor_enabled_fill" => {
+            "Clipboard monitor enabled; the next YouTube URL change will fill the URL field."
+        }
+        "state.clipboard_monitor_disabled" => "Clipboard monitor disabled.",
+        "state.clipboard_will_auto_add" => {
+            "YouTube URLs will be added immediately after the clipboard changes."
+        }
+        "state.clipboard_will_fill_only" => "Clipboard changes will only fill the URL field.",
+        "state.adding_source" => "Adding: {source}",
+        "state.added_to_list" => "Added to list: {title}",
+        "state.range_set_item_full" => "Download range set: Item {index} / Full video",
+        "state.range_set_item_value" => "Download range set: Item {index} / {value}",
+        "state.format_selection_updated" => {
+            "Format selection updated: Item {index} / {kind} / {value}"
+        }
+        "state.range_set_title_full" => "Download range set: {title} / Full video",
+        "state.range_set_title_value" => "Download range set: {title} / {value}",
+        "state.playlist_ignored_for_now" => "Playlist is ignored for now: {target}",
+        "state.untitled_video" => "Untitled video",
+        "state.analysis_complete" => "Analysis complete: {title}",
+        "state.video_extension_error" => "Video export only supports mkv / mp4 / webm / mov / flv.",
+        "state.audio_extension_error" => {
+            "Audio export only supports opus / aac / m4a / mp3 / vorbis / alac / flac / wav."
+        }
+        "state.subtitle_extension_error" => {
+            "Subtitle extension must be srt, vtt, ass, ssa, lrc, ttml, dfxp, json3, srv3, srv2, or srv1."
+        }
+        "state.action_aria2_fallback" => "{action} (Aria2 not found; using yt-dlp native download)",
+        "state.cache_yt_dlp_default" => "yt-dlp default",
+        "playlist.note.mix_radio" => {
+            "This Mix / Radio playlist may contain many items and can change over time."
+        }
+        "playlist.note.channel_generated" => {
+            "Treat this YouTube-generated channel playlist conservatively."
+        }
+        "playlist.note.liked_videos" => "Liked videos usually require login or cookies.",
+        "playlist.note.favorites_legacy" => {
+            "This is a legacy favorites playlist style and may not be stable now."
+        }
+        "playlist.note.music_album" => "This is usually a YouTube Music album or collection.",
+        "prepare.tool.ytdlp.description" => "Core video analysis and downloading.",
+        "prepare.tool.deno.description" => "Improves YouTube analysis stability.",
+        "prepare.tool.ffmpeg.description" => {
+            "Merges video/audio, converts formats, and handles thumbnails/subtitles."
+        }
+        "prepare.req.app_root.title" => "App folder",
+        "prepare.req.app_root.description" => {
+            "The portable folder must be writable for settings and support folders."
+        }
+        "prepare.req.tools_dir.title" => "tools folder",
+        "prepare.req.tools_dir.description" => {
+            "Dependency deployment stores yt-dlp, FFmpeg, and Deno here."
+        }
+        "prepare.req.tool_install_cache.title" => "Deployment temp",
+        "prepare.req.tool_install_cache.description" => {
+            "FFmpeg and Deno extraction uses this temp folder."
+        }
+        "prepare.req.cache.title" => "Download cache",
+        "prepare.req.cache.description" => "yt-dlp-gui cache mode stores yt-dlp cache here.",
+        "prepare.req.output.title" => "Output folder",
+        "prepare.req.output.description" => "Videos, audio, and subtitles are saved here.",
+        "prepare.req.output.recommendation" => "Choose a valid output folder from Main or Options.",
+        "prepare.req.config.title" => "Config file",
+        "prepare.req.config.description" => {
+            "The app must be able to save prepare-page skip and tool path settings."
+        }
+        "prepare.req.move_to_writable" => "Move the app to a writable portable folder.",
+        "prepare.req.move_to_writable_example" => {
+            "Move the app to a writable portable folder, for example D:\\Portable\\yt-dlp-gui-v2."
+        }
+        "prepare.req.generic_writable_recommendation" => {
+            "If deployment or config saving fails later, move the app to a writable non-synced portable folder."
+        }
+        "prepare.req.use_folder_path" => "Use a folder path instead.",
+        "prepare.req.path_not_folder" => "{path} is not a folder",
+        "prepare.req.config_not_folder" => "Make sure the config path is not a folder.",
+        "prepare.req.config_readonly" => "Config file is read-only",
+        "prepare.req.config_readonly_recommendation" => {
+            "Clear the config file read-only attribute, or move it to a writable portable folder."
+        }
+        "prepare.req.clear_write_test" => {
+            "Retry later, or remove the leftover .yt-dlp-gui-write-test file in the folder."
+        }
+        "runtime.download_cancelled" => "下載已取消。",
+        "runtime.yt_dlp_not_found" => {
+            "找不到 yt-dlp：{path}。請先安裝 yt-dlp，或到選項處理工具部署。"
+        }
+        "runtime.cookie_file_source_missing" => {
+            "已啟用 Cookie，且來源是檔案，但尚未選擇有效的 Netscape cookies.txt。"
+        }
+        "runtime.cookie_source_missing" => "已啟用 Cookie，但尚未選擇瀏覽器或 cookies.txt 來源。",
+        "runtime.cookie_file_not_found" => {
+            "找不到 Cookie 檔案：{path}。請重新選擇 Netscape cookies.txt，或把 Cookie 來源改回瀏覽器。"
+        }
+        "runtime.download_folder_empty" => "下載資料夾不能空白。",
+        "runtime.could_not_start_yt_dlp" => "無法啟動 yt-dlp：{error}",
+        "runtime.yt_dlp_analysis_failed" => "yt-dlp 分析失敗：{error}",
+        "runtime.could_not_parse_yt_dlp_json" => "無法解析 yt-dlp JSON：{error}",
+        "runtime.yt_dlp_download_failed" => "yt-dlp 下載失敗：{error}",
+        "runtime.could_not_wait_yt_dlp" => "等待 yt-dlp 結束時失敗：{error}",
+        "runtime.could_not_wait_yt_dlp_missing" => "等待 yt-dlp 結束時失敗：子程序不存在",
+        "runtime.could_not_determine_subtitle_output" => "無法判斷字幕輸出檔名：{error}",
+        "runtime.converted_subtitle_missing" => "yt-dlp 已結束，但找不到轉換後的字幕檔：{error}",
+        "runtime.could_not_overwrite_subtitle" => "無法覆寫既有字幕檔：{error}",
+        "runtime.could_not_copy_subtitle" => "無法把字幕檔複製到目標位置：{error}",
+        "runtime.could_not_remove_temp_subtitle" => "無法移除暫存字幕檔：{error}",
+        "runtime.could_not_create_download_folder" => "無法建立下載資料夾：{error}",
+        "runtime.file_does_not_exist" => "檔案不存在：{error}",
+        "runtime.file_location_does_not_exist" => "檔案位置不存在：{error}",
+        "runtime.could_not_open_file" => "無法開啟檔案：{error}",
+        "runtime.could_not_open_containing_folder" => "無法開啟所在資料夾：{error}",
+        "runtime.could_not_open_folder" => "無法開啟資料夾：{error}",
+        "runtime.thumbnail_empty_url" => "縮圖載入失敗：URL 空白",
+        "runtime.thumbnail_no_data" => "縮圖載入失敗：沒有收到資料",
+        "runtime.thumbnail_too_large" => "縮圖載入失敗：圖片過大",
+        "runtime.thumbnail_decode_failed" => "縮圖解碼失敗：{error}",
+        "runtime.invalid_thumbnail_proxy" => "縮圖代理設定無效：{error}",
+        "runtime.thumbnail_http" => "縮圖載入失敗：HTTP {error}",
+        "runtime.thumbnail_load_failed" => "縮圖載入失敗：{error}",
+        "runtime.config_create_folder" => "無法建立設定資料夾：{error}",
+        "runtime.config_serialize" => "無法序列化設定檔：{error}",
+        "runtime.config_write" => "無法寫入設定檔：{error}",
+        "runtime.toast_create_notifier" => "無法建立 Windows Toast 通知器：{error}",
+        "runtime.toast_create_content" => "無法建立 Windows Toast 內容：{error}",
+        "runtime.toast_send" => "無法送出 Windows Toast：{error}",
+        "runtime.toast_create_registration" => "無法建立 Windows Toast 註冊資料：{error}",
+        "runtime.toast_register_aumid" => "無法註冊 Windows Toast AUMID：{error}",
+        "runtime.dependency_windows_only" => "工具部署目前只支援 Windows。",
+        "runtime.could_not_create_tools_folder" => "無法建立工具資料夾 {path}：{error}",
+        "runtime.install_finished_missing" => "{tool} 安裝已完成，但找不到 {path}。",
+        "runtime.could_not_start_powershell" => "無法啟動 PowerShell：{error}",
+        "runtime.could_not_read_powershell_stdout" => "無法讀取 PowerShell stdout。",
+        "runtime.could_not_read_powershell_stderr" => "無法讀取 PowerShell stderr。",
+        "runtime.could_not_read_powershell_output" => "無法讀取 PowerShell 輸出：{error}",
+        "runtime.could_not_wait_powershell" => "等待 PowerShell 結束時失敗：{error}",
+        "runtime.powershell_failed_exit" => "PowerShell 失敗：exit code {error}",
+        "runtime.could_not_read_playlist_output" => "無法讀取 yt-dlp 播放清單輸出：{error}",
+        "runtime.batch_import_failed" => "yt-dlp 批次匯入失敗：{error}",
+        "runtime.current_path" => "目前路徑：{path}",
+        "runtime.default_path" => "預設路徑：{path}",
+        "runtime.not_found_path" => "找不到：{path}",
+        "runtime.can_install_to" => "可安裝到 {path}。",
+        "runtime.can_save_path" => "可儲存：{path}",
+        "runtime.system_check" => "系統檢查：{detail}",
+        "runtime.save_test" => "儲存測試：{detail}",
+        "runtime.write_test" => "寫入測試：{detail}",
+        "runtime.path_is_folder" => "{path} 是資料夾",
+        "runtime.path_is_not_folder" => "{path} 不是資料夾",
+        "runtime.writable_path" => "可寫入：{path}",
+        "runtime.missing_parent_directory" => "上層資料夾不存在",
+        "runtime.could_not_create_config_folder" => "無法建立設定資料夾",
+        "runtime.could_not_read_config_file_status" => "無法讀取設定檔狀態",
+        "runtime.could_not_open_config_file_for_writing" => "無法開啟設定檔以寫入",
+        "runtime.could_not_create_folder" => "無法建立資料夾",
+        "runtime.could_not_create_rename_delete_test_file" => "無法建立、重新命名或刪除測試檔",
+        "runtime.reason_path_inaccessible" => "路徑不存在，或上層路徑無法存取",
+        "runtime.recommend_parent_exists" => "請確認磁碟與上層資料夾存在。",
+        "runtime.reason_permission_denied_windows" => "權限被拒，或被 Windows 安全性設定阻擋",
+        "runtime.recommend_move_portable_defender" => {
+            "請把程式移到可寫入的可攜資料夾；如果桌面、文件、下載仍失敗，可能是 Defender 受控資料夾存取阻擋。"
+        }
+        "runtime.reason_in_use" => "檔案或資料夾正被其他程式使用",
+        "runtime.recommend_close_program" => "請關閉可能正在使用此資料夾的程式，或選擇其他資料夾。",
+        "runtime.reason_name_conflict" => "測試檔已存在或名稱衝突",
+        "runtime.reason_disk_space" => "磁碟空間不足",
+        "runtime.recommend_free_space" => "請釋放磁碟空間，或選擇其他磁碟。",
+        "runtime.reason_path_too_long" => "路徑太長",
+        "runtime.recommend_shorter_path" => {
+            "請把程式移到較短路徑，例如 D:\\Portable\\yt-dlp-gui-v2。"
+        }
+        "runtime.reason_windows_error_code" => "Windows 錯誤碼 {code}",
+        "runtime.recommend_writable_portable_folder" => {
+            "請選擇明確可寫入的可攜資料夾，然後再檢查一次。"
+        }
+        "runtime.reason_permission_denied" => "權限被拒，或被安全性設定阻擋",
+        "runtime.reason_path_not_exist" => "路徑不存在",
+        "runtime.reason_file_already_exists" => "檔案已存在",
+        "runtime.reason_write_failed" => "寫入失敗",
+        "runtime.recommend_not_system_folder" => {
+            "不要把可攜版程式放在 Program Files 或 Windows 目錄下；請移到 D:\\Portable 或使用者資料夾。"
+        }
+        "runtime.recommend_non_synced_folder" => {
+            "請移到非同步資料夾，例如 D:\\Portable\\yt-dlp-gui-v2。"
+        }
+        "runtime.could_not_read_playlist_output_empty" => "無法讀取 yt-dlp 播放清單輸出。",
+        "runtime.chromium_cookie_locked" => {
+            "無法直接讀取 Chromium/Chrome Cookie 資料庫。通常是瀏覽器鎖住 Network\\Cookies 資料庫，不是勾選狀態錯誤。請關閉瀏覽器後重試，或在進階中把 Cookie 來源改成使用檔案（cookies.txt）。原始訊息：{error}"
+        }
+        "advance.cookie_source_file" => "使用檔案（cookies.txt）",
+        "advance.filter_netscape_cookies_txt" => "Netscape cookies.txt",
+        "advance.filter_all_files" => "所有檔案",
+        "state.untitled_task" => "未命名任務",
+        "state.imported_source" => "已匯入 {tail}",
+        "state.chapter_fallback" => "章節 {index}",
+        "runtime.config_path_unresolved" => "無法解析設定檔路徑",
+        "runtime.folder_readonly" => "資料夾標記為唯讀",
+        "runtime.network_path_warning" => "位於網路路徑，權限或檔案鎖定可能造成影響",
+        "runtime.protected_directory_warning" => "位於 Windows 受保護目錄",
+        "runtime.onedrive_warning" => "位於 OneDrive 同步路徑，可能發生同步鎖定或安全性阻擋",
+        "runtime.youtube_auto_translated_subtitle_429" => {
+            "YouTube 暫時拒絕自動翻譯字幕請求（HTTP 429 Too Many Requests）。這是 YouTube timedtext 自動翻譯的速率限制。GUI 會保留原生 yt-dlp 流程與診斷輸出，不改用自訂下載器。可嘗試為此項目啟用 Cookie/cookies.txt，或改選原始自動字幕／原始字幕後重試。原始訊息：{error}"
+        }
+        "runtime.youtube_subtitle_429_conversion" => {
+            "YouTube 暫時拒絕字幕請求（HTTP 429 Too Many Requests）。來源字幕檔未下載，因此不會進行 SRT 轉換。請稍後重試，或在匯出前啟用瀏覽器 Cookie。原始訊息：{error}"
+        }
+        "runtime.youtube_subtitle_429_analysis" => {
+            "YouTube 拒絕字幕請求（HTTP 429 Too Many Requests）。這通常發生在 YouTube 自動翻譯 timedtext 端點。cookies.txt 可提供登入狀態，但不一定能滿足該端點的 PO Token／速率限制需求。GUI 會保留原生 yt-dlp 流程與診斷記錄，不改用自訂下載器。原始訊息：{error}"
+        }
+        "options.filter_executable" => "可執行檔",
+        _ => super::en_us::text(key),
+    }
+}
