@@ -59,6 +59,15 @@ pub(super) enum QueueSummaryBucket {
 }
 
 pub(super) fn item_summary_bucket(item: &QueueItem) -> QueueSummaryBucket {
+    if item.workflows.iter().any(|run| {
+        matches!(
+            run.kind,
+            WorkflowKind::DownloadMedia | WorkflowKind::ExportMedia | WorkflowKind::PostProcess
+        ) && matches!(run.state, WorkflowState::Queued | WorkflowState::Running)
+    }) {
+        return QueueSummaryBucket::Queued;
+    }
+
     match item_latest_download_state(item) {
         Some(WorkflowState::Failed) => return QueueSummaryBucket::Failed,
         Some(WorkflowState::Finished) if item.last_error.is_none() => {

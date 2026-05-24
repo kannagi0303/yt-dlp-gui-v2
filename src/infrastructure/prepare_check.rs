@@ -5,7 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::config::runtime_config_file_path;
 use super::tool_install::{
-    DependencyTool, dependency_tool_exists, portable_root_dir, resolve_support_path,
+    DependencyTool, dependency_tool_exists, dependency_tool_is_available, ffprobe_companion_path,
+    portable_root_dir, resolve_support_path,
 };
 use super::tools::{CacheLocationMode, ToolPaths, resolve_output_dir};
 
@@ -217,10 +218,21 @@ fn push_tool_requirement(
     description: &str,
     default_selected: bool,
 ) {
-    let installed = dependency_tool_exists(configured_path);
-    let resolved = resolve_support_path(configured_path);
+    let installed = dependency_tool_is_available(tool, configured_path);
+    let resolved = if configured_path.trim().is_empty() {
+        resolve_support_path(tool.default_portable_path())
+    } else {
+        resolve_support_path(configured_path)
+    };
     let detail = if installed {
         format!("Current path: {}", resolved.display())
+    } else if tool == DependencyTool::Ffmpeg && dependency_tool_exists(configured_path) {
+        let ffprobe = ffprobe_companion_path(configured_path);
+        format!(
+            "ffmpeg found: {}; ffprobe missing: {}",
+            resolved.display(),
+            ffprobe.display()
+        )
     } else if configured_path.trim().is_empty() {
         format!("Default path: {}", tool.default_portable_path())
     } else {

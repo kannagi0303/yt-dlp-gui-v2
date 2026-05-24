@@ -463,6 +463,9 @@ fn localize_runtime_exact(language: Language, value: &str) -> Option<String> {
             "runtime.cookie_source_missing"
         }
         "Download folder cannot be empty." => "runtime.download_folder_empty",
+        "Subtitle burn-in needs a subtitle file or embedded subtitle. Download subtitles for this item first, or place an .srt/.ass subtitle file beside the video." => {
+            "runtime.subtitle_burn_no_source"
+        }
         "Could not wait for yt-dlp to finish: child process missing" => {
             "runtime.could_not_wait_yt_dlp_missing"
         }

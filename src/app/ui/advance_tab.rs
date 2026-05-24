@@ -1,15 +1,23 @@
-use eframe::egui::{self, ScrollArea, TextEdit, Ui};
+use eframe::egui::{self, Align, Layout, RichText, ScrollArea, TextEdit, Ui};
 
-use crate::app::state::AppState;
+use crate::app::state::{AppState, ProcessingDetailPage};
 use crate::infrastructure::FileTimeMode;
+
+use crate::app::widgets::icon::AppIcon;
 
 use super::common::{
     form_row_label, measure_label_width, settings_scroll_content, settings_section,
+    text_trailing_icon_button,
 };
 
 const ADVANCE_TEXT_WIDTH: f32 = 280.0;
 
 pub(super) fn render_advance_tab(ui: &mut Ui, state: &mut AppState) {
+    if matches!(state.processing_detail_page, Some(ProcessingDetailPage::Transcode)) {
+        render_download_conversion_detail_page(ui, state);
+        return;
+    }
+
     ScrollArea::vertical()
         .id_salt("advance-tab-scroll")
         .auto_shrink([false, false])
@@ -23,6 +31,33 @@ pub(super) fn render_advance_tab(ui: &mut Ui, state: &mut AppState) {
                     render_download_processing_section(ui, state, label_width);
                     render_aria2_section(ui, state, label_width);
                 });
+            });
+        });
+}
+
+fn render_download_conversion_detail_page(ui: &mut Ui, state: &mut AppState) {
+    ScrollArea::vertical()
+        .id_salt("advance-download-conversion-page-scroll")
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            settings_scroll_content(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui
+                        .button(format!("← {}", state.tr("options.back")))
+                        .clicked()
+                    {
+                        state.close_processing_detail_page();
+                    }
+                    ui.label(RichText::new(state.tr("advance.download_conversion")).strong());
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if ui.button(state.tr("action.confirm")).clicked() {
+                            state.close_processing_detail_page();
+                        }
+                    });
+                });
+                ui.add_space(10.0);
+                // Keep this detail page free of a second enable switch.
+                super::processing_tab::render_processing_settings_content(ui, state);
             });
         });
 }
@@ -405,6 +440,24 @@ fn render_post_processing_section(ui: &mut Ui, state: &mut AppState, label_width
                 }
             });
         });
+        form_row_label(ui, label_width, state.tr("advance.download_conversion"), |ui| {
+            ui.horizontal_wrapped(|ui| {
+                let mut enabled = state.config.post_download_conversion_enabled;
+                if ui
+                    .checkbox(&mut enabled, state.tr("advance.enable"))
+                    .changed()
+                {
+                    state.set_enable_builtin_transcode_after_download(enabled);
+                }
+
+                if ui
+                    .add(text_trailing_icon_button(ui, state.tr("advance.settings"), AppIcon::MenuRight))
+                    .clicked()
+                {
+                    state.open_processing_detail_page(ProcessingDetailPage::Transcode);
+                }
+            });
+        });
     });
 }
 
@@ -551,6 +604,7 @@ fn advance_label_width(ui: &Ui, state: &AppState) -> f32 {
             state.tr("advance.file_time"),
             state.tr("advance.thumbnail"),
             state.tr("advance.subtitles"),
+            state.tr("advance.download_conversion"),
         ],
     )
 }

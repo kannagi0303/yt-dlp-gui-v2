@@ -150,6 +150,28 @@ pub fn dependency_tool_exists(path: &str) -> bool {
     resolve_support_path(path).is_file()
 }
 
+pub fn dependency_tool_is_available(tool: DependencyTool, path: &str) -> bool {
+    match tool {
+        DependencyTool::Ffmpeg => {
+            dependency_tool_exists(path) && ffprobe_companion_path(path).is_file()
+        }
+        _ => dependency_tool_exists(path),
+    }
+}
+
+pub fn ffprobe_companion_path(ffmpeg_path: &str) -> PathBuf {
+    let resolved_ffmpeg = if ffmpeg_path.trim().is_empty() {
+        resolve_support_path(DependencyTool::Ffmpeg.default_portable_path())
+    } else {
+        resolve_support_path(ffmpeg_path)
+    };
+
+    resolved_ffmpeg
+        .parent()
+        .map(|parent| parent.join("ffprobe.exe"))
+        .unwrap_or_else(|| resolve_support_path(".\\tools\\ffmpeg\\ffprobe.exe"))
+}
+
 pub fn install_dependency_tool(tool: DependencyTool) -> Result<InstalledDependencyTool, String> {
     install_dependency_tool_with_progress(tool, |_| {})
 }
@@ -307,9 +329,16 @@ fn install_ffmpeg(
         cancel_token,
         progress,
     )?;
-    if let Some(ffprobe) = find_file_recursive(&extract_dir, "ffprobe.exe") {
-        fs::copy(&ffprobe, install_dir.join("ffprobe.exe"))
-            .map_err(|error| format!("Could not install ffprobe.exe: {error}"))?;
+    let ffprobe = find_file_recursive(&extract_dir, "ffprobe.exe")
+        .ok_or_else(|| "ffprobe.exe not found in downloaded archive".to_owned())?;
+    let installed_ffprobe = install_dir.join("ffprobe.exe");
+    fs::copy(&ffprobe, &installed_ffprobe)
+        .map_err(|error| format!("Could not install ffprobe.exe: {error}"))?;
+    if !installed_ffprobe.is_file() {
+        return Err(format!(
+            "FFmpeg installation finished, but {} was not found.",
+            installed_ffprobe.display()
+        ));
     }
     Ok(installed)
 }

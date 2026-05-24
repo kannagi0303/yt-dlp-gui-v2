@@ -1,4 +1,4 @@
-use eframe::egui::{self, Color32, Image};
+use eframe::egui::{self, Color32, Image, Ui};
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -125,4 +125,12 @@ pub fn icon_image(icon: AppIcon, size: f32, color: Color32) -> Image<'static> {
     Image::from_bytes(icon.uri(), icon.mask_svg_bytes())
         .fit_to_exact_size(egui::vec2(size, size))
         .tint(color)
+}
+
+pub fn standard_icon_color(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        ui.visuals().text_color()
+    } else {
+        Color32::from_rgb(0, 92, 230)
+    }
 }

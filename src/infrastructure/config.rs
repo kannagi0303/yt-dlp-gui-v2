@@ -60,6 +60,8 @@ pub struct AppConfig {
     pub embed_subtitles: bool,
     pub write_chapters: bool,
     pub embed_chapters: bool,
+    #[serde(alias = "apple_tv_hevc_post_process")]
+    pub post_download_conversion_enabled: bool,
     #[serde(alias = "IsMonitor")]
     pub auto_paste_clipboard: bool,
     pub clipboard_auto_add: bool,
@@ -72,7 +74,13 @@ pub struct AppConfig {
     pub youtube_video_playlist_mode: YoutubeVideoPlaylistMode,
     pub youtube_high_risk_playlist_prompt: bool,
     pub windows_toast_enabled: bool,
+    #[serde(default, skip_serializing)]
+    pub enable_processing_tab: bool,
+    pub show_log_tab: bool,
+    pub transcode_intent: TranscodeIntentSettings,
     pub language: LanguageSelection,
+    pub theme_mode: ThemeMode,
+    pub theme_accent_color: ThemeAccentColor,
     pub ui_scale_percent: u16,
     #[serde(alias = "AlwaysOnTop")]
     pub keep_window_on_top: bool,
@@ -183,6 +191,598 @@ impl OutputFileActionMode {
     }
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ThemeMode {
+    #[serde(rename = "system")]
+    System,
+    #[serde(rename = "light")]
+    Light,
+    #[serde(rename = "dark")]
+    Dark,
+}
+
+impl Default for ThemeMode {
+    fn default() -> Self {
+        Self::System
+    }
+}
+
+impl ThemeMode {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::System => "config.theme.system",
+            Self::Light => "config.theme.light",
+            Self::Dark => "config.theme.dark",
+        }
+    }
+
+    pub fn variants() -> [Self; 3] {
+        [Self::System, Self::Light, Self::Dark]
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ThemeAccentColor {
+    #[serde(rename = "off")]
+    Off,
+    #[serde(rename = "system")]
+    System,
+    #[serde(rename = "blue")]
+    Blue,
+    #[serde(rename = "purple")]
+    Purple,
+    #[serde(rename = "pink")]
+    Pink,
+    #[serde(rename = "green")]
+    Green,
+    #[serde(rename = "orange")]
+    Orange,
+    #[serde(rename = "slate")]
+    Slate,
+}
+
+impl Default for ThemeAccentColor {
+    fn default() -> Self {
+        Self::Off
+    }
+}
+
+impl ThemeAccentColor {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Off => "config.theme_color.off",
+            Self::System => "config.theme_color.system",
+            Self::Blue => "config.theme_color.blue",
+            Self::Purple => "config.theme_color.purple",
+            Self::Pink => "config.theme_color.pink",
+            Self::Green => "config.theme_color.green",
+            Self::Orange => "config.theme_color.orange",
+            Self::Slate => "config.theme_color.slate",
+        }
+    }
+
+    pub fn variants() -> [Self; 8] {
+        [
+            Self::Off,
+            Self::System,
+            Self::Blue,
+            Self::Purple,
+            Self::Pink,
+            Self::Green,
+            Self::Orange,
+            Self::Slate,
+        ]
+    }
+
+    pub fn rgb(self) -> (u8, u8, u8) {
+        match self {
+            Self::Off | Self::System | Self::Blue => (74, 144, 226),
+            Self::Purple => (145, 111, 224),
+            Self::Pink => (220, 104, 158),
+            Self::Green => (83, 164, 112),
+            Self::Orange => (224, 136, 69),
+            Self::Slate => (120, 132, 150),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct TranscodeIntentSettings {
+    #[serde(skip_serializing)]
+    pub intent_mode: TranscodeIntentMode,
+    #[serde(skip_serializing)]
+    pub compatibility_target: CompatibilityTarget,
+    pub video_codec_policy: VideoCodecPolicy,
+    pub container_policy: ContainerPolicy,
+    #[serde(skip_serializing)]
+    pub encoder_policy: EncoderPolicy,
+    #[serde(skip_serializing)]
+    pub quality_target: QualityTarget,
+    #[serde(skip_serializing)]
+    pub size_ratio_percent: u8,
+    #[serde(skip_serializing)]
+    pub target_size_mb: u32,
+    #[serde(skip_serializing)]
+    pub resolution_policy: ResolutionPolicy,
+    #[serde(skip_serializing)]
+    pub frame_rate_policy: FrameRatePolicy,
+    #[serde(skip_serializing)]
+    pub encode_effort: EncodeEffort,
+    #[serde(skip_serializing)]
+    pub pass_policy: PassPolicy,
+    pub audio_policy: AudioPolicy,
+    pub subtitle_policy: SubtitlePolicy,
+    #[serde(skip_serializing)]
+    pub hdr_policy: HdrPolicy,
+    #[serde(skip_serializing)]
+    pub locked_keys: Vec<TranscodeSettingKey>,
+}
+
+impl Default for TranscodeIntentSettings {
+    fn default() -> Self {
+        Self {
+            intent_mode: TranscodeIntentMode::ReduceSize,
+            compatibility_target: CompatibilityTarget::MostDevices,
+            video_codec_policy: VideoCodecPolicy::Auto,
+            container_policy: ContainerPolicy::Auto,
+            encoder_policy: EncoderPolicy::Auto,
+            quality_target: QualityTarget::High,
+            size_ratio_percent: 100,
+            target_size_mb: 900,
+            resolution_policy: ResolutionPolicy::AutoBalance,
+            frame_rate_policy: FrameRatePolicy::Source,
+            encode_effort: EncodeEffort::Normal,
+            pass_policy: PassPolicy::Auto,
+            audio_policy: AudioPolicy::Auto,
+            subtitle_policy: SubtitlePolicy::Preserve,
+            hdr_policy: HdrPolicy::Compatible,
+            locked_keys: Vec::new(),
+        }
+    }
+}
+
+impl TranscodeIntentSettings {
+    pub fn normalized(mut self) -> Self {
+        self.size_ratio_percent = self.size_ratio_percent.clamp(5, 100);
+        self.target_size_mb = self.target_size_mb.clamp(1, 999_999);
+        self.locked_keys.sort();
+        self.locked_keys.dedup();
+        self
+    }
+
+    pub fn is_locked(&self, key: TranscodeSettingKey) -> bool {
+        self.locked_keys.contains(&key)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TranscodeIntentMode {
+    #[serde(rename = "reduce_size")]
+    ReduceSize,
+    #[serde(rename = "quality_first")]
+    QualityFirst,
+    #[serde(rename = "target_size")]
+    TargetSize,
+    #[serde(rename = "fast_transcode")]
+    FastTranscode,
+    #[serde(rename = "device_compat")]
+    DeviceCompat,
+}
+
+impl Default for TranscodeIntentMode {
+    fn default() -> Self {
+        Self::ReduceSize
+    }
+}
+
+impl TranscodeIntentMode {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::ReduceSize => "transcode.intent.reduce_size",
+            Self::QualityFirst => "transcode.intent.quality_first",
+            Self::TargetSize => "transcode.intent.target_size",
+            Self::FastTranscode => "transcode.intent.fast_transcode",
+            Self::DeviceCompat => "transcode.intent.device_compat",
+        }
+    }
+
+    pub fn variants() -> [Self; 5] {
+        [
+            Self::ReduceSize,
+            Self::QualityFirst,
+            Self::TargetSize,
+            Self::FastTranscode,
+            Self::DeviceCompat,
+        ]
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum CompatibilityTarget {
+    #[serde(rename = "most_devices")]
+    MostDevices,
+    #[serde(rename = "windows")]
+    Windows,
+    #[serde(rename = "mac")]
+    Mac,
+    #[serde(rename = "apple")]
+    Apple,
+    #[serde(rename = "apple_tv_legacy")]
+    AppleTvLegacy,
+    #[serde(rename = "apple_tv_modern")]
+    AppleTvModern,
+    #[serde(rename = "iphone_ipad")]
+    IphoneIpad,
+    #[serde(rename = "android_tv")]
+    AndroidTv,
+    #[serde(rename = "android_phone_tablet")]
+    AndroidPhoneTablet,
+    #[serde(rename = "browser_mp4")]
+    BrowserMp4,
+    #[serde(rename = "tv_nas")]
+    TvNas,
+    #[serde(rename = "old_device")]
+    OldDevice,
+}
+
+impl Default for CompatibilityTarget {
+    fn default() -> Self {
+        Self::MostDevices
+    }
+}
+
+impl CompatibilityTarget {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::MostDevices => "transcode.compat.most_devices",
+            Self::Windows => "transcode.compat.windows",
+            Self::Mac => "transcode.compat.mac",
+            Self::Apple => "transcode.compat.apple",
+            Self::AppleTvLegacy => "transcode.compat.apple_tv_legacy",
+            Self::AppleTvModern => "transcode.compat.apple_tv_modern",
+            Self::IphoneIpad => "transcode.compat.iphone_ipad",
+            Self::AndroidTv => "transcode.compat.android_tv",
+            Self::AndroidPhoneTablet => "transcode.compat.android_phone_tablet",
+            Self::BrowserMp4 => "transcode.compat.browser_mp4",
+            Self::TvNas => "transcode.compat.tv_nas",
+            Self::OldDevice => "transcode.compat.old_device",
+        }
+    }
+
+    pub fn variants() -> [Self; 12] {
+        [
+            Self::MostDevices,
+            Self::Windows,
+            Self::Mac,
+            Self::Apple,
+            Self::AppleTvLegacy,
+            Self::AppleTvModern,
+            Self::IphoneIpad,
+            Self::AndroidTv,
+            Self::AndroidPhoneTablet,
+            Self::BrowserMp4,
+            Self::TvNas,
+            Self::OldDevice,
+        ]
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum VideoCodecPolicy {
+    #[serde(rename = "auto")]
+    Auto,
+    #[serde(rename = "h264")]
+    H264,
+    #[serde(rename = "hevc")]
+    Hevc,
+    #[serde(rename = "av1")]
+    Av1,
+}
+
+impl Default for VideoCodecPolicy {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ContainerPolicy {
+    #[serde(rename = "auto", alias = "source")]
+    Auto,
+    #[serde(rename = "mp4")]
+    Mp4,
+    #[serde(rename = "mkv")]
+    Mkv,
+    #[serde(rename = "mov")]
+    Mov,
+}
+
+impl Default for ContainerPolicy {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum EncoderPolicy {
+    #[serde(rename = "auto")]
+    Auto,
+    #[serde(rename = "hardware_first")]
+    HardwareFirst,
+    #[serde(rename = "software")]
+    Software,
+}
+
+impl Default for EncoderPolicy {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum QualityTarget {
+    #[serde(rename = "standard")]
+    Standard,
+    #[serde(rename = "high")]
+    High,
+    #[serde(rename = "near_original")]
+    NearOriginal,
+}
+
+impl Default for QualityTarget {
+    fn default() -> Self {
+        Self::High
+    }
+}
+
+impl QualityTarget {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Standard => "transcode.quality.standard",
+            Self::High => "transcode.quality.high",
+            Self::NearOriginal => "transcode.quality.near_original",
+        }
+    }
+
+    pub fn variants() -> [Self; 3] {
+        [Self::Standard, Self::High, Self::NearOriginal]
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ResolutionPolicy {
+    #[serde(rename = "auto_balance")]
+    AutoBalance,
+    #[serde(rename = "keep_original")]
+    KeepOriginal,
+    #[serde(rename = "max_1080p")]
+    Max1080p,
+    #[serde(rename = "max_720p")]
+    Max720p,
+}
+
+impl Default for ResolutionPolicy {
+    fn default() -> Self {
+        Self::AutoBalance
+    }
+}
+
+impl ResolutionPolicy {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::AutoBalance => "transcode.resolution.auto_balance",
+            Self::KeepOriginal => "transcode.resolution.keep_original",
+            Self::Max1080p => "transcode.resolution.max_1080p",
+            Self::Max720p => "transcode.resolution.max_720p",
+        }
+    }
+
+    pub fn variants() -> [Self; 4] {
+        [
+            Self::AutoBalance,
+            Self::KeepOriginal,
+            Self::Max1080p,
+            Self::Max720p,
+        ]
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum FrameRatePolicy {
+    #[serde(rename = "source")]
+    Source,
+    #[serde(rename = "fps_24")]
+    Fps24,
+    #[serde(rename = "fps_25")]
+    Fps25,
+    #[serde(rename = "fps_30")]
+    Fps30,
+    #[serde(rename = "fps_60")]
+    Fps60,
+}
+
+impl Default for FrameRatePolicy {
+    fn default() -> Self {
+        Self::Source
+    }
+}
+
+impl FrameRatePolicy {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Source => "transcode.fps.source",
+            Self::Fps24 => "transcode.fps.24",
+            Self::Fps25 => "transcode.fps.25",
+            Self::Fps30 => "transcode.fps.30",
+            Self::Fps60 => "transcode.fps.60",
+        }
+    }
+
+    pub fn variants() -> [Self; 5] {
+        [Self::Source, Self::Fps24, Self::Fps25, Self::Fps30, Self::Fps60]
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum EncodeEffort {
+    #[serde(rename = "fast")]
+    Fast,
+    #[serde(rename = "normal")]
+    Normal,
+    #[serde(rename = "detailed")]
+    Detailed,
+    #[serde(rename = "extreme")]
+    Extreme,
+}
+
+impl Default for EncodeEffort {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
+impl EncodeEffort {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Fast => "transcode.effort.fast",
+            Self::Normal => "transcode.effort.normal",
+            Self::Detailed => "transcode.effort.detailed",
+            Self::Extreme => "transcode.effort.extreme",
+        }
+    }
+
+    pub fn variants() -> [Self; 4] {
+        [Self::Fast, Self::Normal, Self::Detailed, Self::Extreme]
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum PassPolicy {
+    #[serde(rename = "auto")]
+    Auto,
+    #[serde(rename = "one_pass")]
+    OnePass,
+    #[serde(rename = "two_pass")]
+    TwoPass,
+}
+
+impl Default for PassPolicy {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum AudioPolicy {
+    #[serde(rename = "auto", alias = "preserve_surround")]
+    Auto,
+    #[serde(rename = "aac", alias = "compatible")]
+    Aac,
+    #[serde(rename = "opus")]
+    Opus,
+    #[serde(rename = "flac")]
+    Flac,
+}
+
+impl Default for AudioPolicy {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+impl AudioPolicy {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Auto => "transcode.audio.auto",
+            Self::Aac => "transcode.audio.aac",
+            Self::Opus => "transcode.audio.opus",
+            Self::Flac => "transcode.audio.flac",
+        }
+    }
+
+    pub fn variants() -> [Self; 4] {
+        [Self::Auto, Self::Aac, Self::Opus, Self::Flac]
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SubtitlePolicy {
+    #[serde(rename = "preserve", alias = "remove")]
+    Preserve,
+    #[serde(rename = "embed", alias = "compatible")]
+    Embed,
+    #[serde(rename = "burn")]
+    Burn,
+}
+
+impl Default for SubtitlePolicy {
+    fn default() -> Self {
+        Self::Preserve
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum HdrPolicy {
+    #[serde(rename = "compatible")]
+    Compatible,
+    #[serde(rename = "preserve_hdr")]
+    PreserveHdr,
+}
+
+impl Default for HdrPolicy {
+    fn default() -> Self {
+        Self::Compatible
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TranscodeSettingKey {
+    #[serde(rename = "compatibility_target")]
+    CompatibilityTarget,
+    #[serde(rename = "video_codec_policy")]
+    VideoCodecPolicy,
+    #[serde(rename = "container_policy")]
+    ContainerPolicy,
+    #[serde(rename = "encoder_policy")]
+    EncoderPolicy,
+    #[serde(rename = "quality_target")]
+    QualityTarget,
+    #[serde(rename = "size_ratio")]
+    SizeRatio,
+    #[serde(rename = "target_size")]
+    TargetSize,
+    #[serde(rename = "resolution_policy")]
+    ResolutionPolicy,
+    #[serde(rename = "frame_rate_policy")]
+    FrameRatePolicy,
+    #[serde(rename = "encode_effort")]
+    EncodeEffort,
+    #[serde(rename = "pass_policy")]
+    PassPolicy,
+    #[serde(rename = "audio_policy")]
+    AudioPolicy,
+}
+
+impl TranscodeSettingKey {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::CompatibilityTarget => "transcode.setting.compatibility",
+            Self::VideoCodecPolicy => "transcode.setting.video_codec",
+            Self::ContainerPolicy => "transcode.setting.container",
+            Self::EncoderPolicy => "transcode.setting.encoder",
+            Self::QualityTarget => "transcode.setting.quality",
+            Self::SizeRatio => "transcode.setting.size_ratio",
+            Self::TargetSize => "transcode.setting.target_size",
+            Self::ResolutionPolicy => "transcode.setting.resolution",
+            Self::FrameRatePolicy => "transcode.setting.fps",
+            Self::EncodeEffort => "transcode.setting.effort",
+            Self::PassPolicy => "transcode.setting.pass",
+            Self::AudioPolicy => "transcode.setting.audio",
+        }
+    }
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -215,6 +815,7 @@ impl Default for AppConfig {
             embed_subtitles: false,
             write_chapters: false,
             embed_chapters: false,
+            post_download_conversion_enabled: false,
             auto_paste_clipboard: false,
             clipboard_auto_add: false,
             auto_analyze: false,
@@ -225,7 +826,12 @@ impl Default for AppConfig {
             youtube_video_playlist_mode: YoutubeVideoPlaylistMode::Ask,
             youtube_high_risk_playlist_prompt: true,
             windows_toast_enabled: false,
+            enable_processing_tab: false,
+            show_log_tab: true,
+            transcode_intent: TranscodeIntentSettings::default(),
             language: LanguageSelection::Auto,
+            theme_mode: ThemeMode::System,
+            theme_accent_color: ThemeAccentColor::Off,
             ui_scale_percent: 100,
             keep_window_on_top: false,
             remember_window_position: false,
@@ -371,6 +977,7 @@ impl AppConfig {
         }
 
         self.ui_scale_percent = normalize_ui_scale_percent(self.ui_scale_percent);
+        self.transcode_intent = self.transcode_intent.clone().normalized();
 
         if let Some(position) = self.window_position {
             if WindowPosition::new(position.x, position.y).is_none() {

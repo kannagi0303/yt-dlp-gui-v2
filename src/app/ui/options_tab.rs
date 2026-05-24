@@ -5,10 +5,13 @@ use egui_extras::{Size, StripBuilder};
 
 use crate::app::state::{AppState, OptionsDetailPage, YoutubePlaylistPromptKind};
 use crate::app::widgets::icon::icon_image;
-use crate::app::widgets::url_input::{DisplayPathInput, accent_green, accent_red};
+use crate::app::widgets::url_input::{
+    DisplayPathInput, accent_green_for_ui, accent_red_for_ui,
+};
 use crate::i18n::LanguageSelection;
 use crate::infrastructure::{
-    DependencyTool, OutputFileActionMode, YoutubeVideoPlaylistMode, dependency_tool_exists,
+    DependencyTool, OutputFileActionMode, ThemeAccentColor, ThemeMode, YoutubeVideoPlaylistMode,
+    dependency_tool_exists,
 };
 
 use crate::app::widgets::icon::AppIcon;
@@ -37,6 +40,7 @@ fn render_options_root_page(ui: &mut Ui, state: &mut AppState) {
                     render_language_group(ui, state, label_width);
                     render_tool_paths_group(ui, state, label_width);
                     render_behavior_group(ui, state, label_width);
+                    render_tabs_group(ui, state, label_width);
                     render_playlist_group(ui, state, label_width);
                     render_file_action_group(ui, state, label_width);
                     render_cache_group(ui, state, label_width);
@@ -168,7 +172,7 @@ fn render_playlist_prompt_actions(
                 let video_button = prompt_action_button(
                     ui,
                     AppIcon::Video,
-                    accent_green(),
+                    accent_green_for_ui(ui),
                     state.tr("options.video"),
                     video_width,
                     button_height,
@@ -180,7 +184,7 @@ fn render_playlist_prompt_actions(
                 let playlist_button = prompt_action_button(
                     ui,
                     AppIcon::Import,
-                    accent_green(),
+                    accent_green_for_ui(ui),
                     state.tr("options.playlist"),
                     playlist_width,
                     button_height,
@@ -192,7 +196,7 @@ fn render_playlist_prompt_actions(
                 let cancel_button = prompt_action_button(
                     ui,
                     AppIcon::WindowClose,
-                    accent_red(),
+                    accent_red_for_ui(ui),
                     state.tr("options.cancel"),
                     cancel_width,
                     button_height,
@@ -214,7 +218,7 @@ fn render_playlist_prompt_actions(
                 let confirm_button = prompt_action_button(
                     ui,
                     AppIcon::Import,
-                    accent_green(),
+                    accent_green_for_ui(ui),
                     state.tr("options.load"),
                     confirm_width,
                     button_height,
@@ -226,7 +230,7 @@ fn render_playlist_prompt_actions(
                 let cancel_button = prompt_action_button(
                     ui,
                     AppIcon::WindowClose,
-                    accent_red(),
+                    accent_red_for_ui(ui),
                     state.tr("options.cancel"),
                     cancel_width,
                     button_height,
@@ -288,6 +292,20 @@ fn render_behavior_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                 }
             },
         );
+    });
+}
+
+fn render_tabs_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
+    settings_section(ui, state.tr("options.tabs"), |ui| {
+        form_row_label(ui, label_width, state.tr("options.log_tab"), |ui| {
+            let mut enabled = state.config.show_log_tab;
+            if ui
+                .checkbox(&mut enabled, state.tr("options.show_log_tab"))
+                .changed()
+            {
+                state.set_show_log_tab(enabled);
+            }
+        });
     });
 }
 
@@ -488,6 +506,40 @@ fn render_window_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                 state.set_windows_toast_enabled(enabled);
             }
         });
+        form_row_label(ui, label_width, state.tr("options.theme"), |ui| {
+            egui::ComboBox::from_id_salt("theme-mode")
+                .selected_text(state.tr(state.config.theme_mode.label()))
+                .show_ui(ui, |ui| {
+                    for mode in ThemeMode::variants() {
+                        if ui
+                            .selectable_label(
+                                state.config.theme_mode == mode,
+                                state.tr(mode.label()),
+                            )
+                            .clicked()
+                        {
+                            state.set_theme_mode(mode);
+                        }
+                    }
+                });
+        });
+        form_row_label(ui, label_width, state.tr("options.theme_color"), |ui| {
+            egui::ComboBox::from_id_salt("theme-accent-color")
+                .selected_text(state.tr(state.config.theme_accent_color.label()))
+                .show_ui(ui, |ui| {
+                    for color in ThemeAccentColor::variants() {
+                        if ui
+                            .selectable_label(
+                                state.config.theme_accent_color == color,
+                                state.tr(color.label()),
+                            )
+                            .clicked()
+                        {
+                            state.set_theme_accent_color(color);
+                        }
+                    }
+                });
+        });
         form_row_label(ui, label_width, state.tr("options.ui_scale"), |ui| {
             let mut pending = state.pending_ui_scale_percent();
             if ui
@@ -554,6 +606,7 @@ fn options_label_width(ui: &Ui, state: &AppState) -> f32 {
             "Aria2",
             state.tr("options.add_action"),
             state.tr("options.clipboard_change"),
+            state.tr("options.log_tab"),
             state.tr("options.with_playlist"),
             state.tr("options.high_risk_prompt"),
             state.tr("options.playlist_count"),
@@ -561,6 +614,8 @@ fn options_label_width(ui: &Ui, state: &AppState) -> f32 {
             state.tr("options.language"),
             state.tr("options.current_language"),
             state.tr("options.notifications"),
+            state.tr("options.theme"),
+            state.tr("options.theme_color"),
             state.tr("options.ui_scale"),
             state.tr("options.cache_location"),
             state.tr("options.always_on_top"),

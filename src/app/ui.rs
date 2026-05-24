@@ -5,6 +5,7 @@ mod item_card;
 mod main_tab;
 mod options_tab;
 mod prepare_tab;
+mod processing_tab;
 
 use eframe::egui::{self, CentralPanel};
 
@@ -32,10 +33,14 @@ pub fn render_app(ctx: &egui::Context, state: &mut AppState) {
                 let tab_main = state.tr(UiText::TAB_MAIN);
                 let tab_advance = state.tr(UiText::TAB_ADVANCE);
                 let tab_options = state.tr(UiText::TAB_OPTIONS);
+                let tab_log = state.tr(UiText::TAB_LOG);
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut state.active_tab, AppTab::Main, tab_main);
                     ui.selectable_value(&mut state.active_tab, AppTab::Advance, tab_advance);
                     ui.selectable_value(&mut state.active_tab, AppTab::Options, tab_options);
+                    if state.config.show_log_tab {
+                        ui.selectable_value(&mut state.active_tab, AppTab::Log, tab_log);
+                    }
                 });
                 ui.separator();
 
@@ -44,6 +49,18 @@ pub fn render_app(ctx: &egui::Context, state: &mut AppState) {
                     AppTab::Main => main_tab::render_main_tab(ui, state),
                     AppTab::Advance => advance_tab::render_advance_tab(ui, state),
                     AppTab::Options => options_tab::render_options_tab(ui, state),
+                    AppTab::Processing => {
+                        state.active_tab = AppTab::Advance;
+                        advance_tab::render_advance_tab(ui, state);
+                    }
+                    AppTab::Log => {
+                        if state.config.show_log_tab {
+                            processing_tab::render_log_tab(ui, state);
+                        } else {
+                            state.active_tab = AppTab::Options;
+                            options_tab::render_options_tab(ui, state);
+                        }
+                    }
                 }
             }
 

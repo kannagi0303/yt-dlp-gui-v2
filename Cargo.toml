@@ -36,6 +36,7 @@ incremental = false
 
 [target.'cfg(windows)'.dependencies]
 win32_notif = { version = "0.15.2", features = ["registration"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_UI_WindowsAndMessaging"] }
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"

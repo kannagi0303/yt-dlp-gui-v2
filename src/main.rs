@@ -7,12 +7,9 @@ mod infrastructure;
 
 use std::path::PathBuf;
 
-use app::NgDlpApp;
-use eframe::egui::{self, IconData, ViewportBuilder};
-use image::ImageFormat;
-use infrastructure::{AppConfig, WindowPosition, WindowSize, collect_prepare_report};
-
-const APP_ICON_BYTES: &[u8] = include_bytes!("../assets/logo.ico");
+use app::{app_icon::app_window_icon, NgDlpApp};
+use eframe::egui::{self, ViewportBuilder};
+use infrastructure::{collect_prepare_report, AppConfig, ThemeMode, WindowPosition, WindowSize};
 
 fn main() -> eframe::Result<()> {
     let window_options = startup_window_options();
@@ -36,6 +33,7 @@ struct StartupWindowOptions {
     keep_window_on_top: bool,
     window_position: Option<WindowPosition>,
     window_size: Option<WindowSize>,
+    theme_mode: ThemeMode,
     ui_scale_percent: u16,
 }
 
@@ -49,7 +47,7 @@ impl StartupWindowOptions {
         let mut viewport = ViewportBuilder::default()
             .with_inner_size(size)
             .with_title("yt-dlp-gui")
-            .with_icon(load_app_icon());
+            .with_icon(app_window_icon(startup_icon_theme(self.theme_mode)));
 
         if let Some(position) = self.window_position {
             viewport = viewport.with_position(egui::pos2(position.x, position.y));
@@ -81,7 +79,15 @@ fn startup_window_options() -> StartupWindowOptions {
             .then_some(config.window_size)
             .flatten()
             .filter(|_| config.remember_window_size),
+        theme_mode: config.theme_mode,
         ui_scale_percent: config.ui_scale_percent,
+    }
+}
+
+fn startup_icon_theme(theme_mode: ThemeMode) -> egui::Theme {
+    match theme_mode {
+        ThemeMode::Light => egui::Theme::Light,
+        ThemeMode::System | ThemeMode::Dark => egui::Theme::Dark,
     }
 }
 
@@ -119,17 +125,4 @@ fn portable_root_dir() -> PathBuf {
         .and_then(|path| path.parent().map(std::path::Path::to_path_buf))
         .or_else(|| std::env::current_dir().ok())
         .unwrap_or_else(|| PathBuf::from("."))
-}
-
-fn load_app_icon() -> IconData {
-    let image = image::load_from_memory_with_format(APP_ICON_BYTES, ImageFormat::Ico)
-        .expect("failed to decode app icon");
-    let rgba = image.into_rgba8();
-    let (width, height) = rgba.dimensions();
-
-    IconData {
-        rgba: rgba.into_raw(),
-        width,
-        height,
-    }
 }

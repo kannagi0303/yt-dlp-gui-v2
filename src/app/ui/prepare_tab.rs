@@ -72,7 +72,7 @@ fn render_language_selector(ui: &mut Ui, state: &mut AppState) {
         ui.label(
             RichText::new(state.tr("prepare.language"))
                 .size(SMALL_SIZE)
-                .color(detail_color()),
+                .color(detail_color(ui)),
         );
         let label = language_choice_label(state, state.language_selection());
         if ui
@@ -137,7 +137,7 @@ fn render_header(ui: &mut Ui, state: &AppState) {
     ui.label(
         RichText::new(state.tr("prepare.install_the_required_tools_now_or_skip_and_h"))
             .size(TITLE_SIZE)
-            .color(detail_color()),
+            .color(detail_color(ui)),
     );
 }
 
@@ -262,7 +262,7 @@ fn render_tool_row(
                         RichText::new(tool_status_symbol(item, is_installing))
                             .size(TITLE_SIZE)
                             .strong()
-                            .color(tool_status_color(item, is_installing)),
+                            .color(tool_status_color(ui, item, is_installing)),
                     );
                 });
                 strip.cell(|ui| {
@@ -273,7 +273,7 @@ fn render_tool_row(
                         ui,
                         RichText::new(state.tr(severity_short_label(item.severity)))
                             .size(BODY_SIZE)
-                            .color(severity_color(item.severity)),
+                            .color(severity_color(ui, item.severity)),
                     );
                 });
                 strip.cell(|ui| {
@@ -310,7 +310,7 @@ fn render_tool_row(
                         ui,
                         RichText::new(state.localize_message(&tool_status_text(state, item, tool)))
                             .size(BODY_SIZE)
-                            .color(detail_color()),
+                            .color(detail_color(ui)),
                     );
                 });
             });
@@ -341,7 +341,7 @@ fn render_prepare_status(ui: &mut Ui, state: &AppState) {
     ui.label(
         RichText::new(state.localize_message(&state.last_action))
             .size(SMALL_SIZE)
-            .color(detail_color()),
+            .color(detail_color(ui)),
     );
 }
 
@@ -382,7 +382,7 @@ fn render_issue_row(ui: &mut Ui, state: &AppState, item: &PrepareRequirement) {
                     RichText::new(status_symbol(item.status))
                         .size(TITLE_SIZE)
                         .strong()
-                        .color(status_color(item.status)),
+                        .color(status_color(ui, item.status)),
                 ),
             );
             ui.vertical(|ui| {
@@ -395,20 +395,20 @@ fn render_issue_row(ui: &mut Ui, state: &AppState, item: &PrepareRequirement) {
                     ui.label(
                         RichText::new(state.localize_message(&item.recommendation))
                             .size(SMALL_SIZE)
-                            .color(detail_color()),
+                            .color(detail_color(ui)),
                     );
                 } else {
                     ui.label(
                         RichText::new(state.localize_message(&item.description))
                             .size(SMALL_SIZE)
-                            .color(detail_color()),
+                            .color(detail_color(ui)),
                     );
                 }
                 if !item.detail.trim().is_empty() {
                     ui.label(
                         RichText::new(state.localize_message(&item.detail))
                             .size(SMALL_SIZE)
-                            .color(warn_color()),
+                            .color(warn_color(ui)),
                     );
                 }
             });
@@ -473,15 +473,15 @@ fn status_symbol(status: PrepareStatus) -> &'static str {
     }
 }
 
-fn tool_status_color(item: &PrepareRequirement, is_installing: bool) -> Color32 {
+fn tool_status_color(ui: &Ui, item: &PrepareRequirement, is_installing: bool) -> Color32 {
     if is_installing {
-        warn_color()
+        warn_color(ui)
     } else if item.status == PrepareStatus::Ok {
-        ok_color()
+        ok_color(ui)
     } else if item.severity == PrepareSeverity::Optional {
-        detail_color()
+        detail_color(ui)
     } else {
-        error_color()
+        error_color(ui)
     }
 }
 
@@ -544,34 +544,50 @@ fn severity_short_label(severity: PrepareSeverity) -> &'static str {
     }
 }
 
-fn severity_color(severity: PrepareSeverity) -> Color32 {
+fn severity_color(ui: &Ui, severity: PrepareSeverity) -> Color32 {
     match severity {
-        PrepareSeverity::Required => error_color(),
-        PrepareSeverity::Recommended => warn_color(),
-        PrepareSeverity::Optional => detail_color(),
+        PrepareSeverity::Required => error_color(ui),
+        PrepareSeverity::Recommended => warn_color(ui),
+        PrepareSeverity::Optional => detail_color(ui),
     }
 }
 
-fn status_color(status: PrepareStatus) -> Color32 {
+fn status_color(ui: &Ui, status: PrepareStatus) -> Color32 {
     match status {
-        PrepareStatus::Ok => ok_color(),
-        PrepareStatus::Missing | PrepareStatus::Failed => error_color(),
-        PrepareStatus::Warning => warn_color(),
+        PrepareStatus::Ok => ok_color(ui),
+        PrepareStatus::Missing | PrepareStatus::Failed => error_color(ui),
+        PrepareStatus::Warning => warn_color(ui),
     }
 }
 
-fn ok_color() -> Color32 {
-    Color32::from_rgb(120, 210, 150)
+fn ok_color(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        Color32::from_rgb(120, 210, 150)
+    } else {
+        Color32::from_rgb(0, 132, 54)
+    }
 }
 
-fn warn_color() -> Color32 {
-    Color32::from_rgb(230, 185, 85)
+fn warn_color(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        Color32::from_rgb(230, 185, 85)
+    } else {
+        Color32::from_rgb(200, 116, 0)
+    }
 }
 
-fn error_color() -> Color32 {
-    Color32::from_rgb(240, 110, 110)
+fn error_color(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        Color32::from_rgb(240, 110, 110)
+    } else {
+        Color32::from_rgb(214, 0, 32)
+    }
 }
 
-fn detail_color() -> Color32 {
-    Color32::from_rgb(170, 180, 190)
+fn detail_color(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        Color32::from_rgb(170, 180, 190)
+    } else {
+        Color32::from_rgb(82, 88, 96)
+    }
 }

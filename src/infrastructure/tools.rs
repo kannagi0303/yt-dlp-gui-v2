@@ -1453,7 +1453,7 @@ fn normalized_extension(extension: &str) -> Option<String> {
     }
 }
 
-fn resolve_tool_path(path: &str) -> PathBuf {
+pub fn resolve_tool_path(path: &str) -> PathBuf {
     resolve_support_path(path)
 }
 

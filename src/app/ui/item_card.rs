@@ -8,8 +8,10 @@ use crate::app::state::{
     AppState, FormatPickerKind, ItemTitleVisualState, ThumbnailRenderSource,
     sanitize_file_name_for_windows,
 };
-use crate::app::widgets::icon::{AppIcon, icon_image};
-use crate::app::widgets::url_input::{accent_blue, accent_green};
+use crate::app::widgets::icon::{AppIcon, icon_image, standard_icon_color};
+use crate::app::widgets::url_input::{
+    accent_blue_for_ui, accent_green_for_ui, accent_red_for_ui,
+};
 use crate::domain::QueueItemId;
 use crate::infrastructure::{
     DownloadTargetKind, OutputFileActionMode, open_output_file, open_output_folder,
@@ -214,7 +216,7 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
                                     item_label_width,
                                     state.tr("item.error"),
                                     &state.localize_message(error_text),
-                                    egui::Color32::from_rgb(196, 64, 64),
+                                    accent_red_for_ui(ui),
                                 );
                             }
                             row_file_name_input(ui, state, index, !item_locked, item_label_width);
@@ -390,7 +392,7 @@ fn draw_delete_icon_button(width: f32, item_hovered: bool) -> impl egui::Widget 
         let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click());
         let visuals = ui.style().interact(&response);
         let icon_color = if response.hovered() || item_hovered {
-            egui::Color32::from_rgb(196, 64, 64)
+            accent_red_for_ui(ui)
         } else {
             ui.visuals().weak_text_color()
         };
@@ -501,9 +503,9 @@ fn row_item_title(
     let color = match state {
         ItemTitleVisualState::Default => ui.visuals().text_color(),
         ItemTitleVisualState::Pending => ui.visuals().weak_text_color(),
-        ItemTitleVisualState::Ready => accent_blue(),
-        ItemTitleVisualState::Completed => accent_green(),
-        ItemTitleVisualState::Failed => egui::Color32::from_rgb(196, 64, 64),
+        ItemTitleVisualState::Ready => accent_blue_for_ui(ui),
+        ItemTitleVisualState::Completed => accent_green_for_ui(ui),
+        ItemTitleVisualState::Failed => accent_red_for_ui(ui),
     };
     let spinner_width = if loading {
         TITLE_SPINNER_SIZE + ui.spacing().item_spacing.x
@@ -900,7 +902,7 @@ fn draw_download_icon_button(
     let (rect, response) = ui.allocate_exact_size(desired_size, sense);
     let visuals = ui.style().interact(&response);
     let stroke_color = if enabled {
-        visuals.text_color()
+        standard_icon_color(ui)
     } else {
         ui.visuals().weak_text_color()
     };
@@ -1038,10 +1040,24 @@ fn file_name_text_edit(
     .inner
 }
 
-fn draw_file_name_display(ui: &mut Ui, value: &str, row_height: f32) -> egui::Response {
+fn draw_file_name_display(
+    ui: &mut Ui,
+    value: &str,
+    row_height: f32,
+    progress: f32,
+    show_progress: bool,
+) -> egui::Response {
     let desired_size = egui::vec2(ui.available_width(), row_height);
     let (rect, response) = ui.allocate_exact_size(desired_size, Sense::hover());
     let visuals = ui.style().interact(&response);
+    let fill_ratio = if show_progress {
+        (progress / 100.0).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let fill_width = rect.width() * fill_ratio;
+    let fill_rect =
+        egui::Rect::from_min_max(rect.min, egui::pos2(rect.min.x + fill_width, rect.max.y));
 
     ui.painter().rect(
         rect,
@@ -1050,6 +1066,10 @@ fn draw_file_name_display(ui: &mut Ui, value: &str, row_height: f32) -> egui::Re
         visuals.bg_stroke,
         egui::StrokeKind::Outside,
     );
+    if fill_width > 0.0 {
+        ui.painter()
+            .rect_filled(fill_rect, 2.0, accent_green_for_ui(ui));
+    }
 
     if !value.is_empty() {
         let galley = WidgetText::from(value).into_galley(
@@ -1059,7 +1079,15 @@ fn draw_file_name_display(ui: &mut Ui, value: &str, row_height: f32) -> egui::Re
             TextStyle::Body,
         );
         let text_pos = egui::pos2(rect.min.x + 4.0, rect.center().y - galley.size().y * 0.5);
-        ui.painter().galley(text_pos, galley, visuals.text_color());
+        ui.painter()
+            .galley(text_pos, galley.clone(), visuals.text_color());
+        if fill_width > 0.0 {
+            ui.painter().with_clip_rect(fill_rect).galley(
+                text_pos,
+                galley,
+                egui::Color32::from_rgb(15, 28, 18),
+            );
+        }
     }
 
     response
@@ -1078,6 +1106,8 @@ fn row_file_name_input(
     let label_gap = 4.0;
     let output_path = state.item_output_file_path(index);
     let output_action_mode = state.config.output_file_action_mode;
+    let file_name_progress = state.item_file_name_progress(index);
+    let show_file_name_progress = state.item_file_name_progress_visible(index);
 
     ui.allocate_ui(
         egui::vec2(ui.available_width(), row_height + row_padding_y * 2.0),
@@ -1118,19 +1148,27 @@ fn row_file_name_input(
                                 ui,
                                 &state.queue_items[index].selection.file_name,
                                 row_height,
+                                file_name_progress,
+                                show_file_name_progress,
                             );
                         }
                     });
                     strip.cell(|ui| {
                         ui.add_space(row_padding_y);
                         ui.set_max_width(action_width);
-                        if let Some(output_path) = output_path.as_deref() {
-                            row_output_action_button(
-                                ui,
-                                state,
-                                output_path,
-                                output_action_mode,
-                                row_height,
+                        if enabled {
+                            if let Some(output_path) = output_path.as_deref() {
+                                row_output_action_button(
+                                    ui,
+                                    state,
+                                    output_path,
+                                    output_action_mode,
+                                    row_height,
+                                );
+                            }
+                        } else {
+                            draw_output_action_arrow_button(ui, row_height, false).on_hover_text(
+                                state.tr("item.file_actions_are_available_after_download_co"),
                             );
                         }
                     });
@@ -1243,7 +1281,7 @@ fn draw_output_action_arrow_button(ui: &mut Ui, row_height: f32, enabled: bool) 
     let (rect, response) = ui.allocate_exact_size(desired_size, sense);
     let visuals = ui.style().interact(&response);
     let text_color = if enabled {
-        visuals.text_color()
+        standard_icon_color(ui)
     } else {
         ui.visuals().weak_text_color()
     };
@@ -1292,7 +1330,7 @@ fn row_file_name_placeholder(ui: &mut Ui, state: &AppState, value: &str, label_w
                     });
                     strip.cell(|ui| {
                         ui.add_space(row_padding_y);
-                        let _ = draw_file_name_display(ui, &placeholder, row_height);
+                        let _ = draw_file_name_display(ui, &placeholder, row_height, 0.0, false);
                     });
                     strip.cell(|ui| {
                         ui.add_space(row_padding_y);

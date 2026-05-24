@@ -3653,6 +3653,7 @@ dependencies = [
  "serde_yaml",
  "ureq",
  "win32_notif",
+ "windows-sys 0.59.0",
  "winres",
  "zip",
 ]

@@ -1,7 +1,7 @@
 # yt-dlp-gui
 
 ![GitHub release](https://img.shields.io/github/v/release/kannagi0303/yt-dlp-gui-v2)
-![GitHub downloads](https://img.shields.io/github/downloads/kannagi0303/yt-dlp-gui-v2/total)
+![GitHub downloads](https://img.shields.io/github/downloads/kannagi0303/yt-dlp-gui-v2/total?cacheSeconds=3600)
 ![License](https://img.shields.io/github/license/kannagi0303/yt-dlp-gui-v2)
 
 - Front-end of [yt-dlp](https://github.com/yt-dlp/yt-dlp)

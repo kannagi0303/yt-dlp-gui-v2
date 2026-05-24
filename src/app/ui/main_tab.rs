@@ -2,7 +2,7 @@ use eframe::egui::{self, Color32, RichText, Spinner, Ui};
 use egui_extras::{Size, StripBuilder};
 
 use crate::app::state::AppState;
-use crate::app::widgets::icon::{AppIcon, icon_image};
+use crate::app::widgets::icon::{AppIcon, icon_image, standard_icon_color};
 use crate::app::widgets::url_input::{DisplayPathInput, UrlInput};
 
 use super::common::{
@@ -157,7 +157,7 @@ fn clipboard_monitor_button(ui: &Ui, state: &AppState) -> egui::Button<'static> 
     let icon_color = if enabled {
         Color32::WHITE
     } else {
-        ui.visuals().text_color()
+        standard_icon_color(ui)
     };
     let mut button = egui::Button::image(icon_image(icon, size, icon_color)).small();
     if enabled {
@@ -184,10 +184,8 @@ fn row_output_and_download(ui: &mut Ui, state: &mut AppState) {
     let target_button_width = natural_icon_button_width(ui, state.tr(UiText::TARGET_DIR));
     let row_width = ui.available_width();
     let mut output_dir_display = state.output_dir_display();
-    let resolved_output_dir = state.resolved_output_dir_display();
     let output_locked_by_config = state.output_dir_locked_by_config();
     let output_config_source = state.output_dir_config_source_display();
-    let latest_status = state.latest_download_status();
     let has_pending_downloads = state.has_pending_download_items();
 
     ui.allocate_ui(egui::vec2(row_width, row_height), |ui| {
@@ -232,25 +230,10 @@ fn row_output_and_download(ui: &mut Ui, state: &mut AppState) {
                 });
 
                 strip.cell(|ui| {
-                    let response = ui.add_sized(
+                    ui.add_sized(
                         [ui.available_width(), row_height],
                         DisplayPathInput::new(&mut output_dir_display),
                     );
-                    let mut hover_text =
-                        format!("{}{}", state.tr("main.actual_path"), resolved_output_dir);
-                    if output_locked_by_config {
-                        hover_text = output_config_source
-                            .as_deref()
-                            .map(|path| {
-                                format!("{}{}", state.tr("main.controlled_by_config_2"), path)
-                            })
-                            .unwrap_or_else(|| state.tr("main.controlled_by_config").to_owned());
-                    }
-                    if let Some(status) = &latest_status {
-                        hover_text.push('\n');
-                        hover_text.push_str(&state.localize_message(status));
-                    }
-                    response.on_hover_text(hover_text);
                 });
 
                 strip.cell(|ui| {
@@ -265,10 +248,6 @@ fn row_output_and_download(ui: &mut Ui, state: &mut AppState) {
                     };
                     if missing_yt_dlp {
                         // The missing-tool notice is always shown near the URL action button.
-                    } else if let Some(status) = &latest_status {
-                        response
-                            .clone()
-                            .on_hover_text(state.localize_message(status));
                     }
                     if response.clicked() && has_pending_downloads && !missing_yt_dlp {
                         state.start_single_download();
@@ -278,20 +257,32 @@ fn row_output_and_download(ui: &mut Ui, state: &mut AppState) {
     });
 }
 
-fn missing_tool_button_fill() -> Color32 {
-    Color32::from_rgb(96, 24, 24)
+fn missing_tool_button_fill(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        Color32::from_rgb(96, 24, 24)
+    } else {
+        Color32::from_rgb(255, 214, 214)
+    }
 }
 
 fn missing_tool_button_stroke() -> egui::Stroke {
     egui::Stroke::new(1.0, Color32::from_rgb(220, 72, 72))
 }
 
-fn missing_tool_button_text_color() -> Color32 {
-    Color32::from_rgb(255, 225, 225)
+fn missing_tool_button_text_color(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        Color32::from_rgb(255, 225, 225)
+    } else {
+        Color32::from_rgb(190, 0, 28)
+    }
 }
 
-fn missing_tool_callout_fill() -> Color32 {
-    Color32::from_rgb(42, 16, 16)
+fn missing_tool_callout_fill(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        Color32::from_rgb(42, 16, 16)
+    } else {
+        Color32::from_rgb(255, 226, 226)
+    }
 }
 
 fn missing_tool_callout_stroke() -> egui::Stroke {
@@ -312,13 +303,13 @@ fn show_missing_yt_dlp_callout(
         .fixed_pos(pos)
         .show(ui.ctx(), |ui| {
             egui::Frame::popup(ui.style())
-                .fill(missing_tool_callout_fill())
+                .fill(missing_tool_callout_fill(ui))
                 .stroke(missing_tool_callout_stroke())
                 .show(ui, |ui| {
                     ui.set_max_width(MISSING_YT_DLP_CALLOUT_WIDTH);
                     ui.label(
                         RichText::new(state.tr(MISSING_YT_DLP_TOOLTIP_KEY))
-                            .color(missing_tool_button_text_color()),
+                            .color(missing_tool_button_text_color(ui)),
                     );
                 });
         });
@@ -331,12 +322,12 @@ fn primary_url_action_icon() -> AppIcon {
 fn missing_tool_icon_text_button(ui: &Ui, icon: AppIcon, label: &str) -> egui::Button<'static> {
     let size = icon_button_text_size(ui);
     egui::Button::image_and_text(
-        icon_image(icon, size, missing_tool_button_text_color()),
+        icon_image(icon, size, missing_tool_button_text_color(ui)),
         RichText::new(label)
             .size(size)
-            .color(missing_tool_button_text_color()),
+            .color(missing_tool_button_text_color(ui)),
     )
-    .fill(missing_tool_button_fill())
+    .fill(missing_tool_button_fill(ui))
     .stroke(missing_tool_button_stroke())
 }
 
@@ -361,9 +352,10 @@ fn primary_url_action_button_for_state(
         }
     } else if muted {
         egui::Button::new(
-            RichText::new(state.primary_url_action_label()).color(missing_tool_button_text_color()),
+            RichText::new(state.primary_url_action_label())
+                .color(missing_tool_button_text_color(ui)),
         )
-        .fill(missing_tool_button_fill())
+        .fill(missing_tool_button_fill(ui))
         .stroke(missing_tool_button_stroke())
     } else {
         egui::Button::new(state.primary_url_action_label())

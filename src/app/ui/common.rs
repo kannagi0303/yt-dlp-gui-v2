@@ -1,6 +1,6 @@
 use eframe::egui::{self, Align, RichText, Sense, TextStyle, TextWrapMode, Ui, WidgetText};
 
-use crate::app::widgets::icon::{AppIcon, icon_image};
+use crate::app::widgets::icon::{AppIcon, icon_image, standard_icon_color};
 
 pub(super) struct UiText;
 pub(super) const ITEM_TITLE_FONT_SIZE: f32 = 14.0;
@@ -10,6 +10,7 @@ impl UiText {
     pub(super) const TAB_MAIN: &'static str = "tab.main";
     pub(super) const TAB_ADVANCE: &'static str = "tab.advanced";
     pub(super) const TAB_OPTIONS: &'static str = "tab.options";
+    pub(super) const TAB_LOG: &'static str = "tab.log";
     pub(super) const URL_HINT: &'static str = "main.url_hint";
     pub(super) const DOWNLOAD: &'static str = "action.download";
     pub(super) const VIDEO: &'static str = "media.video";
@@ -65,7 +66,7 @@ pub(super) fn natural_icon_button_width(ui: &Ui, label: &str) -> f32 {
 pub(super) fn icon_text_button(ui: &Ui, icon: AppIcon, label: &str) -> egui::Button<'static> {
     let size = icon_button_text_size(ui);
     egui::Button::image_and_text(
-        icon_image(icon, size, ui.visuals().text_color()),
+        icon_image(icon, size, standard_icon_color(ui)),
         RichText::new(label).size(size),
     )
 }
@@ -112,7 +113,7 @@ pub(super) fn text_trailing_icon_button(
             rect.center().y - icon_size / 2.0,
         );
         let icon_rect = egui::Rect::from_min_size(icon_min, egui::vec2(icon_size, icon_size));
-        icon_image(icon, icon_size, visuals.text_color()).paint_at(ui, icon_rect);
+        icon_image(icon, icon_size, standard_icon_color(ui)).paint_at(ui, icon_rect);
 
         response
     }

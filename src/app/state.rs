@@ -28,6 +28,11 @@ use crate::app::metadata::{
     first_audio_format_id, human_size_bytes, infer_title, normalize_duration_badge_text,
     requested_or_default_format_id, select_best_thumbnail_url, video_resolution_area,
 };
+use crate::app::post_process_worker::{
+    POST_PROCESS_CANCELLED_MESSAGE, PostProcessEvent, request_post_process_stop,
+    run_builtin_transcode_worker,
+};
+use crate::app::transcode_plan::resolve_transcode_plan;
 pub use crate::app::queue_status::{ItemTitleVisualState, QueueSummary};
 use crate::app::queue_status::{
     QueueSummaryBucket, is_pending_download_state, item_can_enter_download_queue,
@@ -44,9 +49,10 @@ use crate::infrastructure::{
     AppConfig, CacheLocationMode, ConfigFileOption, DependencyTool, DownloadRequest,
     DownloadTargetKind, FileTimeMode, OutputFileActionMode, PrepareAction, PrepareReport,
     PrepareRequirement, PrepareStatus, SerializableCacheLocationMode, ToolInstallCancelHandle,
-    ToolInstallProgress, ToolInstallStage, ToolPaths, WindowPosition, WindowSize,
+    ThemeAccentColor, ThemeMode, ToolInstallProgress, ToolInstallStage, ToolPaths, WindowPosition, WindowSize,
     YoutubePlaylistRisk, YoutubeVideoPlaylistMode, available_yt_dlp_config_files,
-    classify_youtube_playlist, collect_prepare_report, dependency_tool_exists, display_output_dir,
+    classify_youtube_playlist, collect_prepare_report, dependency_tool_exists,
+    dependency_tool_is_available, display_output_dir,
     looks_like_playlist_url, normalize_ui_scale_percent, resolve_output_dir,
     send_download_failed_windows_toast, send_download_finished_windows_toast,
     youtube_url_force_single_video, youtube_url_has_video_and_playlist, yt_dlp_configs_dir_display,
@@ -58,6 +64,8 @@ pub enum AppTab {
     Main,
     Advance,
     Options,
+    Processing,
+    Log,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,6 +76,11 @@ pub enum OptionsDetailPage {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrepareDetailPage {
     Language,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProcessingDetailPage {
+    Transcode,
 }
 
 pub enum ThumbnailRenderSource {
@@ -99,12 +112,14 @@ pub struct AppState {
     pending_ui_scale_percent: u16,
     pub options_detail_page: Option<OptionsDetailPage>,
     pub prepare_detail_page: Option<PrepareDetailPage>,
+    pub processing_detail_page: Option<ProcessingDetailPage>,
     pub tool_paths: ToolPaths,
     pub prepare_report: PrepareReport,
     prepare_tool_selection: Vec<DependencyTool>,
     prepare_tab_snoozed: bool,
     pending_dependency_installs: VecDeque<DependencyTool>,
     pub last_action: String,
+    pub runtime_log: VecDeque<String>,
     pub format_picker: FormatPickerState,
     pub is_adding_batch: bool,
     pub is_cancelling_batch_add: bool,
@@ -116,6 +131,8 @@ pub struct AppState {
     batch_add_cancel_requested: Option<Arc<AtomicBool>>,
     download_result_rx: Receiver<DownloadEvent>,
     download_result_tx: Sender<DownloadEvent>,
+    post_process_result_rx: Receiver<PostProcessEvent>,
+    post_process_result_tx: Sender<PostProcessEvent>,
     tool_install_result_rx: Receiver<ToolInstallEvent>,
     tool_install_result_tx: Sender<ToolInstallEvent>,
     thumbnail_result_rx: Receiver<ThumbnailFetchEvent>,
@@ -175,6 +192,14 @@ fn progress_status_text(language: Language, progress: &ToolInstallProgress) -> S
     }
 }
 
+fn monotonic_progress(current: f32, next: f32) -> f32 {
+    if next.is_finite() {
+        current.max(next.clamp(0.0, 100.0))
+    } else {
+        current
+    }
+}
+
 fn progress_summary_text(language: Language, progress: &ToolInstallProgress) -> String {
     let stage = i18n::text(language, progress.stage.label());
     match progress.percent {
@@ -193,6 +218,19 @@ fn progress_summary_text(language: Language, progress: &ToolInstallProgress) -> 
 }
 
 fn queue_item_status_key(item: &QueueItem) -> &'static str {
+    if let Some(run) = item.workflows.iter().rev().find(|run| {
+        matches!(
+            run.kind,
+            WorkflowKind::DownloadMedia | WorkflowKind::ExportMedia | WorkflowKind::PostProcess
+        ) && matches!(run.state, WorkflowState::Queued | WorkflowState::Running)
+    }) {
+        return match run.state {
+            WorkflowState::Queued => "item.status.queued",
+            WorkflowState::Running => "item.status.running",
+            _ => "item.status.queued",
+        };
+    }
+
     if let Some(run) = item
         .workflows
         .iter()
@@ -244,6 +282,7 @@ fn reset_item_for_new_work(item: &mut QueueItem, target_kind: DownloadTargetKind
             item.progress.video = 0.0;
             item.progress.audio = 0.0;
             item.progress.subtitle = 0.0;
+            item.progress.post_process = 0.0;
         }
         DownloadTargetKind::Video => item.progress.video = 0.0,
         DownloadTargetKind::Audio => item.progress.audio = 0.0,
@@ -257,6 +296,7 @@ impl AppState {
         let (config, tool_paths) = AppConfig::load_runtime();
         let (analyze_result_tx, analyze_result_rx) = mpsc::channel();
         let (download_result_tx, download_result_rx) = mpsc::channel();
+        let (post_process_result_tx, post_process_result_rx) = mpsc::channel();
         let (tool_install_result_tx, tool_install_result_rx) = mpsc::channel();
         let (thumbnail_result_tx, thumbnail_result_rx) = mpsc::channel();
         let pending_ui_scale_percent = config.ui_scale_percent;
@@ -287,12 +327,14 @@ impl AppState {
             pending_ui_scale_percent,
             options_detail_page: None,
             prepare_detail_page: None,
+            processing_detail_page: None,
             tool_paths,
             prepare_report: PrepareReport::default(),
             prepare_tool_selection: Vec::new(),
             prepare_tab_snoozed: false,
             pending_dependency_installs: VecDeque::new(),
             last_action: String::new(),
+            runtime_log: VecDeque::new(),
             format_picker: FormatPickerState::default(),
             is_adding_batch: false,
             is_cancelling_batch_add: false,
@@ -304,6 +346,8 @@ impl AppState {
             batch_add_cancel_requested: None,
             download_result_rx,
             download_result_tx,
+            post_process_result_rx,
+            post_process_result_tx,
             tool_install_result_rx,
             tool_install_result_tx,
             thumbnail_result_rx,
@@ -814,18 +858,30 @@ impl AppState {
                     percent,
                 }) => {
                     if let Some(item) = self.queue_item_mut_by_id(item_id) {
+                        let display_percent = percent.clamp(0.0, 100.0);
                         if let Some(run) =
                             item.workflows.iter_mut().find(|run| run.id == workflow_id)
                         {
-                            run.progress = percent;
+                            run.progress = monotonic_progress(run.progress, display_percent);
                         }
                         match slot {
-                            DownloadProgressSlot::Video => item.progress.video = percent,
-                            DownloadProgressSlot::Audio => item.progress.audio = percent,
-                            DownloadProgressSlot::Subtitle => item.progress.subtitle = percent,
+                            DownloadProgressSlot::Video => {
+                                item.progress.video =
+                                    monotonic_progress(item.progress.video, display_percent);
+                            }
+                            DownloadProgressSlot::Audio => {
+                                item.progress.audio =
+                                    monotonic_progress(item.progress.audio, display_percent);
+                            }
+                            DownloadProgressSlot::Subtitle => {
+                                item.progress.subtitle =
+                                    monotonic_progress(item.progress.subtitle, display_percent);
+                            }
                             DownloadProgressSlot::Both => {
-                                item.progress.video = percent;
-                                item.progress.audio = percent;
+                                item.progress.video =
+                                    monotonic_progress(item.progress.video, display_percent);
+                                item.progress.audio =
+                                    monotonic_progress(item.progress.audio, display_percent);
                             }
                         }
                     }
@@ -841,6 +897,7 @@ impl AppState {
                     let should_send_windows_toast =
                         message.workflow_kind == WorkflowKind::DownloadMedia;
                     self.unregister_active_workflow(message.workflow_id);
+                    let mut pending_post_process_input = None;
                     if let Some(item) = self.queue_item_mut_by_id(message.item_id) {
                         if let Some(run) = item
                             .workflows
@@ -874,6 +931,11 @@ impl AppState {
                                     }
                                     item.last_output_path = Some(output_path.clone());
                                     item.last_error = None;
+                                    if message.workflow_kind == WorkflowKind::DownloadMedia
+                                        && message.target_kind == DownloadTargetKind::Normal
+                                    {
+                                        pending_post_process_input = Some(output_path.clone());
+                                    }
                                 }
                                 Err(error) if error == DOWNLOAD_CANCELLED_MESSAGE => {
                                     run.state = WorkflowState::Cancelled;
@@ -889,26 +951,128 @@ impl AppState {
                         }
                     }
 
+                    let post_process_started = pending_post_process_input
+                        .as_deref()
+                        .is_some_and(|output_path| {
+                            self.maybe_start_builtin_transcode_post_process(
+                                message.item_id,
+                                output_path,
+                            )
+                        });
+
                     match message.result {
-                        Ok(_) => {
-                            self.last_action.clear();
+                        Ok(output_path) => {
+                            self.push_runtime_log(format!("Download finished: {output_path}"));
+                            if !post_process_started {
+                                self.last_action.clear();
+                            }
                         }
                         Err(error) if error == DOWNLOAD_CANCELLED_MESSAGE => {
+                            self.push_runtime_log("Download cancelled".to_owned());
                             self.last_action = self.tr("state.download_stopped").to_owned();
                         }
                         Err(error) => {
+                            self.push_runtime_log(format!("Download failed: {error}"));
                             eprintln!("[download] {error}");
                             self.last_action = error;
                         }
                     }
 
-                    if should_send_windows_toast {
+                    if should_send_windows_toast && !post_process_started {
                         self.send_download_result_windows_toast(
                             notification_title,
                             notification_result,
                         );
                         self.start_next_queued_download_after(finished_item_id);
                     }
+                }
+                Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
+            }
+        }
+
+        loop {
+            match self.post_process_result_rx.try_recv() {
+                Ok(PostProcessEvent::Progress {
+                    item_id,
+                    workflow_id,
+                    percent,
+                }) => {
+                    if let Some(item) = self.queue_item_mut_by_id(item_id) {
+                        item.progress.post_process = percent;
+                        if let Some(run) =
+                            item.workflows.iter_mut().find(|run| run.id == workflow_id)
+                        {
+                            run.progress = percent;
+                        }
+                    }
+                }
+                Ok(PostProcessEvent::Finished(message)) => {
+                    let finished_item_id = message.item_id;
+                    let notification_title = self
+                        .queue_item_by_id(message.item_id)
+                        .map(|item| item.title.trim().to_owned())
+                        .filter(|title| !title.is_empty())
+                        .unwrap_or_else(|| self.tr("state.download_item_fallback").to_owned());
+                    let notification_result = message.result.clone();
+                    self.unregister_active_workflow(message.workflow_id);
+
+                    if let Some(item) = self.queue_item_mut_by_id(message.item_id) {
+                        if let Some(run) = item
+                            .workflows
+                            .iter_mut()
+                            .find(|run| run.id == message.workflow_id)
+                        {
+                            match &message.result {
+                                Ok(output_path) => {
+                                    run.state = WorkflowState::Finished;
+                                    run.progress = 100.0;
+                                    run.output_path = Some(output_path.clone());
+                                    item.progress.post_process = 100.0;
+                                    item.last_output_path = Some(output_path.clone());
+                                    if let Some(actual_file_name) = Path::new(output_path)
+                                        .file_name()
+                                        .and_then(|value| value.to_str())
+                                        .map(ToOwned::to_owned)
+                                    {
+                                        item.selection.file_name = actual_file_name;
+                                    }
+                                    item.completed_selection =
+                                        Some(CompletedSelection::from_selection(&item.selection));
+                                    item.last_error = None;
+                                }
+                                Err(error) if error == POST_PROCESS_CANCELLED_MESSAGE => {
+                                    run.state = WorkflowState::Cancelled;
+                                    run.error = None;
+                                    item.last_error = None;
+                                }
+                                Err(error) => {
+                                    run.state = WorkflowState::Failed;
+                                    run.error = Some(error.clone());
+                                    item.last_error = Some(error.clone());
+                                    item.completed_selection = None;
+                                }
+                            }
+                        }
+                    }
+
+                    match message.result {
+                        Ok(output_path) => {
+                            self.push_runtime_log(format!("Post-process finished: {output_path}"));
+                            self.last_action.clear();
+                        }
+                        Err(error) if error == POST_PROCESS_CANCELLED_MESSAGE => {
+                            self.push_runtime_log("Post-process cancelled".to_owned());
+                            self.last_action = self.tr("state.download_stopped").to_owned();
+                        }
+                        Err(error) => {
+                            self.push_runtime_log(format!("Post-process failed: {error}"));
+                            eprintln!("[post-process] {error}");
+                            self.last_action = error;
+                        }
+                    }
+
+                    self.send_download_result_windows_toast(notification_title, notification_result);
+                    self.start_next_queued_download_after(finished_item_id);
                 }
                 Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
             }
@@ -1095,6 +1259,80 @@ impl AppState {
             .any(|workflow| workflow.kind == WorkflowKind::DownloadMedia)
     }
 
+    fn maybe_start_builtin_transcode_post_process(
+        &mut self,
+        item_id: QueueItemId,
+        input_path: &str,
+    ) -> bool {
+        if !self.config.post_download_conversion_enabled {
+            return false;
+        }
+        let plan = resolve_transcode_plan(&self.config.transcode_intent);
+        if !plan.is_executable() {
+            return false;
+        }
+        let Some(profile) = plan.backend_profile else {
+            return false;
+        };
+
+        let Some(item_index) = self.queue_item_index_by_id(item_id) else {
+            return false;
+        };
+        let title = self.queue_items[item_index].title.clone();
+        let workflow_id = self.alloc_workflow_run_id();
+        self.register_active_workflow(
+            item_id,
+            workflow_id,
+            WorkflowKind::PostProcess,
+            ToolKind::Ffmpeg,
+        );
+
+        if let Some(item) = self.queue_items.get_mut(item_index) {
+            item.progress.post_process = 0.0;
+            let mut run = WorkflowRun::new(
+                workflow_id,
+                WorkflowKind::PostProcess,
+                ToolKind::Ffmpeg,
+                WorkflowState::Running,
+            );
+            run.detail = input_path.to_owned();
+            item.workflows.push(run);
+        }
+
+        self.last_action = self.trf(
+            "state.transcode_post_processing_title",
+            &[("{title}", title.as_str()), ("{profile}", profile.label())],
+        );
+        self.push_runtime_log(format!("Post-process started: {title} -> {}", profile.label()));
+
+        let tool_paths = self.tool_paths.clone();
+        let settings = self.config.transcode_intent.clone();
+        let tx = self.post_process_result_tx.clone();
+        let input_path = input_path.to_owned();
+        let child_handle = Arc::new(Mutex::new(None));
+        let cancel_requested = Arc::new(AtomicBool::new(false));
+        self.attach_active_download_process(
+            workflow_id,
+            child_handle.clone(),
+            cancel_requested.clone(),
+        );
+
+        thread::spawn(move || {
+            run_builtin_transcode_worker(
+                tool_paths,
+                settings,
+                input_path,
+                item_id,
+                workflow_id,
+                tx,
+                child_handle,
+                cancel_requested,
+            );
+        });
+
+        true
+    }
+
     fn start_next_queued_download_after(&mut self, finished_item_id: QueueItemId) {
         if self.has_running_download_workflow() {
             return;
@@ -1133,7 +1371,7 @@ impl AppState {
             workflow.item_id == item_id
                 && matches!(
                     workflow.kind,
-                    WorkflowKind::DownloadMedia | WorkflowKind::ExportMedia
+                    WorkflowKind::DownloadMedia | WorkflowKind::ExportMedia | WorkflowKind::PostProcess
                 )
                 && workflow.download_child.is_some()
         })
@@ -1147,7 +1385,7 @@ impl AppState {
                 workflow.item_id == item_id
                     && matches!(
                         workflow.kind,
-                        WorkflowKind::DownloadMedia | WorkflowKind::ExportMedia
+                        WorkflowKind::DownloadMedia | WorkflowKind::ExportMedia | WorkflowKind::PostProcess
                     )
             })
             .map(|workflow| workflow.workflow_id)
@@ -1174,7 +1412,11 @@ impl AppState {
         ) else {
             return;
         };
-        request_download_stop(child_handle, cancel_requested);
+        if workflow.kind == WorkflowKind::PostProcess {
+            request_post_process_stop(child_handle, cancel_requested);
+        } else {
+            request_download_stop(child_handle, cancel_requested);
+        }
     }
 
     pub fn cleanup_active_download_processes(&mut self) {
@@ -1184,7 +1426,7 @@ impl AppState {
             .filter(|workflow| {
                 matches!(
                     workflow.kind,
-                    WorkflowKind::DownloadMedia | WorkflowKind::ExportMedia
+                    WorkflowKind::DownloadMedia | WorkflowKind::ExportMedia | WorkflowKind::PostProcess
                 )
             })
             .map(|workflow| workflow.workflow_id)
@@ -2202,12 +2444,64 @@ impl AppState {
         self.prepare_detail_page = None;
     }
 
+    pub fn open_processing_detail_page(&mut self, page: ProcessingDetailPage) {
+        self.processing_detail_page = Some(page);
+    }
+
+    pub fn close_processing_detail_page(&mut self) {
+        self.processing_detail_page = None;
+    }
+
     pub fn set_last_action_message(&mut self, message: impl Into<String>) {
         self.last_action = message.into();
     }
 
     pub fn set_windows_toast_enabled(&mut self, enabled: bool) {
         self.config.windows_toast_enabled = enabled;
+        let _ = self.config.save();
+    }
+
+    pub fn set_theme_mode(&mut self, mode: ThemeMode) {
+        if self.config.theme_mode == mode {
+            return;
+        }
+        self.config.theme_mode = mode;
+        let _ = self.config.save();
+    }
+
+    pub fn set_theme_accent_color(&mut self, color: ThemeAccentColor) {
+        if self.config.theme_accent_color == color {
+            return;
+        }
+        self.config.theme_accent_color = color;
+        let _ = self.config.save();
+    }
+
+    pub fn set_enable_processing_tab(&mut self, enabled: bool) {
+        self.config.enable_processing_tab = enabled;
+        if !enabled && self.active_tab == AppTab::Processing {
+            self.active_tab = AppTab::Options;
+        }
+        let _ = self.config.save();
+    }
+
+    pub fn set_show_log_tab(&mut self, enabled: bool) {
+        self.config.show_log_tab = enabled;
+        if !enabled && self.active_tab == AppTab::Log {
+            self.active_tab = AppTab::Options;
+        }
+        let _ = self.config.save();
+    }
+
+    pub fn set_transcode_intent(
+        &mut self,
+        settings: crate::infrastructure::TranscodeIntentSettings,
+    ) {
+        let settings = settings.normalized();
+        if self.config.transcode_intent == settings {
+            return;
+        }
+        self.config.transcode_intent = settings;
         let _ = self.config.save();
     }
 
@@ -2569,7 +2863,7 @@ impl AppState {
     }
 
     pub fn dependency_tool_is_installed(&self, tool: DependencyTool) -> bool {
-        dependency_tool_exists(self.dependency_tool_path(tool))
+        dependency_tool_is_available(tool, self.dependency_tool_path(tool))
     }
 
     pub fn dependency_tool_status_text(&self, tool: DependencyTool) -> String {
@@ -2937,6 +3231,27 @@ impl AppState {
         let _ = self.config.save();
     }
 
+
+    pub fn push_runtime_log(&mut self, message: impl Into<String>) {
+        let message = message.into();
+        if message.trim().is_empty() {
+            return;
+        }
+        self.runtime_log.push_front(message);
+        while self.runtime_log.len() > 120 {
+            self.runtime_log.pop_back();
+        }
+    }
+
+    pub fn set_post_download_conversion_enabled(&mut self, enabled: bool) {
+        self.config.post_download_conversion_enabled = enabled;
+        let _ = self.config.save();
+    }
+
+    pub fn set_enable_builtin_transcode_after_download(&mut self, enabled: bool) {
+        self.set_post_download_conversion_enabled(enabled);
+    }
+
     pub fn set_chapter_compatibility_mode(&mut self, enabled: bool) {
         self.tool_paths.chapter_compatibility_mode = enabled;
         self.config.chapter_compatibility_mode = enabled;
@@ -3036,9 +3351,14 @@ impl AppState {
     }
 
     pub fn item_title_is_loading(&self, item_index: usize) -> bool {
-        self.queue_items
-            .get(item_index)
-            .is_some_and(|item| matches!(item.metadata_state, MetadataState::Running))
+        let Some(item) = self.queue_items.get(item_index) else {
+            return false;
+        };
+        matches!(item.metadata_state, MetadataState::Running)
+            || item
+                .workflows
+                .iter()
+                .any(|run| run.state == WorkflowState::Running)
     }
 
     pub fn url_input_locked(&self) -> bool {
@@ -3070,12 +3390,15 @@ impl AppState {
             return ItemTitleVisualState::Default;
         };
 
-        if item
-            .workflows
-            .iter()
-            .rev()
-            .find(|run| run.kind == WorkflowKind::DownloadMedia)
-            .is_some_and(|run| matches!(run.state, WorkflowState::Queued | WorkflowState::Running))
+        if item.workflows.iter().any(|run| {
+            matches!(run.state, WorkflowState::Queued | WorkflowState::Running)
+                && matches!(
+                    run.kind,
+                    WorkflowKind::DownloadMedia
+                        | WorkflowKind::ExportMedia
+                        | WorkflowKind::PostProcess
+                )
+        })
         {
             return ItemTitleVisualState::Pending;
         }
@@ -3210,6 +3533,26 @@ impl AppState {
         }
 
         item.progress.subtitle > 0.0 && item.progress.subtitle < 100.0
+    }
+
+    pub fn item_file_name_progress(&self, item_index: usize) -> f32 {
+        self.queue_items
+            .get(item_index)
+            .map(|item| item.progress.post_process)
+            .unwrap_or(0.0)
+    }
+
+    pub fn item_file_name_progress_visible(&self, item_index: usize) -> bool {
+        let Some(item) = self.queue_items.get(item_index) else {
+            return false;
+        };
+
+        let has_active_post_process = self.active_workflows.values().any(|workflow| {
+            workflow.item_id == item.id && workflow.kind == WorkflowKind::PostProcess
+        });
+        has_active_post_process
+            && item.progress.post_process > 0.0
+            && item.progress.post_process < 100.0
     }
 
     fn resolve_download_format_selection(

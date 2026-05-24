@@ -850,7 +850,7 @@ fn render_filter_row(
                     .frame(true)
                     .min_size(egui::vec2(0.0, ui.spacing().interact_size.y + 8.0));
                 if !is_enabled && !is_selected {
-                    button = button.fill(egui::Color32::BLACK);
+                    button = button.fill(incompatible_filter_button_fill(ui));
                 }
 
                 if ui.add(button.selected(is_selected)).clicked() {
@@ -865,6 +865,14 @@ fn render_filter_row(
             }
         });
     });
+}
+
+fn incompatible_filter_button_fill(ui: &Ui) -> egui::Color32 {
+    if ui.visuals().dark_mode {
+        egui::Color32::BLACK
+    } else {
+        ui.visuals().widgets.noninteractive.bg_fill
+    }
 }
 
 fn set_filter_value(filters: &mut FormatPickerFilters, field: FilterField, value: Option<String>) {

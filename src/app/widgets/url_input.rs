@@ -4,7 +4,7 @@ use eframe::egui::{
     text::{LayoutJob, TextFormat},
 };
 
-use crate::app::widgets::icon::{AppIcon, icon_image};
+use crate::app::widgets::icon::{AppIcon, icon_image, standard_icon_color};
 use crate::i18n::{self, Language};
 use crate::infrastructure::is_windows_known_folder_segment;
 
@@ -101,7 +101,7 @@ impl Widget for DisplayPathInput<'_> {
         let mut layouter = move |ui: &Ui, text: &dyn TextBuffer, wrap_width: f32| {
             let mut job = layout_path_text(ui, text.as_str());
             if error {
-                apply_error_color(&mut job);
+                apply_error_color(ui, &mut job);
             }
             let _ = wrap_width;
             job.wrap.max_width = f32::INFINITY;
@@ -117,7 +117,7 @@ impl Widget for DisplayPathInput<'_> {
 
 fn layout_url_text(ui: &Ui, text: &str) -> LayoutJob {
     let mut job = LayoutJob::default();
-    let theme = url_theme();
+    let theme = url_theme(ui);
 
     if text.is_empty() {
         return job;
@@ -157,7 +157,7 @@ fn layout_url_text(ui: &Ui, text: &str) -> LayoutJob {
 
 fn layout_path_text(ui: &Ui, text: &str) -> LayoutJob {
     let mut job = LayoutJob::default();
-    let theme = accent_theme();
+    let theme = accent_theme(ui);
 
     if text.is_empty() {
         return job;
@@ -207,9 +207,9 @@ fn layout_path_text(ui: &Ui, text: &str) -> LayoutJob {
     job
 }
 
-fn apply_error_color(job: &mut LayoutJob) {
+fn apply_error_color(ui: &Ui, job: &mut LayoutJob) {
     for section in &mut job.sections {
-        section.format.color = accent_red();
+        section.format.color = accent_red_for_ui(ui);
     }
 }
 
@@ -315,7 +315,7 @@ fn menu_action_button(ui: &mut Ui, icon: AppIcon, label: &str, enabled: bool) ->
     ui.add_enabled(
         enabled,
         eframe::egui::Button::image_and_text(
-            icon_image(icon, size, ui.visuals().text_color()),
+            icon_image(icon, size, standard_icon_color(ui)),
             label,
         ),
     )
@@ -373,6 +373,30 @@ pub fn accent_red() -> Color32 {
     Color32::from_rgb(196, 64, 64)
 }
 
+pub fn accent_blue_for_ui(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        accent_blue()
+    } else {
+        Color32::from_rgb(0, 92, 230)
+    }
+}
+
+pub fn accent_green_for_ui(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        accent_green()
+    } else {
+        Color32::from_rgb(0, 128, 32)
+    }
+}
+
+pub fn accent_red_for_ui(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        accent_red()
+    } else {
+        Color32::from_rgb(210, 0, 32)
+    }
+}
+
 #[derive(Clone, Copy)]
 struct UrlTheme {
     normal: Color32,
@@ -381,16 +405,24 @@ struct UrlTheme {
     domain: Color32,
 }
 
-fn url_theme() -> UrlTheme {
-    accent_theme()
+fn url_theme(ui: &Ui) -> UrlTheme {
+    accent_theme(ui)
 }
 
-fn accent_theme() -> UrlTheme {
+fn accent_theme(ui: &Ui) -> UrlTheme {
     UrlTheme {
-        normal: Color32::from_rgb(235, 235, 235),
-        slash: accent_blue(),
-        file_name: Color32::from_gray(128),
-        domain: accent_green(),
+        normal: ui.visuals().text_color(),
+        slash: accent_blue_for_ui(ui),
+        file_name: neutral_secondary_text_color(ui),
+        domain: accent_green_for_ui(ui),
+    }
+}
+
+fn neutral_secondary_text_color(ui: &Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        ui.visuals().weak_text_color()
+    } else {
+        Color32::from_rgb(82, 88, 96)
     }
 }
 

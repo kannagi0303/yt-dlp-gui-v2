@@ -372,6 +372,19 @@ impl QueueItem {
     }
 
     pub fn status_text(&self) -> &'static str {
+        if let Some(run) = self.workflows.iter().rev().find(|run| {
+            matches!(
+                run.kind,
+                WorkflowKind::DownloadMedia | WorkflowKind::ExportMedia | WorkflowKind::PostProcess
+            ) && matches!(run.state, WorkflowState::Queued | WorkflowState::Running)
+        }) {
+            return match run.state {
+                WorkflowState::Queued => "item.status.queued",
+                WorkflowState::Running => "item.status.running",
+                _ => "item.status.queued",
+            };
+        }
+
         if let Some(run) = self
             .workflows
             .iter()
@@ -495,6 +508,7 @@ pub struct ItemProgress {
     pub video: f32,
     pub audio: f32,
     pub subtitle: f32,
+    pub post_process: f32,
 }
 
 #[derive(Clone)]
