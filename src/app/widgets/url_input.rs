@@ -87,9 +87,9 @@ impl Widget for UrlInput<'_> {
         };
 
         let output = editor.layouter(&mut layouter).show(ui);
-        let response = output.response.clone();
+        let response = output.response.response.clone();
         attach_text_edit_context_menu(ui, &response, text, enabled, language, &output);
-        output.response
+        response
     }
 }
 

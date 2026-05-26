@@ -617,6 +617,50 @@ pub(super) fn select_best_thumbnail_url(json: &Value) -> Option<String> {
         .or(raw_thumbnail)
 }
 
+pub(super) fn select_largest_thumbnail_url(json: &Value) -> Option<String> {
+    let largest_from_list = json
+        .get("thumbnails")
+        .and_then(Value::as_array)
+        .and_then(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    let url = item.get("url").and_then(Value::as_str)?.trim();
+                    if url.is_empty() {
+                        return None;
+                    }
+
+                    let width = item.get("width").and_then(Value::as_u64).unwrap_or(0);
+                    let height = item.get("height").and_then(Value::as_u64).unwrap_or(0);
+                    let preference = item
+                        .get("preference")
+                        .and_then(Value::as_i64)
+                        .unwrap_or(i64::MIN);
+                    let area = width.saturating_mul(height);
+
+                    Some((area, preference, url.to_owned()))
+                })
+                .max_by(|left, right| {
+                    left.0
+                        .cmp(&right.0)
+                        .then_with(|| left.1.cmp(&right.1))
+                        .then_with(|| left.2.cmp(&right.2))
+                })
+                .map(|(_, _, url)| url)
+        });
+
+    let raw_thumbnail = json
+        .get("thumbnail")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|url| !url.is_empty())
+        .map(ToOwned::to_owned);
+
+    largest_from_list
+        .or_else(|| youtube_thumbnail_fallbacks(json).into_iter().next())
+        .or(raw_thumbnail)
+}
+
 fn youtube_thumbnail_fallbacks(json: &Value) -> Vec<String> {
     let Some(video_id) = json
         .get("id")

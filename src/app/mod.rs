@@ -1,10 +1,11 @@
 pub(crate) mod app_icon;
 mod batch_add_worker;
+mod compatibility_profiles;
 mod download_worker;
 mod format_picker_state;
 mod media_probe;
-mod compatibility_profiles;
 mod metadata;
+mod music_stream;
 mod native_titlebar;
 mod post_process_worker;
 mod queue_status;
@@ -29,10 +30,7 @@ use eframe::{
 };
 use egui_extras::install_image_loaders;
 
-use self::{
-    native_titlebar::NativeTitlebarAccentResult,
-    state::AppState,
-};
+use self::{native_titlebar::NativeTitlebarAccentResult, state::AppState};
 use crate::infrastructure::{ThemeAccentColor, ThemeMode};
 
 const WINDOW_ICON_FADE_DURATION: Duration = Duration::from_millis(180);
@@ -80,6 +78,7 @@ impl NgDlpApp {
 
 impl Drop for NgDlpApp {
     fn drop(&mut self) {
+        self.state.stop_music_playback();
         self.state.cleanup_active_tool_install();
         self.state.cleanup_active_download_processes();
     }
@@ -139,13 +138,13 @@ impl NgDlpApp {
 
     fn apply_theme_accent(&mut self, ctx: &egui::Context) {
         let accent = self.state.config.theme_accent_color;
-        let dark_mode = ctx.style().visuals.dark_mode;
+        let dark_mode = ctx.global_style().visuals.dark_mode;
         let key = (accent, dark_mode);
         if self.applied_theme_accent == Some(key) {
             return;
         }
 
-        let mut style = (*ctx.style()).clone();
+        let mut style = (*ctx.global_style()).clone();
         style.visuals = if dark_mode {
             egui::Visuals::dark()
         } else {
@@ -154,14 +153,14 @@ impl NgDlpApp {
         if !matches!(accent, ThemeAccentColor::Off) {
             tint_visuals(&mut style.visuals, accent, dark_mode);
         }
-        ctx.set_style(style);
+        ctx.set_global_style(style);
         self.applied_theme_accent = Some(key);
         self.applied_native_titlebar_accent = None;
     }
 
     fn apply_native_titlebar_accent(&mut self, ctx: &egui::Context) {
         let accent = self.state.config.theme_accent_color;
-        let dark_mode = ctx.style().visuals.dark_mode;
+        let dark_mode = ctx.global_style().visuals.dark_mode;
         let key = (accent, dark_mode);
         if self.applied_native_titlebar_accent == Some(key) {
             return;
@@ -194,13 +193,13 @@ impl NgDlpApp {
             .as_ref()
             .map(|transition| transition.to);
         if transition_target != Some(theme) && self.applied_window_icon_theme != Some(theme) {
-            self.window_icon_transition = self
-                .applied_window_icon_theme
-                .map(|from| WindowIconTransition {
-                    from,
-                    to: theme,
-                    started_at: Instant::now(),
-                });
+            self.window_icon_transition =
+                self.applied_window_icon_theme
+                    .map(|from| WindowIconTransition {
+                        from,
+                        to: theme,
+                        started_at: Instant::now(),
+                    });
         }
 
         let Some(transition) = self.window_icon_transition.as_ref() else {
@@ -281,9 +280,12 @@ fn tint_visuals(visuals: &mut egui::Visuals, accent: ThemeAccentColor, dark_mode
     visuals.extreme_bg_color = mix_color(visuals.extreme_bg_color, accent, panel_tint * 0.75);
     visuals.selection.bg_fill = mix_color(visuals.selection.bg_fill, accent, 0.55);
 
-    visuals.widgets.inactive.bg_fill = mix_color(visuals.widgets.inactive.bg_fill, accent, widget_tint);
-    visuals.widgets.hovered.bg_fill = mix_color(visuals.widgets.hovered.bg_fill, accent, hover_tint);
-    visuals.widgets.active.bg_fill = mix_color(visuals.widgets.active.bg_fill, accent, hover_tint + 0.08);
+    visuals.widgets.inactive.bg_fill =
+        mix_color(visuals.widgets.inactive.bg_fill, accent, widget_tint);
+    visuals.widgets.hovered.bg_fill =
+        mix_color(visuals.widgets.hovered.bg_fill, accent, hover_tint);
+    visuals.widgets.active.bg_fill =
+        mix_color(visuals.widgets.active.bg_fill, accent, hover_tint + 0.08);
     visuals.widgets.open.bg_fill = mix_color(visuals.widgets.open.bg_fill, accent, hover_tint);
 }
 
@@ -299,7 +301,7 @@ fn mix_color(base: egui::Color32, accent: egui::Color32, amount: f32) -> egui::C
 }
 
 impl eframe::App for NgDlpApp {
-    fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+    fn logic(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         self.apply_window_options(ctx);
         self.apply_theme_mode(ctx);
         self.apply_theme_accent(ctx);
@@ -311,14 +313,17 @@ impl eframe::App for NgDlpApp {
         self.state.poll_background_work();
         self.state.poll_thumbnail_work(ctx);
         self.state.poll_clipboard_monitor();
-        if self.state.has_active_work() {
+        if self.state.has_active_work() || self.state.has_music_playback_activity() {
             ctx.request_repaint_after(Duration::from_millis(100));
         } else if self.state.has_loading_thumbnails() {
             ctx.request_repaint_after(Duration::from_millis(250));
         } else if self.state.clipboard_monitor_enabled() {
             ctx.request_repaint_after(Duration::from_millis(800));
         }
-        ui::render_app(ctx, &mut self.state);
+    }
+
+    fn ui(&mut self, ui: &mut eframe::egui::Ui, _frame: &mut eframe::Frame) {
+        ui::render_app(ui, &mut self.state);
     }
 }
 

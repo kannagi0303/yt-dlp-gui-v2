@@ -8,7 +8,9 @@ use std::time::Duration;
 
 use serde_json::Value;
 
-use crate::app::metadata::{PlaylistEntrySeed, playlist_entry_seed_from_json};
+use crate::app::metadata::{
+    PlaylistEntrySeed, playlist_entry_seed_from_json, select_largest_thumbnail_url,
+};
 use crate::infrastructure::{ToolPaths, configure_background_command};
 
 pub(super) enum BatchAddEvent {
@@ -35,6 +37,7 @@ pub(super) fn run_batch_add_worker(
     limit: Option<usize>,
     untitled_task: String,
     imported_template: String,
+    prefer_largest_thumbnail: bool,
     tx: Sender<BatchAddEvent>,
     child_handle: Arc<Mutex<Option<Child>>>,
     cancel_requested: Arc<AtomicBool>,
@@ -115,10 +118,17 @@ pub(super) fn run_batch_add_worker(
             continue;
         };
 
-        let Some(seed) = playlist_entry_seed_from_json(&entry, &untitled_task, &imported_template)
+        let Some(mut seed) =
+            playlist_entry_seed_from_json(&entry, &untitled_task, &imported_template)
         else {
             continue;
         };
+        if prefer_largest_thumbnail {
+            if let Some(thumbnail_url) = select_largest_thumbnail_url(&entry) {
+                seed.thumbnail_url = thumbnail_url;
+                seed.thumbnail_hint = "item.thumbnail_preview".to_owned();
+            }
+        }
 
         if cancel_requested.load(Ordering::Relaxed) {
             break;
@@ -208,7 +218,7 @@ fn take_and_wait_batch_add_child(
 }
 
 #[cfg(target_os = "windows")]
-fn terminate_child_process(child: &mut Child) {
+pub(super) fn terminate_child_process(child: &mut Child) {
     let mut command = std::process::Command::new("taskkill");
     configure_background_command(&mut command);
     let _ = command
@@ -220,6 +230,6 @@ fn terminate_child_process(child: &mut Child) {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn terminate_child_process(child: &mut Child) {
+pub(super) fn terminate_child_process(child: &mut Child) {
     let _ = child.kill();
 }

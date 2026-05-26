@@ -1,4 +1,6 @@
+pub(crate) mod app_identity;
 mod config;
+mod media_session;
 mod notification;
 mod output_actions;
 mod prepare_check;
@@ -6,12 +8,15 @@ mod tool_install;
 mod tools;
 
 pub use config::{
-    AppConfig, AudioPolicy, CompatibilityTarget, ConfigFileOption, ContainerPolicy, FrameRatePolicy,
-    OutputFileActionMode, ResolutionPolicy, SerializableCacheLocationMode, SubtitlePolicy,
-    ThemeAccentColor, ThemeMode, TranscodeIntentMode,
-    TranscodeIntentSettings, TranscodeSettingKey, VideoCodecPolicy, WindowPosition, WindowSize,
-    YoutubeVideoPlaylistMode, available_yt_dlp_config_files, normalize_ui_scale_percent,
-    yt_dlp_configs_dir_display,
+    AppConfig, AudioPolicy, CompatibilityTarget, ConfigFileOption, ContainerPolicy,
+    FrameRatePolicy, OutputFileActionMode, ResolutionPolicy, SerializableCacheLocationMode,
+    SubtitlePolicy, ThemeAccentColor, ThemeMode, TranscodeIntentMode, TranscodeIntentSettings,
+    TranscodeSettingKey, VideoCodecPolicy, WindowPosition, WindowSize, YoutubeVideoPlaylistMode,
+    available_yt_dlp_config_files, normalize_ui_scale_percent, yt_dlp_configs_dir_display,
+};
+pub use media_session::{
+    MediaSession, MediaSessionCommand, MediaSessionPlaybackStatus, MediaSessionTimeline,
+    MediaSessionTrack,
 };
 pub use notification::{send_download_failed_windows_toast, send_download_finished_windows_toast};
 pub use output_actions::{
@@ -23,7 +28,7 @@ pub use prepare_check::{
 };
 pub use tool_install::{
     DependencyTool, ToolInstallCancelHandle, ToolInstallProgress, ToolInstallStage,
-    dependency_tool_exists, dependency_tool_is_available,
+    dependency_tool_exists, dependency_tool_is_available, detect_dependency_tool_in_system_path,
     install_dependency_tool_with_progress_using_proxy,
 };
 pub use tools::{
@@ -31,6 +36,6 @@ pub use tools::{
     DownloadTargetKind, FINAL_OUTPUT_PATH_PREFIX, FileTimeMode, PreparedDownload, ToolPaths,
     YoutubePlaylistRisk, classify_youtube_playlist, configure_background_command,
     display_output_dir, humanize_yt_dlp_error, is_windows_known_folder_segment,
-    looks_like_playlist_url, playlist_entry_url, resolve_output_dir,
-    resolve_tool_path, youtube_url_force_single_video, youtube_url_has_video_and_playlist,
+    looks_like_playlist_url, playlist_entry_url, resolve_output_dir, resolve_tool_path,
+    youtube_url_force_single_video, youtube_url_has_video_and_playlist,
 };

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::i18n::LanguageSelection;
 
+use super::tool_install::{DependencyTool, detect_dependency_tool_in_system_path};
 use super::tools::{CacheLocationMode, FileTimeMode, ToolPaths};
 
 #[derive(Clone, Debug)]
@@ -74,8 +75,9 @@ pub struct AppConfig {
     pub youtube_video_playlist_mode: YoutubeVideoPlaylistMode,
     pub youtube_high_risk_playlist_prompt: bool,
     pub windows_toast_enabled: bool,
-    #[serde(default, skip_serializing)]
-    pub enable_processing_tab: bool,
+    pub music_volume: f32,
+    pub music_playback_mode: String,
+    pub queue_display_mode: String,
     pub show_log_tab: bool,
     pub transcode_intent: TranscodeIntentSettings,
     pub language: LanguageSelection,
@@ -620,7 +622,13 @@ impl FrameRatePolicy {
     }
 
     pub fn variants() -> [Self; 5] {
-        [Self::Source, Self::Fps24, Self::Fps25, Self::Fps30, Self::Fps60]
+        [
+            Self::Source,
+            Self::Fps24,
+            Self::Fps25,
+            Self::Fps30,
+            Self::Fps60,
+        ]
     }
 }
 
@@ -826,7 +834,9 @@ impl Default for AppConfig {
             youtube_video_playlist_mode: YoutubeVideoPlaylistMode::Ask,
             youtube_high_risk_playlist_prompt: true,
             windows_toast_enabled: false,
-            enable_processing_tab: false,
+            music_volume: 0.80,
+            music_playback_mode: "sequential".to_owned(),
+            queue_display_mode: "normal".to_owned(),
             show_log_tab: true,
             transcode_intent: TranscodeIntentSettings::default(),
             language: LanguageSelection::Auto,
@@ -977,6 +987,23 @@ impl AppConfig {
         }
 
         self.ui_scale_percent = normalize_ui_scale_percent(self.ui_scale_percent);
+        self.music_volume = self.music_volume.clamp(0.0, 1.0);
+        self.music_playback_mode = match self
+            .music_playback_mode
+            .trim()
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "repeat_all" | "repeat" | "loop" => "repeat_all".to_owned(),
+            "shuffle" | "random" => "shuffle".to_owned(),
+            "repeat_one" | "single" | "one" => "repeat_one".to_owned(),
+            _ => "sequential".to_owned(),
+        };
+        self.queue_display_mode = match self.queue_display_mode.trim().to_ascii_lowercase().as_str()
+        {
+            "audio" | "music" | "music_compact" => "audio".to_owned(),
+            _ => "normal".to_owned(),
+        };
         self.transcode_intent = self.transcode_intent.clone().normalized();
 
         if let Some(position) = self.window_position {
@@ -1224,7 +1251,7 @@ fn discover_tool(kind: ToolKind) -> Option<PathBuf> {
         }
     }
 
-    None
+    detect_dependency_tool_in_system_path(kind.dependency_tool())
 }
 
 #[derive(Clone, Copy)]
@@ -1254,6 +1281,15 @@ impl ToolKind {
             Self::Ffmpeg => ".\\tools\\ffmpeg\\ffmpeg.exe",
             Self::Aria2c => ".\\tools\\aria2c\\aria2c.exe",
             Self::Deno => ".\\tools\\deno\\deno.exe",
+        }
+    }
+
+    fn dependency_tool(self) -> DependencyTool {
+        match self {
+            Self::YtDlp => DependencyTool::YtDlp,
+            Self::Ffmpeg => DependencyTool::Ffmpeg,
+            Self::Aria2c => DependencyTool::Aria2c,
+            Self::Deno => DependencyTool::Deno,
         }
     }
 }

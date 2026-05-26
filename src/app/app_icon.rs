@@ -45,8 +45,8 @@ fn theme_icon_bytes(theme: Theme) -> &'static [u8] {
 }
 
 fn decode_app_icon(bytes: &[u8]) -> IconData {
-    let image =
-        image::load_from_memory_with_format(bytes, ImageFormat::Ico).expect("failed to decode app icon");
+    let image = image::load_from_memory_with_format(bytes, ImageFormat::Ico)
+        .expect("failed to decode app icon");
     let rgba = image.into_rgba8();
     let (width, height) = rgba.dimensions();
     IconData {
@@ -59,7 +59,5 @@ fn decode_app_icon(bytes: &[u8]) -> IconData {
 fn mix_byte(from: u8, to: u8, amount: f32) -> u8 {
     let from = from as f32;
     let to = to as f32;
-    (from + (to - from) * amount)
-        .round()
-        .clamp(0.0, 255.0) as u8
+    (from + (to - from) * amount).round().clamp(0.0, 255.0) as u8
 }

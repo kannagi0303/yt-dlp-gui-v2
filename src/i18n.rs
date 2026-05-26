@@ -163,6 +163,24 @@ impl Default for Language {
 }
 
 impl Language {
+    pub const ALL: [Self; 15] = [
+        Self::ArMa,
+        Self::DeDe,
+        Self::ElGr,
+        Self::EnUs,
+        Self::EsEs,
+        Self::FrFr,
+        Self::ItIt,
+        Self::JaJp,
+        Self::KoKr,
+        Self::PlPl,
+        Self::PtBr,
+        Self::RuRu,
+        Self::UkUa,
+        Self::ZhCn,
+        Self::ZhTw,
+    ];
+
     pub fn code(self) -> &'static str {
         match self {
             Self::ArMa => "ar-MA",

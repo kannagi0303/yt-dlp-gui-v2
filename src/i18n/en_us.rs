@@ -102,6 +102,7 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "item.failed" => "Failed",
         "item.clear_all" => "Clear all",
         "item.add_a_video_url" => "Add a video URL",
+        "item.add_an_audio_url" => "Add an audio URL",
         "item.after_adding_choose_the_video_format_here" => {
             "After adding, choose the video format here."
         }
@@ -183,12 +184,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.current_language" => "Current language",
         "options.back" => "Back",
         "options.choose" => "Choose",
+        "options.auto_detect_tool_from" => "Auto-detect from",
         "options.auto_detect" => "Auto detect",
+        "options.auto_detect_tool_hint" => {
+            "Detect installed tools from the portable tools folder and system PATH."
+        }
         "options.tool_paths" => "Tool paths",
         "options.file_actions" => "File actions",
         "options.action_button" => "Action button",
         "options.cache" => "Cache",
         "options.cache_location" => "Cache location",
+        "options.cache_usage" => "Usage",
+        "options.cache_usage_detail" => "Total: {total} · Audio: {audio} · Expired: {expired}",
+        "options.cache_cleanup" => "Cleanup",
+        "options.cache_refresh" => "Refresh",
+        "options.cache_clear_expired" => "Clear expired",
+        "options.cache_clear_audio" => "Clear audio",
+        "options.cache_clear_all" => "Clear all",
         "options.appearance_window" => "Appearance & Window",
         "options.notifications" => "Notifications",
         "options.enable" => "Enable",
@@ -376,9 +388,7 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.downloading_title_aria2_fallback" => {
             "Downloading: {title} (Aria2 not found; using yt-dlp native download)"
         }
-        "state.apple_tv_hevc_post_processing_title" => {
-            "Converting for Apple TV: {title}"
-        }
+        "state.apple_tv_hevc_post_processing_title" => "Converting for Apple TV: {title}",
         "state.transcode_post_processing_title" => "Converting with {profile}: {title}",
         "processing.convert" => "Convert",
         "processing.tools" => "Tools",
@@ -396,7 +406,9 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "processing.locked" => "Locked",
         "processing.auto_recompute" => "Auto",
         "processing.apply" => "Apply",
-        "processing.apply_after_download" => "Apply the currently supported safe MP4 transcode after download",
+        "processing.apply_after_download" => {
+            "Apply the currently supported safe MP4 transcode after download"
+        }
         "processing.apply_after_download_hint" => {
             "Only the current executable safe MP4 backend is applied; not every intent setting is connected yet."
         }
@@ -474,7 +486,9 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.support.preview_only" => "Preview only",
         "processing.output_conversion" => "Post-download output",
         "processing.convert_after_download" => "Convert after download",
-        "processing.convert_after_download_hint" => "Runs when video, audio, container, or subtitles need to change.",
+        "processing.convert_after_download_hint" => {
+            "Runs when video, audio, container, or subtitles need to change."
+        }
         "processing.video" => "Video",
         "processing.audio" => "Audio",
         "processing.container" => "Container",
@@ -493,7 +507,9 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "processing.subtitle.embed" => "Embed",
         "processing.subtitle.burn" => "Burn in",
         "processing.disabled_summary" => "The downloaded yt-dlp output will be kept as-is.",
-        "processing.no_conversion_summary" => "All choices are set to source, so no post-process will run.",
+        "processing.no_conversion_summary" => {
+            "All choices are set to source, so no post-process will run."
+        }
         "processing.output_summary" => "Output summary",
         "processing.visual_quality" => "Picture",
         "processing.visual_quality_near_source" => "Keep visually close to the source",
@@ -532,6 +548,15 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.skip_failed" => "Skip failed: {error}",
         "state.preparing_deployment" => "Preparing deployment",
         "state.tool_downloading_deploying" => "{tool} downloading and deploying...",
+        "state.tool_auto_detected" => "{tool} detected from PATH: {path}",
+        "state.tool_auto_detect_not_found" => "{tool} was not found in system PATH.",
+        "state.tools_auto_detected" => "Detected {found}/{total} tools from PATH.",
+        "state.tools_auto_detect_missing" => "Not found in PATH: {tools}.",
+        "state.tools_auto_detect_none" => "No dependency tools were found in system PATH.",
+        "state.cache_cleaned_expired" => "Cleared {count} expired cache entries ({size}).",
+        "state.cache_cleaned_audio" => "Cleared audio cache: {count} entries ({size}).",
+        "state.cache_cleaned_all" => "Cleared app cache: {count} entries ({size}).",
+        "state.cache_cleanup_failed" => "Cache cleanup failed: {error}",
         "state.found" => "Found",
         "state.not_found" => "Not found",
         "state.clipboard_monitor_enabled_auto_add" => {
@@ -785,6 +810,68 @@ pub fn text<'a>(key: &'a str) -> &'a str {
             "YouTube rejected the subtitle request (HTTP 429 Too Many Requests). This often happens on the YouTube auto-translation timedtext endpoint. cookies.txt can provide login state, but may not satisfy PO Token / rate-limit requirements for that endpoint. The GUI keeps the native yt-dlp flow and diagnostic logs instead of switching to a custom downloader. Original message: {error}"
         }
         "options.filter_executable" => "Executable",
+        "queue_display.normal" => "Normal",
+        "queue_display.audio" => "Audio",
+        "queue_display.normal.tooltip" => "Normal download list",
+        "queue_display.audio.tooltip" => "Audio list and playback",
+        "main.queue_display_mode_hint" => "Switch list display and add behavior",
+        "music.previous" => "Previous",
+        "music.play" => "Play",
+        "music.pause" => "Pause",
+        "music.next" => "Next",
+        "music.seek_cached_range_hint" => "Drag to seek; release snaps within the cached range",
+        "music.seek_hint" => "Drag to seek",
+        "music.status.completed" => "Done",
+        "music.status.resolving" => "Resolving",
+        "music.status.buffering" => "Buffering",
+        "music.status.ready" => "Ready",
+        "music.status.caching" => "Caching",
+        "music.status.playing" => "Playing",
+        "music.status.paused" => "Paused",
+        "music.status.failed" => "Failed",
+        "music.playback_mode.sequential" => "Sequence",
+        "music.playback_mode.repeat_all" => "Repeat",
+        "music.playback_mode.shuffle" => "Shuffle",
+        "music.playback_mode.repeat_one" => "Repeat one",
+        "music.playback_mode.sequential.tooltip" => "Play in order",
+        "music.playback_mode.repeat_all.tooltip" => "Repeat list",
+        "music.playback_mode.shuffle.tooltip" => "Shuffle play",
+        "music.playback_mode.repeat_one.tooltip" => "Repeat one track",
+        "options.music_download_format" => "Music download format",
+        "options.music_download_format_title" => "Which audio format should be exported?",
+        "options.music_download_format_body" => {
+            "Completed music cache is used first; conversion only runs when the format differs."
+        }
+        "state.queue_display_mode_changed" => "List mode: {mode}",
+        "state.downloading_music" => "Downloading music: {title}",
+        "state.music_no_items_from_source" => "No music items could be added: {source}",
+        "state.music_items_added" => "Added {count} music items.",
+        "state.music_playlist_parse_failed" => "Music list analysis failed: {error}",
+        "state.music_stream_ready" => "Music stream ready: {source}",
+        "state.music_stream_parse_failed" => "Music stream analysis failed: {error}",
+        "state.music_playback_finished" => "Playback finished.",
+        "state.music_playback_failed" => "Playback failed: {error}",
+        "state.music_duplicate_with_cache" => {
+            "Music item is already in the list; local cache was used."
+        }
+        "state.music_duplicate" => "Music item is already in the list.",
+        "state.music_added_from_cache" => "Added music from local cache: {title}",
+        "state.music_seek_clamped" => {
+            "Outside the cached range; moved back to a playable position."
+        }
+        "state.music_stream_still_preparing" => "Music stream is still preparing.",
+        "state.no_playable_music_items" => "There are no playable music items.",
+        "state.music_cache_prepare_failed" => "Music cache preparation failed: {error}",
+        "state.preparing_music_playback" => "Preparing playback: {title}",
+        "state.music_missing_source_url" => "Music item is missing a source URL.",
+        "state.resolving_music_stream" => "Resolving music stream: {title}",
+        "state.music_stream_still_resolving" => "Music stream is still resolving.",
+        "state.music_buffering" => "Music is buffering.",
+        "state.music_item_not_playable" => "This music item cannot be played right now.",
+        "state.music_stream_not_ready" => "Music stream is not ready yet.",
+        "state.no_previous_music" => "No previous track.",
+        "state.no_next_music" => "No next track.",
+        "state.music_playback_mode_changed" => "Playback mode: {mode}",
         _ => key,
     }
 }

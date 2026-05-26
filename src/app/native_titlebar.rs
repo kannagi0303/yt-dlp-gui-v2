@@ -27,14 +27,16 @@ pub fn apply_titlebar_accent(
 mod windows {
     use std::ffi::c_void;
 
-    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+    use windows_sys::Win32::Foundation::{HWND, LPARAM};
     use windows_sys::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMWINDOWATTRIBUTE, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR,
+        DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DWMWINDOWATTRIBUTE,
+        DwmSetWindowAttribute,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
         IsWindowVisible,
     };
+    use windows_sys::core::BOOL;
 
     use super::NativeTitlebarAccentResult;
     use crate::infrastructure::ThemeAccentColor;
@@ -146,7 +148,10 @@ mod windows {
         };
 
         unsafe {
-            EnumWindows(Some(enum_window_proc), &mut search as *mut WindowSearch as LPARAM);
+            EnumWindows(
+                Some(enum_window_proc),
+                &mut search as *mut WindowSearch as LPARAM,
+            );
         }
 
         search.hwnd

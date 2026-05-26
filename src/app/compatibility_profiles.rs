@@ -171,7 +171,9 @@ pub(crate) fn profile_for(target: CompatibilityTarget) -> Option<&'static Compat
         .find(|profile| profile.target == target)
 }
 
-pub(crate) fn profiles_for_scope(scope: CompatibilityScope) -> impl Iterator<Item = &'static CompatibilityProfile> {
+pub(crate) fn profiles_for_scope(
+    scope: CompatibilityScope,
+) -> impl Iterator<Item = &'static CompatibilityProfile> {
     COMPATIBILITY_PROFILES
         .iter()
         .filter(move |profile| profile.scope == scope)
@@ -207,25 +209,53 @@ pub(crate) fn apply_profile_to_settings(
 pub(crate) fn scope_label(scope: CompatibilityScope, cjk: bool) -> &'static str {
     match scope {
         CompatibilityScope::AppleTv => {
-            if cjk { "Apple TV" } else { "Apple TV" }
+            if cjk {
+                "Apple TV"
+            } else {
+                "Apple TV"
+            }
         }
         CompatibilityScope::AppleMobile => {
-            if cjk { "iPhone/iPad" } else { "iPhone/iPad" }
+            if cjk {
+                "iPhone/iPad"
+            } else {
+                "iPhone/iPad"
+            }
         }
         CompatibilityScope::AndroidTv => {
-            if cjk { "Android TV" } else { "Android TV" }
+            if cjk {
+                "Android TV"
+            } else {
+                "Android TV"
+            }
         }
         CompatibilityScope::AndroidMobile => {
-            if cjk { "Android 手機" } else { "Android mobile" }
+            if cjk {
+                "Android 手機"
+            } else {
+                "Android mobile"
+            }
         }
         CompatibilityScope::Computer => {
-            if cjk { "電腦" } else { "Computer" }
+            if cjk {
+                "電腦"
+            } else {
+                "Computer"
+            }
         }
         CompatibilityScope::Browser => {
-            if cjk { "瀏覽器" } else { "Browser" }
+            if cjk {
+                "瀏覽器"
+            } else {
+                "Browser"
+            }
         }
         CompatibilityScope::OldTv => {
-            if cjk { "舊款電視" } else { "Old TV" }
+            if cjk {
+                "舊款電視"
+            } else {
+                "Old TV"
+            }
         }
     }
 }

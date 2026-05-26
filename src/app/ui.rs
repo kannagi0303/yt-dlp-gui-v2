@@ -1,5 +1,6 @@
 mod advance_tab;
 mod common;
+mod compact_row;
 mod format_picker;
 mod item_card;
 mod main_tab;
@@ -7,19 +8,19 @@ mod options_tab;
 mod prepare_tab;
 mod processing_tab;
 
-use eframe::egui::{self, CentralPanel};
+use eframe::egui::{CentralPanel, Ui};
 
 use crate::app::state::{AppState, AppTab};
 
 use self::common::UiText;
 
-pub fn render_app(ctx: &egui::Context, state: &mut AppState) {
-    let prompt_open = state.youtube_playlist_prompt.is_some();
+pub fn render_app(root_ui: &mut Ui, state: &mut AppState) {
+    let prompt_open = state.youtube_playlist_prompt.is_some() || state.music_download_prompt_open();
     if state.active_tab == AppTab::Prepare && !state.should_show_prepare_tab() {
         state.active_tab = AppTab::Main;
     }
 
-    CentralPanel::default().show(ctx, |ui| {
+    CentralPanel::default().show_inside(root_ui, |ui| {
         ui.add_enabled_ui(!prompt_open, |ui| {
             if state.format_picker.open {
                 format_picker::render_format_picker_screen(ui, state);
@@ -49,10 +50,6 @@ pub fn render_app(ctx: &egui::Context, state: &mut AppState) {
                     AppTab::Main => main_tab::render_main_tab(ui, state),
                     AppTab::Advance => advance_tab::render_advance_tab(ui, state),
                     AppTab::Options => options_tab::render_options_tab(ui, state),
-                    AppTab::Processing => {
-                        state.active_tab = AppTab::Advance;
-                        advance_tab::render_advance_tab(ui, state);
-                    }
                     AppTab::Log => {
                         if state.config.show_log_tab {
                             processing_tab::render_log_tab(ui, state);
@@ -71,5 +68,6 @@ pub fn render_app(ctx: &egui::Context, state: &mut AppState) {
         });
     });
 
-    options_tab::render_youtube_playlist_prompt(ctx, state);
+    options_tab::render_youtube_playlist_prompt(root_ui.ctx(), state);
+    options_tab::render_music_download_prompt(root_ui.ctx(), state);
 }

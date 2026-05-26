@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use eframe::egui::{self, Color32, RichText, ScrollArea, Ui};
 use egui_extras::{Size, StripBuilder};
 
-use crate::app::state::{AppState, OptionsDetailPage, YoutubePlaylistPromptKind};
-use crate::app::widgets::icon::icon_image;
-use crate::app::widgets::url_input::{
-    DisplayPathInput, accent_green_for_ui, accent_red_for_ui,
+use crate::app::state::{
+    AppState, MusicDownloadFormat, OptionsDetailPage, YoutubePlaylistPromptKind,
 };
+use crate::app::widgets::icon::icon_image;
+use crate::app::widgets::url_input::{DisplayPathInput, accent_green_for_ui, accent_red_for_ui};
 use crate::i18n::LanguageSelection;
 use crate::infrastructure::{
     DependencyTool, OutputFileActionMode, ThemeAccentColor, ThemeMode, YoutubeVideoPlaylistMode,
@@ -46,6 +46,65 @@ fn render_options_root_page(ui: &mut Ui, state: &mut AppState) {
                     render_cache_group(ui, state, label_width);
                     render_window_group(ui, state, label_width);
                 });
+            });
+        });
+}
+
+pub(super) fn render_music_download_prompt(ctx: &egui::Context, state: &mut AppState) {
+    if !state.music_download_prompt_open() {
+        return;
+    }
+
+    egui::Window::new(state.tr("options.music_download_format"))
+        .id(egui::Id::new("music-download-format-prompt-window-v1"))
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            ui.set_width(PLAYLIST_PROMPT_WIDTH);
+            ui.set_max_width(PLAYLIST_PROMPT_WIDTH);
+            ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
+            ui.label(
+                RichText::new(state.tr("options.music_download_format_title"))
+                    .strong()
+                    .size(PLAYLIST_PROMPT_TITLE_SIZE),
+            );
+            ui.label(
+                RichText::new(state.tr("options.music_download_format_body"))
+                    .size(PLAYLIST_PROMPT_BODY_SIZE),
+            );
+            ui.add_space(8.0);
+
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = 6.0;
+                for format in MusicDownloadFormat::ALL {
+                    let button = prompt_action_button(
+                        ui,
+                        AppIcon::Download,
+                        accent_green_for_ui(ui),
+                        format.label(),
+                        prompt_action_width(ui, format.label()),
+                        prompt_action_height(ui),
+                    );
+                    if ui.add(button).clicked() {
+                        state.confirm_music_download_format(format);
+                    }
+                }
+            });
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                let cancel_width = prompt_action_width(ui, state.tr("options.cancel"));
+                let cancel_button = prompt_action_button(
+                    ui,
+                    AppIcon::WindowClose,
+                    accent_red_for_ui(ui),
+                    state.tr("options.cancel"),
+                    cancel_width,
+                    prompt_action_height(ui),
+                );
+                if ui.add(cancel_button).clicked() {
+                    state.cancel_music_download_prompt();
+                }
             });
         });
 }
@@ -445,11 +504,30 @@ fn language_choice_label(state: &AppState, language: LanguageSelection) -> Strin
 fn render_tool_paths_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
     settings_section(ui, state.tr("options.tool_paths"), |ui| {
         ui.vertical(|ui| {
+            render_tool_auto_detect_row(ui, state, label_width);
+            ui.add_space(4.0);
             tool_path_row(ui, label_width, state, DependencyTool::YtDlp);
             tool_path_row(ui, label_width, state, DependencyTool::Deno);
             tool_path_row(ui, label_width, state, DependencyTool::Ffmpeg);
             tool_path_row(ui, label_width, state, DependencyTool::Aria2c);
         });
+    });
+}
+
+fn render_tool_auto_detect_row(ui: &mut Ui, state: &mut AppState, label_width: f32) {
+    form_row_label(ui, label_width, "", |ui| {
+        let row_height = ui.spacing().interact_size.y;
+        let response = ui.add_sized(
+            [
+                natural_icon_button_width(ui, state.tr("options.auto_detect")),
+                row_height,
+            ],
+            icon_text_button(ui, AppIcon::Magnify, state.tr("options.auto_detect")),
+        );
+        if response.clicked() {
+            state.auto_detect_dependency_tool_paths();
+        }
+        response.on_hover_text(state.tr("options.auto_detect_tool_hint"));
     });
 }
 
@@ -491,6 +569,29 @@ fn render_cache_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                         }
                     }
                 });
+        });
+
+        state.refresh_cache_management_summary_if_stale();
+
+        form_row_label(ui, label_width, state.tr("options.cache_usage"), |ui| {
+            ui.label(state.cache_management_usage_display());
+        });
+
+        form_row_label(ui, label_width, state.tr("options.cache_cleanup"), |ui| {
+            ui.horizontal_wrapped(|ui| {
+                if ui.button(state.tr("options.cache_refresh")).clicked() {
+                    state.refresh_cache_management_summary();
+                }
+                if ui.button(state.tr("options.cache_clear_expired")).clicked() {
+                    state.clear_expired_music_cache();
+                }
+                if ui.button(state.tr("options.cache_clear_audio")).clicked() {
+                    state.clear_music_stream_cache();
+                }
+                if ui.button(state.tr("options.cache_clear_all")).clicked() {
+                    state.clear_app_cache();
+                }
+            });
         });
     });
 }
@@ -613,6 +714,8 @@ fn options_label_width(ui: &Ui, state: &AppState) -> f32 {
             state.tr("options.action_button"),
             state.tr("options.language"),
             state.tr("options.current_language"),
+            state.tr("options.cache_usage"),
+            state.tr("options.cache_cleanup"),
             state.tr("options.notifications"),
             state.tr("options.theme"),
             state.tr("options.theme_color"),

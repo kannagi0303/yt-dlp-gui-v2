@@ -1,6 +1,4 @@
-use crate::app::compatibility_profiles::{
-    CompatibilityScope, scope_for_target,
-};
+use crate::app::compatibility_profiles::{CompatibilityScope, scope_for_target};
 use crate::infrastructure::{
     FrameRatePolicy, ResolutionPolicy, TranscodeIntentMode, TranscodeIntentSettings,
     TranscodeSettingKey, VideoCodecPolicy,
@@ -24,7 +22,12 @@ pub(super) enum TranscodeGraphAxis {
 
 impl TranscodeGraphAxis {
     pub(super) fn variants() -> [Self; 4] {
-        [Self::Compatibility, Self::Capacity, Self::Resolution, Self::Format]
+        [
+            Self::Compatibility,
+            Self::Capacity,
+            Self::Resolution,
+            Self::Format,
+        ]
     }
 }
 
@@ -88,7 +91,10 @@ pub(super) struct IntentGraphModel {
 pub(super) fn build_intent_graph(settings: &TranscodeIntentSettings) -> IntentGraphModel {
     let selected_primary = selected_axis(settings);
     let selected_child = selected_child_for(settings, selected_primary);
-    let mut current_route = vec![IntentGraphNodeId::Root, IntentGraphNodeId::Primary(selected_primary)];
+    let mut current_route = vec![
+        IntentGraphNodeId::Root,
+        IntentGraphNodeId::Primary(selected_primary),
+    ];
     if let Some(child) = selected_child {
         current_route.push(child);
     }
@@ -129,7 +135,9 @@ pub(super) fn build_intent_graph(settings: &TranscodeIntentSettings) -> IntentGr
 fn selected_axis(settings: &TranscodeIntentSettings) -> TranscodeGraphAxis {
     match settings.intent_mode {
         TranscodeIntentMode::DeviceCompat => TranscodeGraphAxis::Compatibility,
-        TranscodeIntentMode::TargetSize | TranscodeIntentMode::ReduceSize => TranscodeGraphAxis::Capacity,
+        TranscodeIntentMode::TargetSize | TranscodeIntentMode::ReduceSize => {
+            TranscodeGraphAxis::Capacity
+        }
         TranscodeIntentMode::QualityFirst => TranscodeGraphAxis::Resolution,
         TranscodeIntentMode::FastTranscode => TranscodeGraphAxis::Format,
     }
@@ -150,15 +158,21 @@ fn selected_child_for(
             },
         )),
         TranscodeGraphAxis::Resolution => match settings.resolution_policy {
-            ResolutionPolicy::Max1080p => Some(IntentGraphNodeId::ResolutionChoice(ResolutionChoice::Max1080p)),
-            ResolutionPolicy::Max720p => Some(IntentGraphNodeId::ResolutionChoice(ResolutionChoice::Max720p)),
+            ResolutionPolicy::Max1080p => Some(IntentGraphNodeId::ResolutionChoice(
+                ResolutionChoice::Max1080p,
+            )),
+            ResolutionPolicy::Max720p => Some(IntentGraphNodeId::ResolutionChoice(
+                ResolutionChoice::Max720p,
+            )),
             ResolutionPolicy::AutoBalance | ResolutionPolicy::KeepOriginal => None,
         },
-        TranscodeGraphAxis::Format => Some(IntentGraphNodeId::FormatChoice(match settings.video_codec_policy {
-            VideoCodecPolicy::H264 => FormatChoice::HighCompatibility,
-            VideoCodecPolicy::Hevc | VideoCodecPolicy::Av1 => FormatChoice::HighEfficiency,
-            VideoCodecPolicy::Auto => FormatChoice::Preserve,
-        })),
+        TranscodeGraphAxis::Format => Some(IntentGraphNodeId::FormatChoice(
+            match settings.video_codec_policy {
+                VideoCodecPolicy::H264 => FormatChoice::HighCompatibility,
+                VideoCodecPolicy::Hevc | VideoCodecPolicy::Av1 => FormatChoice::HighEfficiency,
+                VideoCodecPolicy::Auto => FormatChoice::Preserve,
+            },
+        )),
     }
 }
 
@@ -176,7 +190,9 @@ fn children_for(
                     label_key: "transcode.graph.compatibility_scope",
                     value_text: None,
                     kind: IntentGraphNodeKind::CompatibilityChoice,
-                    parent: Some(IntentGraphNodeId::Primary(TranscodeGraphAxis::Compatibility)),
+                    parent: Some(IntentGraphNodeId::Primary(
+                        TranscodeGraphAxis::Compatibility,
+                    )),
                     setting_key: Some(TranscodeSettingKey::CompatibilityTarget),
                     selected: Some(id) == selected_child,
                 }

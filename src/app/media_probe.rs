@@ -52,7 +52,10 @@ pub(super) fn probe_media_with_ffprobe(
     input_path: &Path,
 ) -> Result<MediaProbeInfo, String> {
     if !ffprobe_path.is_file() {
-        return Err(format!("ffprobe.exe was not found: {}", ffprobe_path.display()));
+        return Err(format!(
+            "ffprobe.exe was not found: {}",
+            ffprobe_path.display()
+        ));
     }
 
     let mut command = Command::new(ffprobe_path);
@@ -126,7 +129,10 @@ fn media_probe_info_from_json(root: &Value) -> MediaProbeInfo {
 fn video_probe_info_from_stream(stream: &Value) -> VideoProbeInfo {
     VideoProbeInfo {
         codec: stream.get("codec_name").and_then(json_string),
-        width: stream.get("width").and_then(json_u64).and_then(|value| u32::try_from(value).ok()),
+        width: stream
+            .get("width")
+            .and_then(json_u64)
+            .and_then(|value| u32::try_from(value).ok()),
         height: stream
             .get("height")
             .and_then(json_u64)

@@ -12,17 +12,19 @@ name = "yt-dlp-gui"
 path = "src/main.rs"
 
 [dependencies]
-arboard = "3.6"
-eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow"] }
-egui_extras = { version = "0.33", default-features = false, features = ["http", "image", "svg", "webp"] }
-image = { version = "0.25", default-features = false, features = ["ico", "jpeg", "png", "webp"] }
-rustls = { version = "0.23.38", default-features = false, features = ["ring", "std"] }
-ureq = "2.12.1"
-rfd = "0.15"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_yaml = "0.9"
-zip = { version = "2.4", default-features = false, features = ["deflate"] }
+arboard = "3.6.1"
+eframe = { version = "0.34.2", default-features = false, features = ["default_fonts", "glow"] }
+egui_extras = { version = "0.34.2", default-features = false, features = ["http", "image", "svg", "webp"] }
+cpal = "0.17.3"
+image = { version = "0.25.10", default-features = false, features = ["ico", "jpeg", "png", "webp"] }
+ureq = "3.3.0"
+rfd = "0.17.2"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+serde_yaml = "0.9.34"
+symphonia = { version = "0.6.0", default-features = false, features = ["aac", "isomp4", "mkv", "ogg", "vorbis", "mp3", "flac", "pcm"] }
+symphonia-adapter-libopus = { version = "0.3.0", features = ["bundled"] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 
 
 [profile.release]
@@ -36,7 +38,8 @@ incremental = false
 
 [target.'cfg(windows)'.dependencies]
 win32_notif = { version = "0.15.2", features = ["registration"] }
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_UI_WindowsAndMessaging"] }
+windows = { version = "0.62.2", features = ["Foundation", "Media", "Storage_Streams", "Win32_Foundation", "Win32_Storage", "Win32_Storage_EnhancedStorage", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_System_WinRT", "Win32_UI_Shell", "Win32_UI_Shell_PropertiesSystem", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [target.'cfg(windows)'.build-dependencies]
-winres = "0.1"
+winres = "0.1.12"

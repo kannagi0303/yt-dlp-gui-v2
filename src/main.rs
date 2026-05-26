@@ -7,11 +7,16 @@ mod infrastructure;
 
 use std::path::PathBuf;
 
-use app::{app_icon::app_window_icon, NgDlpApp};
+use app::{NgDlpApp, app_icon::app_window_icon};
 use eframe::egui::{self, ViewportBuilder};
-use infrastructure::{collect_prepare_report, AppConfig, ThemeMode, WindowPosition, WindowSize};
+use infrastructure::{AppConfig, ThemeMode, WindowPosition, WindowSize, collect_prepare_report};
 
 fn main() -> eframe::Result<()> {
+    #[cfg(target_os = "windows")]
+    if let Err(error) = infrastructure::app_identity::ensure_windows_app_identity() {
+        eprintln!("[app-identity] Windows app identity unavailable: {error}");
+    }
+
     let window_options = startup_window_options();
     let native_options = eframe::NativeOptions {
         viewport: window_options.viewport_builder(),

@@ -18,6 +18,7 @@ use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::os::windows::process::CommandExt;
 
 const DEFAULT_FORMAT_SELECTOR: &str = "bestvideo*+bestaudio/best";
+const MUSIC_STREAM_FORMAT_SELECTOR: &str = "bestaudio/best[acodec!=none]";
 const SECTION_FORMAT_SELECTOR: &str =
     "best[protocol!*=dash][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]/best";
 const COOKIE_SOURCE_FILE: &str = "file";
@@ -291,6 +292,35 @@ impl ToolPaths {
         Ok(command)
     }
 
+    pub fn prepare_music_flat_update_command(
+        &self,
+        url: &str,
+        use_cookies: bool,
+    ) -> Result<Command, String> {
+        let tool_path = self.validate_yt_dlp_available()?;
+
+        let mut command = Command::new(&tool_path);
+        configure_background_command(&mut command);
+        self.apply_common_yt_dlp_args(&mut command);
+        self.apply_cookie_args(&mut command, use_cookies)?;
+        command
+            .arg("--flat-playlist")
+            .arg("--dump-json")
+            .arg("--lazy-playlist")
+            .arg("--playlist-items")
+            .arg("1")
+            .arg("--no-warnings")
+            .arg("--ignore-errors")
+            .arg(url);
+
+        println!(
+            "[music-flat-update] command: {}",
+            format_command_line(&tool_path, &command)
+        );
+
+        Ok(command)
+    }
+
     pub fn analyze_url(&self, url: &str, use_cookies: bool) -> Result<Value, String> {
         let tool_path = self.validate_yt_dlp_available()?;
 
@@ -299,6 +329,142 @@ impl ToolPaths {
         }
 
         self.run_analyze_command(&tool_path, url, use_cookies, Some(DEFAULT_FORMAT_SELECTOR))
+    }
+
+    pub fn analyze_music_stream_url(&self, url: &str, use_cookies: bool) -> Result<Value, String> {
+        let tool_path = self.validate_yt_dlp_available()?;
+        self.run_analyze_command(
+            &tool_path,
+            url,
+            use_cookies,
+            Some(MUSIC_STREAM_FORMAT_SELECTOR),
+        )
+    }
+
+    pub fn prepare_music_stream_cache_command(
+        &self,
+        url: &str,
+        output_path: &Path,
+        format_selector: &str,
+        use_cookies: bool,
+    ) -> Result<Command, String> {
+        let tool_path = self.validate_yt_dlp_available()?;
+        if let Some(parent) = output_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|error| format!("Could not create music cache folder: {error}"))?;
+        }
+
+        let mut command = Command::new(&tool_path);
+        configure_background_command(&mut command);
+        self.apply_common_yt_dlp_args(&mut command);
+        command
+            .arg("--no-playlist")
+            .arg("--no-simulate")
+            .arg("--no-part")
+            .arg("--force-overwrites")
+            .arg("--windows-filenames")
+            .arg("--newline")
+            .arg("--progress")
+            .arg("--output")
+            .arg(output_path);
+
+        let selector = format_selector.trim();
+        if !self.effective_config_owns_format() {
+            command.arg("--format").arg(if selector.is_empty() {
+                MUSIC_STREAM_FORMAT_SELECTOR
+            } else {
+                selector
+            });
+        }
+
+        self.apply_cookie_args(&mut command, use_cookies)?;
+        self.apply_youtube_extractor_args(&mut command);
+        command.arg(url);
+
+        let command_line = format_command_line(&tool_path, &command);
+        command
+            .env("PYTHONIOENCODING", "utf-8")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null());
+
+        println!("[music-cache] command: {command_line}");
+        Ok(command)
+    }
+
+    pub fn prepare_music_audio_download_command(
+        &self,
+        url: &str,
+        output_dir: &Path,
+        audio_format: &str,
+        use_cookies: bool,
+    ) -> Result<PreparedDownload, String> {
+        let tool_path = self.validate_yt_dlp_available()?;
+        fs::create_dir_all(output_dir)
+            .map_err(|error| format!("Could not create music download folder: {error}"))?;
+
+        let target_format = normalized_extension(audio_format).unwrap_or_else(|| "mp3".to_owned());
+        let output_template = output_dir
+            .join("%(artist)s - %(title)s.%(ext)s")
+            .display()
+            .to_string();
+        let expected_output = output_dir.join(format!("%(artist)s - %(title)s.{target_format}"));
+
+        let mut command = Command::new(&tool_path);
+        configure_background_command(&mut command);
+        self.apply_common_yt_dlp_args(&mut command);
+        command
+            .arg("--no-playlist")
+            .arg("--continue")
+            .arg("--force-overwrites")
+            .arg("--windows-filenames")
+            .arg("--progress")
+            .arg("--newline")
+            .arg("--progress-template")
+            .arg("[yt-dlp],%(progress._percent_str)s,%(progress._eta_str)s,%(progress.downloaded_bytes)s,%(progress.total_bytes)s,%(progress.speed)s,%(progress.eta)s")
+            .arg("--no-simulate")
+            .arg("--extract-audio")
+            .arg("--audio-format")
+            .arg(&target_format)
+            .arg("--audio-quality")
+            .arg("0")
+            .arg("--add-metadata");
+
+        if music_audio_download_format_supports_thumbnail(&target_format) {
+            command
+                .arg("--embed-thumbnail")
+                .arg("--convert-thumbnails")
+                .arg("jpg");
+        }
+
+        command
+            .arg("--metadata-from-title")
+            .arg("%(artist)s - %(title)s")
+            .arg("--print")
+            .arg(format!("after_move:{FINAL_OUTPUT_PATH_PREFIX}%(filepath)j"))
+            .arg("--output")
+            .arg(output_template);
+
+        if !self.effective_config_owns_format() {
+            command.arg("--format").arg(MUSIC_STREAM_FORMAT_SELECTOR);
+        }
+
+        self.apply_cookie_args(&mut command, use_cookies)?;
+        self.apply_youtube_extractor_args(&mut command);
+        command.arg(url);
+
+        let command_line = format_command_line(&tool_path, &command);
+        command
+            .env("PYTHONIOENCODING", "utf-8")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null());
+
+        Ok(PreparedDownload {
+            command,
+            output_path: expected_output,
+            command_line,
+        })
     }
 
     pub fn prepare_download(&self, request: &DownloadRequest) -> Result<PreparedDownload, String> {
@@ -1438,6 +1604,13 @@ fn is_known_output_extension(extension: &str) -> bool {
             | "srv3"
             | "srv2"
             | "srv1"
+    )
+}
+
+fn music_audio_download_format_supports_thumbnail(format: &str) -> bool {
+    matches!(
+        format.trim().to_ascii_lowercase().as_str(),
+        "mp3" | "m4a" | "flac"
     )
 }
 

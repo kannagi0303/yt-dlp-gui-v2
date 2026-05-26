@@ -1,9 +1,9 @@
 use eframe::egui::{self, Color32, RichText, Spinner, Ui};
 use egui_extras::{Size, StripBuilder};
 
-use crate::app::state::AppState;
+use crate::app::state::{AppState, MusicPlaybackMode, QueueDisplayMode};
 use crate::app::widgets::icon::{AppIcon, icon_image, standard_icon_color};
-use crate::app::widgets::url_input::{DisplayPathInput, UrlInput};
+use crate::app::widgets::url_input::{DisplayPathInput, UrlInput, accent_red_for_ui};
 
 use super::common::{
     UiText, icon_button_text_size, icon_text_button, natural_button_width,
@@ -17,29 +17,44 @@ const MISSING_YT_DLP_CALLOUT_WIDTH: f32 = 320.0;
 
 pub(super) fn render_main_tab(ui: &mut Ui, state: &mut AppState) {
     let row_height = ui.spacing().interact_size.y;
+    let show_music_player = state.music_player_visible();
 
-    StripBuilder::new(ui)
+    let mut builder = StripBuilder::new(ui)
         .size(Size::exact(row_height))
         .size(Size::exact(MAIN_SECTION_GAP))
         .size(Size::remainder().at_least(0.0))
-        .size(Size::exact(MAIN_SECTION_GAP))
-        .size(Size::exact(row_height))
-        .vertical(|mut strip| {
-            strip.cell(|ui| {
-                row_url_input(ui, state);
-            });
-            strip.empty();
+        .size(Size::exact(MAIN_SECTION_GAP));
 
+    if show_music_player {
+        builder = builder
+            .size(Size::exact(row_height))
+            .size(Size::exact(MAIN_SECTION_GAP));
+    }
+
+    builder.size(Size::exact(row_height)).vertical(|mut strip| {
+        strip.cell(|ui| {
+            row_url_input(ui, state);
+        });
+        strip.empty();
+
+        strip.cell(|ui| {
+            ui.set_width(ui.available_width());
+            ui.set_height(ui.available_height());
+            render_batch_list(ui, state);
+        });
+        strip.empty();
+
+        if show_music_player {
             strip.cell(|ui| {
-                ui.set_width(ui.available_width());
-                ui.set_height(ui.available_height());
-                render_batch_list(ui, state);
+                row_music_player(ui, state);
             });
             strip.empty();
-            strip.cell(|ui| {
-                row_output_and_download(ui, state);
-            });
+        }
+
+        strip.cell(|ui| {
+            row_output_and_download(ui, state);
         });
+    });
 }
 
 fn row_url_input(ui: &mut Ui, state: &mut AppState) {
@@ -49,15 +64,21 @@ fn row_url_input(ui: &mut Ui, state: &mut AppState) {
     let spinner_size = row_height * 0.75;
     let spinner_gap = 4.0;
     let clipboard_toggle_width = row_height;
-    let action_width = if state.config.direct_download_on_add {
-        natural_icon_button_width(ui, state.primary_url_action_label())
-    } else {
-        natural_button_width(ui, state.primary_url_action_label())
-    } + if show_spinner {
-        spinner_size + spinner_gap
-    } else {
-        0.0
-    };
+    let mode_width = [QueueDisplayMode::Normal, QueueDisplayMode::Audio]
+        .into_iter()
+        .map(|mode| natural_button_width(ui, state.tr(mode.label_key())))
+        .fold(0.0_f32, f32::max)
+        + row_height * 0.75;
+    let action_width =
+        if state.config.direct_download_on_add && !state.queue_display_mode_is_audio() {
+            natural_icon_button_width(ui, state.primary_url_action_label())
+        } else {
+            natural_button_width(ui, state.primary_url_action_label())
+        } + if show_spinner {
+            spinner_size + spinner_gap
+        } else {
+            0.0
+        };
     let row_width = ui.available_width();
 
     let url_hint = state.tr(UiText::URL_HINT);
@@ -65,10 +86,15 @@ fn row_url_input(ui: &mut Ui, state: &mut AppState) {
 
     ui.allocate_ui(egui::vec2(row_width, row_height), |ui| {
         StripBuilder::new(ui)
+            .size(Size::exact(mode_width))
             .size(Size::remainder())
             .size(Size::exact(clipboard_toggle_width))
             .size(Size::exact(action_width))
             .horizontal(|mut strip| {
+                strip.cell(|ui| {
+                    render_queue_mode_menu(ui, state, row_height);
+                });
+
                 strip.cell(|ui| {
                     let response = ui.add_sized(
                         [ui.available_width(), row_height],
@@ -146,6 +172,30 @@ fn row_url_input(ui: &mut Ui, state: &mut AppState) {
     });
 }
 
+fn render_queue_mode_menu(ui: &mut Ui, state: &mut AppState, row_height: f32) {
+    let mut selected = state.queue_display_mode();
+    let previous = selected;
+
+    ui.add_enabled_ui(!state.is_adding_batch, |ui| {
+        ui.set_min_height(row_height);
+        let response = egui::ComboBox::from_id_salt("queue-display-mode-menu")
+            .selected_text(state.tr(selected.label_key()))
+            .width(ui.available_width())
+            .show_ui(ui, |ui| {
+                for mode in [QueueDisplayMode::Normal, QueueDisplayMode::Audio] {
+                    ui.selectable_value(&mut selected, mode, state.tr(mode.label_key()))
+                        .on_hover_text(state.tr(mode.tooltip_key()));
+                }
+            })
+            .response;
+        response.on_hover_text(state.tr("main.queue_display_mode_hint"));
+    });
+
+    if selected != previous {
+        state.set_queue_display_mode(selected);
+    }
+}
+
 fn clipboard_monitor_button(ui: &Ui, state: &AppState) -> egui::Button<'static> {
     let enabled = state.clipboard_monitor_enabled();
     let icon = if enabled {
@@ -176,6 +226,227 @@ fn clipboard_monitor_hover_text(state: &AppState) -> &'static str {
     } else {
         state.tr("main.clipboard_monitor_off_turning_it_on_only_mem")
     }
+}
+
+fn row_music_player(ui: &mut Ui, state: &mut AppState) {
+    let row_height = ui.spacing().interact_size.y;
+    let spacing = ui.spacing().item_spacing.x.max(8.0);
+    let button_width = row_height;
+    let time_width = 108.0;
+    let volume_width = 128.0;
+    let mut volume = state.music_volume();
+
+    ui.set_width(ui.available_width());
+    let (row_rect, _) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), row_height),
+        egui::Sense::hover(),
+    );
+
+    let previous_rect = egui::Rect::from_min_size(
+        egui::pos2(row_rect.left(), row_rect.top()),
+        egui::vec2(button_width, row_height),
+    );
+    let play_rect = egui::Rect::from_min_size(
+        egui::pos2(previous_rect.right() + spacing, row_rect.top()),
+        egui::vec2(button_width, row_height),
+    );
+    let next_rect = egui::Rect::from_min_size(
+        egui::pos2(play_rect.right() + spacing, row_rect.top()),
+        egui::vec2(button_width, row_height),
+    );
+
+    // Build the player as fixed left/right groups with a single flexible middle.
+    // The seek and volume controls both stay native egui Sliders; only their
+    // scoped slider_width is changed so their visual style remains identical.
+    let volume_rect = egui::Rect::from_min_max(
+        egui::pos2(
+            (row_rect.right() - volume_width).max(row_rect.left()),
+            row_rect.top(),
+        ),
+        egui::pos2(row_rect.right(), row_rect.bottom()),
+    );
+    let mode_rect = egui::Rect::from_min_size(
+        egui::pos2(
+            (volume_rect.left() - spacing - button_width).max(row_rect.left()),
+            row_rect.top(),
+        ),
+        egui::vec2(button_width, row_height),
+    );
+    let time_rect = egui::Rect::from_min_size(
+        egui::pos2(
+            (mode_rect.left() - spacing - time_width).max(row_rect.left()),
+            row_rect.top(),
+        ),
+        egui::vec2(time_width, row_height),
+    );
+    let seek_left = next_rect.right() + spacing;
+    let seek_right = time_rect.left() - spacing;
+    let seek_rect = egui::Rect::from_min_max(
+        egui::pos2(seek_left, row_rect.top()),
+        egui::pos2(seek_right.max(seek_left), row_rect.bottom()),
+    );
+
+    if music_icon_button_at(
+        ui,
+        previous_rect,
+        AppIcon::SkipPrevious,
+        state.tr("music.previous"),
+    )
+    .clicked()
+    {
+        state.previous_music_item();
+    }
+    let (icon, label) = if state.music_player_is_playing() {
+        (AppIcon::Pause, state.tr("music.pause"))
+    } else {
+        (AppIcon::Play, state.tr("music.play"))
+    };
+    if music_icon_button_at(ui, play_rect, icon, label).clicked() {
+        state.toggle_music_playback();
+    }
+    if music_icon_button_at(ui, next_rect, AppIcon::SkipNext, state.tr("music.next")).clicked() {
+        state.next_music_item();
+    }
+
+    if seek_rect.width() > 1.0 {
+        if let Some(error) = state.music_player_error_text() {
+            render_music_player_error_at(ui, seek_rect, error);
+        } else {
+            render_music_seek_bar_at(ui, state, seek_rect);
+        }
+    }
+
+    render_music_time_at(ui, time_rect, &state.music_playback_time_text());
+
+    let icon = music_playback_mode_icon(state.music_playback_mode_kind());
+    if music_icon_button_at(ui, mode_rect, icon, state.music_playback_mode_tooltip()).clicked() {
+        state.cycle_music_playback_mode();
+    }
+
+    let icon_size = row_height;
+    let volume_icon_rect = egui::Rect::from_min_size(
+        egui::pos2(volume_rect.left(), volume_rect.top()),
+        egui::vec2(icon_size, row_height),
+    );
+    music_round_icon_at(ui, volume_icon_rect, AppIcon::VolumeHigh);
+    let slider_left = volume_icon_rect.right() + ui.spacing().icon_spacing;
+    let volume_slider_rect = egui::Rect::from_min_max(
+        egui::pos2(slider_left, volume_rect.top()),
+        egui::pos2(volume_rect.right(), volume_rect.bottom()),
+    );
+    let slider = egui::Slider::new(&mut volume, 0.0..=1.0).show_value(false);
+    let volume_response = ui
+        .scope_builder(egui::UiBuilder::new().max_rect(volume_slider_rect), |ui| {
+            ui.spacing_mut().slider_width = volume_slider_rect.width().max(1.0);
+            ui.add_sized(volume_slider_rect.size(), slider)
+        })
+        .inner;
+    if volume_response.changed() {
+        state.set_music_volume(volume);
+    }
+}
+
+fn render_music_time_at(ui: &Ui, rect: egui::Rect, text: &str) {
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        text,
+        egui::TextStyle::Body.resolve(ui.style()),
+        ui.visuals().text_color(),
+    );
+}
+
+fn render_music_player_error_at(ui: &Ui, rect: egui::Rect, error: &str) {
+    let color = accent_red_for_ui(ui);
+    let galley = egui::WidgetText::from(RichText::new(error).color(color)).into_galley(
+        ui,
+        Some(egui::TextWrapMode::Truncate),
+        rect.width(),
+        egui::TextStyle::Body,
+    );
+    let pos = egui::pos2(rect.left(), rect.center().y - galley.size().y * 0.5);
+    ui.painter().galley(pos, galley, color);
+}
+
+fn music_icon_button_at(
+    ui: &mut Ui,
+    rect: egui::Rect,
+    icon: AppIcon,
+    tooltip: &str,
+) -> egui::Response {
+    let id = ui.make_persistent_id(("music-icon-button", tooltip));
+    let response = ui
+        .interact(rect, id, egui::Sense::click())
+        .on_hover_text(tooltip);
+    let visuals = ui.style().interact(&response);
+    let radius = (rect.width().min(rect.height()) * 0.5 - 1.0).max(1.0);
+    ui.painter()
+        .circle_filled(rect.center(), radius, visuals.bg_fill);
+    ui.painter()
+        .circle_stroke(rect.center(), radius, visuals.bg_stroke);
+
+    let icon_size = icon_button_text_size(ui) * 0.92;
+    let icon_rect = egui::Rect::from_center_size(rect.center(), egui::vec2(icon_size, icon_size));
+    icon_image(icon, icon_size, visuals.fg_stroke.color).paint_at(ui, icon_rect);
+    response
+}
+
+fn music_round_icon_at(ui: &Ui, rect: egui::Rect, icon: AppIcon) {
+    let radius = (rect.width().min(rect.height()) * 0.5 - 1.0).max(1.0);
+    let fill = ui.visuals().faint_bg_color;
+    let stroke = ui.visuals().widgets.inactive.bg_stroke;
+    ui.painter().circle_filled(rect.center(), radius, fill);
+    ui.painter().circle_stroke(rect.center(), radius, stroke);
+
+    let icon_size = icon_button_text_size(ui) * 0.86;
+    let icon_rect = egui::Rect::from_center_size(rect.center(), egui::vec2(icon_size, icon_size));
+    icon_image(icon, icon_size, standard_icon_color(ui)).paint_at(ui, icon_rect);
+}
+
+fn music_playback_mode_icon(mode: MusicPlaybackMode) -> AppIcon {
+    match mode {
+        MusicPlaybackMode::Sequential => AppIcon::ArrowRight,
+        MusicPlaybackMode::RepeatAll => AppIcon::Repeat,
+        MusicPlaybackMode::Shuffle => AppIcon::Shuffle,
+        MusicPlaybackMode::RepeatOne => AppIcon::RepeatOnce,
+    }
+}
+
+fn render_music_seek_bar_at(ui: &mut Ui, state: &mut AppState, rect: egui::Rect) {
+    let rect = rect.shrink2(egui::vec2(2.0, 0.0));
+    if rect.width() <= 1.0 {
+        return;
+    }
+
+    let mut value = state.music_seek_display_ratio().clamp(0.0, 1.0);
+    let slider = egui::Slider::new(&mut value, 0.0..=1.0).show_value(false);
+    let response = ui
+        .scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+            ui.spacing_mut().slider_width = rect.width().max(1.0);
+            ui.add_sized(rect.size(), slider)
+        })
+        .inner;
+
+    if response.changed() || response.dragged() {
+        state.set_music_seek_drag_ratio(Some(value));
+        ui.ctx().request_repaint();
+    }
+
+    let pointer_down = ui.input(|input| input.pointer.primary_down());
+    if state.music_seek_drag_ratio().is_some() && !pointer_down {
+        let final_ratio = state
+            .music_seek_drag_ratio()
+            .unwrap_or(value)
+            .clamp(0.0, 1.0);
+        state.finish_music_seek_drag(final_ratio);
+    }
+
+    let hover = if state.music_playback_cache_progress_ratio() < 0.999 {
+        state.tr("music.seek_cached_range_hint")
+    } else {
+        state.tr("music.seek_hint")
+    };
+    response.on_hover_text(hover);
 }
 
 fn row_output_and_download(ui: &mut Ui, state: &mut AppState) {
@@ -250,7 +521,7 @@ fn row_output_and_download(ui: &mut Ui, state: &mut AppState) {
                         // The missing-tool notice is always shown near the URL action button.
                     }
                     if response.clicked() && has_pending_downloads && !missing_yt_dlp {
-                        state.start_single_download();
+                        state.request_main_download();
                     }
                 });
             });
@@ -336,7 +607,7 @@ fn primary_url_action_button_for_state(
     state: &AppState,
     muted: bool,
 ) -> egui::Button<'static> {
-    if state.config.direct_download_on_add {
+    if state.config.direct_download_on_add && !state.queue_display_mode_is_audio() {
         if muted {
             missing_tool_icon_text_button(
                 ui,

@@ -198,7 +198,7 @@ fn command_preview_for(
 
 fn resolved_codec(settings: &TranscodeIntentSettings) -> &'static str {
     match settings.video_codec_policy {
-        VideoCodecPolicy::Auto => "不變 / Source",
+        VideoCodecPolicy::Auto => "Source",
         VideoCodecPolicy::H264 => "H.264",
         VideoCodecPolicy::Hevc => "HEVC",
         VideoCodecPolicy::Av1 => "AV1",
@@ -207,7 +207,7 @@ fn resolved_codec(settings: &TranscodeIntentSettings) -> &'static str {
 
 fn resolved_audio(settings: &TranscodeIntentSettings) -> &'static str {
     match settings.audio_policy {
-        AudioPolicy::Auto => "不變 / Source",
+        AudioPolicy::Auto => "Source",
         AudioPolicy::Aac => "AAC",
         AudioPolicy::Opus => "Opus",
         AudioPolicy::Flac => "FLAC",
@@ -216,7 +216,7 @@ fn resolved_audio(settings: &TranscodeIntentSettings) -> &'static str {
 
 fn resolved_container(settings: &TranscodeIntentSettings) -> &'static str {
     match settings.container_policy {
-        ContainerPolicy::Auto => "不變 / Source",
+        ContainerPolicy::Auto => "Source",
         ContainerPolicy::Mp4 => "MP4",
         ContainerPolicy::Mkv => "MKV",
         ContainerPolicy::Mov => "MOV",
@@ -238,17 +238,26 @@ fn speed_summary(_settings: &TranscodeIntentSettings) -> String {
 fn warnings_for(settings: &TranscodeIntentSettings) -> Vec<String> {
     let mut warnings = Vec::new();
     if settings.video_codec_policy == VideoCodecPolicy::Av1 {
-        warnings.push("AV1 depends on available FFmpeg encoders and may be slow without hardware support.".to_owned());
+        warnings.push(
+            "AV1 depends on available FFmpeg encoders and may be slow without hardware support."
+                .to_owned(),
+        );
     }
-    if settings.container_policy == ContainerPolicy::Mp4 && settings.audio_policy == AudioPolicy::Flac {
-        warnings.push("MP4 + FLAC is not a safe compatibility pair; MKV or MOV is usually safer.".to_owned());
+    if settings.container_policy == ContainerPolicy::Mp4
+        && settings.audio_policy == AudioPolicy::Flac
+    {
+        warnings.push(
+            "MP4 + FLAC is not a safe compatibility pair; MKV or MOV is usually safer.".to_owned(),
+        );
     }
     warnings
 }
 
 fn conflicts_for(settings: &TranscodeIntentSettings) -> Vec<String> {
     let mut conflicts = Vec::new();
-    if settings.container_policy == ContainerPolicy::Mp4 && settings.audio_policy == AudioPolicy::Opus {
+    if settings.container_policy == ContainerPolicy::Mp4
+        && settings.audio_policy == AudioPolicy::Opus
+    {
         conflicts.push("MP4 + Opus may not play everywhere. MKV is safer for Opus.".to_owned());
     }
     conflicts

@@ -1,7 +1,9 @@
 use eframe::egui::{self, ScrollArea, Ui};
 
 use crate::app::state::AppState;
-use crate::infrastructure::{AudioPolicy, ContainerPolicy, SubtitlePolicy, TranscodeIntentSettings, VideoCodecPolicy};
+use crate::infrastructure::{
+    AudioPolicy, ContainerPolicy, SubtitlePolicy, TranscodeIntentSettings, VideoCodecPolicy,
+};
 
 use super::common::{form_row_label, measure_label_width, settings_scroll_content};
 
@@ -16,7 +18,10 @@ pub(super) fn render_log_tab(ui: &mut Ui, state: &mut AppState) {
                         state.runtime_log.clear();
                     }
                     if ui
-                        .add_enabled(!state.runtime_log.is_empty(), egui::Button::new(state.tr("log.copy")))
+                        .add_enabled(
+                            !state.runtime_log.is_empty(),
+                            egui::Button::new(state.tr("log.copy")),
+                        )
                         .clicked()
                     {
                         let text = state
@@ -114,7 +119,11 @@ impl ConversionCombination {
     }
 }
 
-fn render_video_codec_choices(ui: &mut Ui, state: &AppState, settings: &mut TranscodeIntentSettings) {
+fn render_video_codec_choices(
+    ui: &mut Ui,
+    state: &AppState,
+    settings: &mut TranscodeIntentSettings,
+) {
     let options = [
         (VideoCodecPolicy::Auto, state.tr("processing.choice.source")),
         (VideoCodecPolicy::H264, state.tr("processing.video.h264")),
@@ -170,7 +179,8 @@ fn render_container_choices(ui: &mut Ui, state: &AppState, settings: &mut Transc
     ui.horizontal_wrapped(|ui| {
         for (value, label) in options {
             let selected = settings.container_policy == value;
-            let compatible = value_is_currently_compatible(settings, ConversionField::Container, value);
+            let compatible =
+                value_is_currently_compatible(settings, ConversionField::Container, value);
             if choice_button(ui, selected, compatible, label).clicked() {
                 let forced = if selected && value != ContainerPolicy::Auto {
                     ContainerPolicy::Auto
@@ -185,7 +195,10 @@ fn render_container_choices(ui: &mut Ui, state: &AppState, settings: &mut Transc
 
 fn render_subtitle_choices(ui: &mut Ui, state: &AppState, settings: &mut TranscodeIntentSettings) {
     let options = [
-        (SubtitlePolicy::Preserve, state.tr("processing.subtitle.preserve")),
+        (
+            SubtitlePolicy::Preserve,
+            state.tr("processing.subtitle.preserve"),
+        ),
         (SubtitlePolicy::Embed, state.tr("processing.subtitle.embed")),
         (SubtitlePolicy::Burn, state.tr("processing.subtitle.burn")),
     ];
@@ -419,7 +432,10 @@ fn video_allowed_for_container(video: VideoCodecPolicy, container: ContainerPoli
         ContainerPolicy::Auto | ContainerPolicy::Mkv => true,
         ContainerPolicy::Mp4 => matches!(
             video,
-            VideoCodecPolicy::Auto | VideoCodecPolicy::H264 | VideoCodecPolicy::Hevc | VideoCodecPolicy::Av1
+            VideoCodecPolicy::Auto
+                | VideoCodecPolicy::H264
+                | VideoCodecPolicy::Hevc
+                | VideoCodecPolicy::Av1
         ),
         ContainerPolicy::Mov => matches!(
             video,
@@ -431,6 +447,8 @@ fn video_allowed_for_container(video: VideoCodecPolicy, container: ContainerPoli
 fn audio_allowed_for_container(audio: AudioPolicy, container: ContainerPolicy) -> bool {
     match container {
         ContainerPolicy::Auto | ContainerPolicy::Mkv => true,
-        ContainerPolicy::Mp4 | ContainerPolicy::Mov => matches!(audio, AudioPolicy::Auto | AudioPolicy::Aac),
+        ContainerPolicy::Mp4 | ContainerPolicy::Mov => {
+            matches!(audio, AudioPolicy::Auto | AudioPolicy::Aac)
+        }
     }
 }

@@ -9,16 +9,15 @@ use crate::app::state::{
     sanitize_file_name_for_windows,
 };
 use crate::app::widgets::icon::{AppIcon, icon_image, standard_icon_color};
-use crate::app::widgets::url_input::{
-    accent_blue_for_ui, accent_green_for_ui, accent_red_for_ui,
-};
-use crate::domain::QueueItemId;
+use crate::app::widgets::url_input::{accent_blue_for_ui, accent_green_for_ui, accent_red_for_ui};
+use crate::domain::{CompactMusicState, QueueItemId};
 use crate::infrastructure::{
     DownloadTargetKind, OutputFileActionMode, open_output_file, open_output_folder,
     output_file_exists, output_parent_folder_exists,
 };
 
 use super::common::{ITEM_TITLE_FONT_SIZE, UiText, cell_label_right};
+use super::compact_row::{CompactRowSpec, CompactRowVisualState, render_music_compact_row};
 
 const TITLE_ROW_HEIGHT: f32 = 16.0;
 const TITLE_SPINNER_TOP_PADDING: f32 = 2.0;
@@ -41,13 +40,82 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
         .id_salt("batch-item-list")
         .show(ui, |ui| {
             if state.queue_items.is_empty() {
-                let empty_item_preview = state.empty_item_preview.clone();
-                render_empty_batch_item_card(ui, state, &empty_item_preview);
+                if state.queue_display_mode_is_audio() {
+                    render_empty_music_compact_item(ui, state);
+                } else {
+                    let empty_item_preview = state.empty_item_preview.clone();
+                    render_empty_batch_item_card(ui, state, &empty_item_preview);
+                }
                 return;
             }
 
             for index in 0..state.queue_items.len() {
                 let item_id = state.queue_items[index].id;
+                if state.queue_display_mode_is_audio() {
+                    let item = &state.queue_items[index];
+                    let title = item.title.clone();
+                    let id_salt = item.id;
+                    let duration_text = item.duration_text.clone();
+                    let music_state = item.compact_music_state.unwrap_or(CompactMusicState::Ready);
+                    let thumbnail_url = state.item_thumbnail_url(index).to_owned();
+                    let thumbnail_source =
+                        state.thumbnail_render_source_for_url(ui.ctx(), &thumbnail_url);
+                    let cache_progress = state.music_item_cache_progress_ratio(item_id);
+                    let row_progress = state.music_item_compact_progress_ratio(item_id);
+                    let show_row_progress = state.music_item_compact_progress_visible(item_id);
+                    let playback_progress = state.music_item_playback_progress_ratio(item_id);
+                    let is_current = state.music_current_item_id() == Some(item_id);
+                    let is_playing = state.music_item_is_playing(item_id);
+                    let (mut visual_state, mut status_text) = compact_music_visual_state(
+                        state,
+                        music_state,
+                        &duration_text,
+                        playback_progress,
+                        cache_progress,
+                    );
+                    if let Some(progress_text) =
+                        state.music_item_compact_progress_status_text(item_id)
+                    {
+                        status_text = progress_text;
+                    }
+                    if state.item_title_visual_state(index) == ItemTitleVisualState::Completed {
+                        visual_state = CompactRowVisualState::Downloaded;
+                        status_text = state.tr("music.status.completed").to_owned();
+                    } else if state.music_item_has_complete_cache(item_id) {
+                        visual_state = CompactRowVisualState::Finished;
+                    }
+                    let output = render_music_compact_row(
+                        ui,
+                        CompactRowSpec {
+                            id_salt,
+                            title: &title,
+                            thumbnail_url: &thumbnail_url,
+                            thumbnail_source,
+                            status_text: &status_text,
+                            visual_state,
+                            progress: row_progress,
+                            show_progress: show_row_progress,
+                            is_current,
+                            is_playing,
+                            play_enabled: true,
+                            remove_enabled: true,
+                            play_label: if is_playing {
+                                state.tr("music.pause")
+                            } else {
+                                state.tr("music.play")
+                            },
+                            remove_label: state.tr("item.remove"),
+                        },
+                    );
+                    if output.play_clicked {
+                        state.play_music_item(item_id);
+                    }
+                    if output.remove_clicked {
+                        pending_remove_item_id = Some(item_id);
+                    }
+                    ui.add_space(ui.spacing().item_spacing.y);
+                    continue;
+                }
                 let title = state.item_title_text(index);
                 let title_hover = title.clone();
                 let title_state = state.item_title_visual_state(index);
@@ -240,6 +308,72 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
     }
 }
 
+fn compact_music_visual_state(
+    app: &AppState,
+    state: CompactMusicState,
+    duration_text: &str,
+    playback_progress: f32,
+    cache_progress: f32,
+) -> (CompactRowVisualState, String) {
+    match state {
+        CompactMusicState::Resolving => (
+            CompactRowVisualState::Resolving,
+            app.tr("music.status.resolving").to_owned(),
+        ),
+        CompactMusicState::Buffering => {
+            let label = if cache_progress > 0.0 {
+                format!(
+                    "{}%",
+                    (cache_progress * 100.0).round().clamp(1.0, 99.0) as u32
+                )
+            } else {
+                app.tr("music.status.buffering").to_owned()
+            };
+            (CompactRowVisualState::Resolving, label)
+        }
+        CompactMusicState::Ready => (
+            if cache_progress >= 0.999 {
+                CompactRowVisualState::Finished
+            } else {
+                CompactRowVisualState::Idle
+            },
+            if duration_text.trim().is_empty() {
+                app.tr("music.status.ready").to_owned()
+            } else {
+                duration_text.to_owned()
+            },
+        ),
+        CompactMusicState::Playing => (
+            if cache_progress >= 0.999 {
+                CompactRowVisualState::Finished
+            } else {
+                CompactRowVisualState::Playing {
+                    progress: playback_progress,
+                }
+            },
+            if cache_progress < 1.0 {
+                app.tr("music.status.caching").to_owned()
+            } else {
+                app.tr("music.status.playing").to_owned()
+            },
+        ),
+        CompactMusicState::Paused => (
+            if cache_progress >= 0.999 {
+                CompactRowVisualState::Finished
+            } else {
+                CompactRowVisualState::Paused {
+                    progress: playback_progress,
+                }
+            },
+            app.tr("music.status.paused").to_owned(),
+        ),
+        CompactMusicState::Failed => (
+            CompactRowVisualState::Failed,
+            app.tr("music.status.failed").to_owned(),
+        ),
+    }
+}
+
 fn render_queue_toolbar(ui: &mut Ui, state: &mut AppState) {
     let summary = state.queue_summary();
 
@@ -268,6 +402,30 @@ fn render_queue_toolbar(ui: &mut Ui, state: &mut AppState) {
             }
         });
     });
+}
+
+fn render_empty_music_compact_item(ui: &mut Ui, state: &AppState) {
+    let title = state.tr("item.add_an_audio_url");
+    let output = render_music_compact_row(
+        ui,
+        CompactRowSpec {
+            id_salt: 0,
+            title,
+            thumbnail_url: "",
+            thumbnail_source: ThumbnailRenderSource::None,
+            status_text: state.tr(UiText::AUDIO),
+            visual_state: CompactRowVisualState::Idle,
+            progress: 0.0,
+            show_progress: false,
+            is_current: false,
+            is_playing: false,
+            play_enabled: false,
+            remove_enabled: false,
+            play_label: "",
+            remove_label: "",
+        },
+    );
+    let _ = output;
 }
 
 fn render_empty_batch_item_card(
@@ -1033,7 +1191,6 @@ fn file_name_text_edit(
             TextEdit::singleline(value)
                 .desired_width(width)
                 .background_color(bg_fill)
-                .frame(true)
                 .margin(egui::Margin::symmetric(4, 2)),
         )
     })

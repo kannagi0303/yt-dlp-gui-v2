@@ -13,8 +13,8 @@ use crate::app::media_probe::{
 };
 use crate::domain::{QueueItemId, WorkflowRunId};
 use crate::infrastructure::{
-    AudioPolicy, ContainerPolicy, SubtitlePolicy, ToolPaths, TranscodeIntentSettings, VideoCodecPolicy,
-    configure_background_command, resolve_tool_path,
+    AudioPolicy, ContainerPolicy, SubtitlePolicy, ToolPaths, TranscodeIntentSettings,
+    VideoCodecPolicy, configure_background_command, resolve_tool_path,
 };
 
 pub(super) const POST_PROCESS_CANCELLED_MESSAGE: &str = "Post-processing cancelled.";
@@ -122,19 +122,95 @@ impl VideoEncoderKind {
     fn fallback_args(self) -> &'static [&'static str] {
         match self {
             Self::Copy => &["-c:v", "copy"],
-            Self::H264Nvenc => &["-c:v", "h264_nvenc", "-preset", "medium", "-cq", "23", "-b:v", "0", "-pix_fmt", "yuv420p"],
-            Self::H264Qsv => &["-c:v", "h264_qsv", "-preset", "medium", "-global_quality", "23", "-pix_fmt", "nv12"],
-            Self::H264Amf => &["-c:v", "h264_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", "21", "-qp_p", "23", "-pix_fmt", "yuv420p"],
-            Self::LibX264 => &["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p"],
-            Self::HevcNvenc => &["-c:v", "hevc_nvenc", "-preset", "medium", "-cq", "26", "-b:v", "0", "-pix_fmt", "yuv420p"],
-            Self::HevcQsv => &["-c:v", "hevc_qsv", "-preset", "medium", "-global_quality", "26"],
-            Self::HevcAmf => &["-c:v", "hevc_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", "24", "-qp_p", "26", "-pix_fmt", "yuv420p"],
-            Self::LibX265 => &["-c:v", "libx265", "-preset", "medium", "-crf", "25", "-pix_fmt", "yuv420p"],
-            Self::Av1Nvenc => &["-c:v", "av1_nvenc", "-preset", "medium", "-cq", "28", "-b:v", "0"],
-            Self::Av1Qsv => &["-c:v", "av1_qsv", "-preset", "medium", "-global_quality", "28"],
-            Self::Av1Amf => &["-c:v", "av1_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", "27", "-qp_p", "29"],
+            Self::H264Nvenc => &[
+                "-c:v",
+                "h264_nvenc",
+                "-preset",
+                "medium",
+                "-cq",
+                "23",
+                "-b:v",
+                "0",
+                "-pix_fmt",
+                "yuv420p",
+            ],
+            Self::H264Qsv => &[
+                "-c:v",
+                "h264_qsv",
+                "-preset",
+                "medium",
+                "-global_quality",
+                "23",
+                "-pix_fmt",
+                "nv12",
+            ],
+            Self::H264Amf => &[
+                "-c:v", "h264_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", "21", "-qp_p",
+                "23", "-pix_fmt", "yuv420p",
+            ],
+            Self::LibX264 => &[
+                "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+            ],
+            Self::HevcNvenc => &[
+                "-c:v",
+                "hevc_nvenc",
+                "-preset",
+                "medium",
+                "-cq",
+                "26",
+                "-b:v",
+                "0",
+                "-pix_fmt",
+                "yuv420p",
+            ],
+            Self::HevcQsv => &[
+                "-c:v",
+                "hevc_qsv",
+                "-preset",
+                "medium",
+                "-global_quality",
+                "26",
+            ],
+            Self::HevcAmf => &[
+                "-c:v", "hevc_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", "24", "-qp_p",
+                "26", "-pix_fmt", "yuv420p",
+            ],
+            Self::LibX265 => &[
+                "-c:v", "libx265", "-preset", "medium", "-crf", "25", "-pix_fmt", "yuv420p",
+            ],
+            Self::Av1Nvenc => &[
+                "-c:v",
+                "av1_nvenc",
+                "-preset",
+                "medium",
+                "-cq",
+                "28",
+                "-b:v",
+                "0",
+            ],
+            Self::Av1Qsv => &[
+                "-c:v",
+                "av1_qsv",
+                "-preset",
+                "medium",
+                "-global_quality",
+                "28",
+            ],
+            Self::Av1Amf => &[
+                "-c:v", "av1_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", "27", "-qp_p",
+                "29",
+            ],
             Self::LibSvtAv1 => &["-c:v", "libsvtav1", "-preset", "8", "-crf", "30"],
-            Self::LibAomAv1 => &["-c:v", "libaom-av1", "-cpu-used", "6", "-crf", "30", "-b:v", "0"],
+            Self::LibAomAv1 => &[
+                "-c:v",
+                "libaom-av1",
+                "-cpu-used",
+                "6",
+                "-crf",
+                "30",
+                "-b:v",
+                "0",
+            ],
         }
     }
 
@@ -151,9 +227,15 @@ impl VideoEncoderKind {
 
     fn target_codec(self) -> Option<TargetVideoCodec> {
         match self {
-            Self::H264Nvenc | Self::H264Qsv | Self::H264Amf | Self::LibX264 => Some(TargetVideoCodec::H264),
-            Self::HevcNvenc | Self::HevcQsv | Self::HevcAmf | Self::LibX265 => Some(TargetVideoCodec::Hevc),
-            Self::Av1Nvenc | Self::Av1Qsv | Self::Av1Amf | Self::LibSvtAv1 | Self::LibAomAv1 => Some(TargetVideoCodec::Av1),
+            Self::H264Nvenc | Self::H264Qsv | Self::H264Amf | Self::LibX264 => {
+                Some(TargetVideoCodec::H264)
+            }
+            Self::HevcNvenc | Self::HevcQsv | Self::HevcAmf | Self::LibX265 => {
+                Some(TargetVideoCodec::Hevc)
+            }
+            Self::Av1Nvenc | Self::Av1Qsv | Self::Av1Amf | Self::LibSvtAv1 | Self::LibAomAv1 => {
+                Some(TargetVideoCodec::Av1)
+            }
             Self::Copy => None,
         }
     }
@@ -166,11 +248,15 @@ impl VideoEncoderKind {
             Self::Copy => vec!["-c:v", "copy"],
             Self::H264Nvenc => vec!["-c:v", "h264_nvenc", "-preset", "medium", "-rc", "vbr"],
             Self::H264Qsv => vec!["-c:v", "h264_qsv", "-preset", "medium"],
-            Self::H264Amf => vec!["-c:v", "h264_amf", "-quality", "balanced", "-rc", "vbr_peak"],
+            Self::H264Amf => vec![
+                "-c:v", "h264_amf", "-quality", "balanced", "-rc", "vbr_peak",
+            ],
             Self::LibX264 => vec!["-c:v", "libx264", "-preset", "medium"],
             Self::HevcNvenc => vec!["-c:v", "hevc_nvenc", "-preset", "medium", "-rc", "vbr"],
             Self::HevcQsv => vec!["-c:v", "hevc_qsv", "-preset", "medium"],
-            Self::HevcAmf => vec!["-c:v", "hevc_amf", "-quality", "balanced", "-rc", "vbr_peak"],
+            Self::HevcAmf => vec![
+                "-c:v", "hevc_amf", "-quality", "balanced", "-rc", "vbr_peak",
+            ],
             Self::LibX265 => vec!["-c:v", "libx265", "-preset", "medium"],
             Self::Av1Nvenc => vec!["-c:v", "av1_nvenc", "-preset", "medium", "-rc", "vbr"],
             Self::Av1Qsv => vec!["-c:v", "av1_qsv", "-preset", "medium"],
@@ -191,14 +277,21 @@ impl VideoEncoderKind {
             bufsize,
         ]);
 
-        if matches!(self, Self::H264Nvenc | Self::H264Amf | Self::LibX264 | Self::HevcNvenc | Self::HevcAmf | Self::LibX265) {
+        if matches!(
+            self,
+            Self::H264Nvenc
+                | Self::H264Amf
+                | Self::LibX264
+                | Self::HevcNvenc
+                | Self::HevcAmf
+                | Self::LibX265
+        ) {
             args.extend(["-pix_fmt".to_owned(), "yuv420p".to_owned()]);
         }
 
         args
     }
 }
-
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TargetVideoCodec {
@@ -324,7 +417,10 @@ fn run_output_conversion_attempt(
 ) -> Result<String, String> {
     let input_path = PathBuf::from(input_path);
     if !input_path.is_file() {
-        return Err(format!("Input media file was not found: {}", input_path.display()));
+        return Err(format!(
+            "Input media file was not found: {}",
+            input_path.display()
+        ));
     }
 
     let ffmpeg = validate_ffmpeg_available(tool_paths)?;
@@ -433,13 +529,14 @@ fn has_extension(path: &Path, expected: &str) -> bool {
         .is_some_and(|extension| extension.eq_ignore_ascii_case(expected))
 }
 
-
 fn probe_input_media(ffmpeg: &Path, input_path: &Path) -> Option<MediaProbeInfo> {
     let ffprobe = ffprobe_companion_path_for_ffmpeg(ffmpeg);
     match probe_media_with_ffprobe(&ffprobe, input_path) {
         Ok(info) => Some(info),
         Err(error) => {
-            eprintln!("[post-process] ffprobe unavailable; using conservative encode defaults: {error}");
+            eprintln!(
+                "[post-process] ffprobe unavailable; using conservative encode defaults: {error}"
+            );
             None
         }
     }
@@ -464,14 +561,14 @@ fn normalize_output_settings(
         }) {
             settings.container_policy = inferred;
         } else {
-            settings.container_policy = best_container_for_codecs(
-                settings.video_codec_policy,
-                settings.audio_policy,
-            );
+            settings.container_policy =
+                best_container_for_codecs(settings.video_codec_policy, settings.audio_policy);
         }
     }
 
-    if settings.subtitle_policy == SubtitlePolicy::Burn && settings.video_codec_policy == VideoCodecPolicy::Auto {
+    if settings.subtitle_policy == SubtitlePolicy::Burn
+        && settings.video_codec_policy == VideoCodecPolicy::Auto
+    {
         settings.video_codec_policy = VideoCodecPolicy::H264;
     }
 
@@ -482,7 +579,8 @@ fn normalize_output_settings(
             {
                 settings.video_codec_policy = VideoCodecPolicy::H264;
             }
-            if !video_allowed_for_container(settings.video_codec_policy, settings.container_policy) {
+            if !video_allowed_for_container(settings.video_codec_policy, settings.container_policy)
+            {
                 settings.video_codec_policy = VideoCodecPolicy::H264;
             }
 
@@ -514,10 +612,14 @@ fn container_policy_for_extension(path: &Path) -> Option<ContainerPolicy> {
 }
 
 fn best_container_for_codecs(video: VideoCodecPolicy, audio: AudioPolicy) -> ContainerPolicy {
-    [ContainerPolicy::Mkv, ContainerPolicy::Mp4, ContainerPolicy::Mov]
-        .into_iter()
-        .find(|container| container_allowed_for_codecs(*container, video, audio))
-        .unwrap_or(ContainerPolicy::Mkv)
+    [
+        ContainerPolicy::Mkv,
+        ContainerPolicy::Mp4,
+        ContainerPolicy::Mov,
+    ]
+    .into_iter()
+    .find(|container| container_allowed_for_codecs(*container, video, audio))
+    .unwrap_or(ContainerPolicy::Mkv)
 }
 
 fn container_allowed_for_codecs(
@@ -533,7 +635,10 @@ fn video_allowed_for_container(video: VideoCodecPolicy, container: ContainerPoli
         ContainerPolicy::Auto | ContainerPolicy::Mkv => true,
         ContainerPolicy::Mp4 => matches!(
             video,
-            VideoCodecPolicy::Auto | VideoCodecPolicy::H264 | VideoCodecPolicy::Hevc | VideoCodecPolicy::Av1
+            VideoCodecPolicy::Auto
+                | VideoCodecPolicy::H264
+                | VideoCodecPolicy::Hevc
+                | VideoCodecPolicy::Av1
         ),
         ContainerPolicy::Mov => matches!(
             video,
@@ -545,7 +650,9 @@ fn video_allowed_for_container(video: VideoCodecPolicy, container: ContainerPoli
 fn audio_allowed_for_container(audio: AudioPolicy, container: ContainerPolicy) -> bool {
     match container {
         ContainerPolicy::Auto | ContainerPolicy::Mkv => true,
-        ContainerPolicy::Mp4 | ContainerPolicy::Mov => matches!(audio, AudioPolicy::Auto | AudioPolicy::Aac),
+        ContainerPolicy::Mp4 | ContainerPolicy::Mov => {
+            matches!(audio, AudioPolicy::Auto | AudioPolicy::Aac)
+        }
     }
 }
 
@@ -583,7 +690,9 @@ fn source_audio_allowed_for_container(
     match container {
         ContainerPolicy::Auto | ContainerPolicy::Mkv => true,
         ContainerPolicy::Mp4 => matches!(codec.as_str(), "aac" | "mp3" | "alac"),
-        ContainerPolicy::Mov => matches!(codec.as_str(), "aac" | "alac" | "pcm_s16le" | "pcm_s24le"),
+        ContainerPolicy::Mov => {
+            matches!(codec.as_str(), "aac" | "alac" | "pcm_s16le" | "pcm_s24le")
+        }
     }
 }
 
@@ -663,12 +772,26 @@ fn run_ffmpeg_output_conversion(
     child_handle: &Arc<Mutex<Option<Child>>>,
     cancel_requested: &Arc<AtomicBool>,
 ) -> Result<(), String> {
-    let mut command = build_output_conversion_command(ffmpeg, settings, encoder, input_path, temp_output, media_probe);
+    let mut command = build_output_conversion_command(
+        ffmpeg,
+        settings,
+        encoder,
+        input_path,
+        temp_output,
+        media_probe,
+    );
 
     println!("[post-process] output encoder: {}", encoder.label());
     println!(
         "[post-process] output command: {}",
-        output_conversion_command_line(ffmpeg, settings, encoder, input_path, temp_output, media_probe)
+        output_conversion_command_line(
+            ffmpeg,
+            settings,
+            encoder,
+            input_path,
+            temp_output,
+            media_probe
+        )
     );
 
     let mut child = command
@@ -681,7 +804,8 @@ fn run_ffmpeg_output_conversion(
         *guard = Some(child);
     }
 
-    let stdout_handle = stdout.map(|stdout| thread::spawn(move || read_plain_process_stream(stdout, false)));
+    let stdout_handle =
+        stdout.map(|stdout| thread::spawn(move || read_plain_process_stream(stdout, false)));
     let stderr_handle = stderr.map(|stderr| {
         let tx = tx.clone();
         thread::spawn(move || read_ffmpeg_progress_stream(stderr, item_id, workflow_id, tx))
@@ -728,7 +852,12 @@ fn build_output_conversion_command(
     media_probe: Option<&MediaProbeInfo>,
 ) -> Command {
     let sidecar_subtitle = find_sidecar_subtitle(input_path);
-    let burn_filter = subtitle_burn_filter(settings, input_path, sidecar_subtitle.as_deref(), media_probe);
+    let burn_filter = subtitle_burn_filter(
+        settings,
+        input_path,
+        sidecar_subtitle.as_deref(),
+        media_probe,
+    );
 
     let mut command = Command::new(ffmpeg);
     configure_background_command(&mut command);
@@ -743,11 +872,7 @@ fn build_output_conversion_command(
         }
     }
 
-    command
-        .arg("-map")
-        .arg("0:v:0?")
-        .arg("-map")
-        .arg("0:a:0?");
+    command.arg("-map").arg("0:v:0?").arg("-map").arg("0:a:0?");
     append_subtitle_maps(&mut command, settings, sidecar_subtitle.as_deref());
 
     for arg in encoder.args(media_probe) {
@@ -789,7 +914,11 @@ fn find_sidecar_subtitle(input_path: &Path) -> Option<PathBuf> {
         .filter(|path| {
             path.extension()
                 .and_then(|value| value.to_str())
-                .is_some_and(|extension| EXTENSIONS.iter().any(|known| extension.eq_ignore_ascii_case(known)))
+                .is_some_and(|extension| {
+                    EXTENSIONS
+                        .iter()
+                        .any(|known| extension.eq_ignore_ascii_case(known))
+                })
         })
         .filter(|path| {
             path.file_stem()
@@ -801,11 +930,18 @@ fn find_sidecar_subtitle(input_path: &Path) -> Option<PathBuf> {
     matches.into_iter().next()
 }
 
-fn should_add_sidecar_subtitle_input(settings: &TranscodeIntentSettings, sidecar: Option<&Path>) -> bool {
+fn should_add_sidecar_subtitle_input(
+    settings: &TranscodeIntentSettings,
+    sidecar: Option<&Path>,
+) -> bool {
     sidecar.is_some() && settings.subtitle_policy == SubtitlePolicy::Embed
 }
 
-fn append_subtitle_maps(command: &mut Command, settings: &TranscodeIntentSettings, sidecar: Option<&Path>) {
+fn append_subtitle_maps(
+    command: &mut Command,
+    settings: &TranscodeIntentSettings,
+    sidecar: Option<&Path>,
+) {
     match settings.subtitle_policy {
         SubtitlePolicy::Preserve => {
             command.arg("-map").arg("0:s?");
@@ -820,10 +956,17 @@ fn append_subtitle_maps(command: &mut Command, settings: &TranscodeIntentSetting
     }
 }
 
-fn append_subtitle_args(command: &mut Command, settings: &TranscodeIntentSettings, sidecar: Option<&Path>) {
+fn append_subtitle_args(
+    command: &mut Command,
+    settings: &TranscodeIntentSettings,
+    sidecar: Option<&Path>,
+) {
     match settings.subtitle_policy {
         SubtitlePolicy::Preserve | SubtitlePolicy::Embed => {
-            if matches!(settings.container_policy, ContainerPolicy::Mp4 | ContainerPolicy::Mov) {
+            if matches!(
+                settings.container_policy,
+                ContainerPolicy::Mp4 | ContainerPolicy::Mov
+            ) {
                 command.arg("-c:s").arg("mov_text");
             } else {
                 command.arg("-c:s").arg("copy");
@@ -853,14 +996,12 @@ fn subtitle_burn_filter(
         ));
     }
 
-    media_probe
-        .is_some_and(|info| info.has_subtitle)
-        .then(|| {
-            format!(
-                "subtitles=filename='{}':si=0",
-                escape_subtitle_filter_path(input_path)
-            )
-        })
+    media_probe.is_some_and(|info| info.has_subtitle).then(|| {
+        format!(
+            "subtitles=filename='{}':si=0",
+            escape_subtitle_filter_path(input_path)
+        )
+    })
 }
 
 fn escape_subtitle_filter_path(path: &Path) -> String {
@@ -887,9 +1028,22 @@ fn append_audio_args(command: &mut Command, policy: AudioPolicy) {
     }
 }
 
-fn append_container_args(command: &mut Command, settings: &TranscodeIntentSettings, encoder: VideoEncoderKind) {
-    if matches!(settings.container_policy, ContainerPolicy::Mp4 | ContainerPolicy::Mov) {
-        if matches!(encoder, VideoEncoderKind::HevcNvenc | VideoEncoderKind::HevcQsv | VideoEncoderKind::HevcAmf | VideoEncoderKind::LibX265) {
+fn append_container_args(
+    command: &mut Command,
+    settings: &TranscodeIntentSettings,
+    encoder: VideoEncoderKind,
+) {
+    if matches!(
+        settings.container_policy,
+        ContainerPolicy::Mp4 | ContainerPolicy::Mov
+    ) {
+        if matches!(
+            encoder,
+            VideoEncoderKind::HevcNvenc
+                | VideoEncoderKind::HevcQsv
+                | VideoEncoderKind::HevcAmf
+                | VideoEncoderKind::LibX265
+        ) {
             command.arg("-tag:v").arg("hvc1");
         }
         command.arg("-movflags").arg("+faststart");
@@ -949,8 +1103,9 @@ fn transcode_temp_output_path(final_output: &Path) -> PathBuf {
 
 fn remove_existing_temp_output(temp_output: &Path) -> Result<(), String> {
     if temp_output.exists() {
-        fs::remove_file(temp_output)
-            .map_err(|error| format!("Could not remove existing post-process temp file: {error}"))?;
+        fs::remove_file(temp_output).map_err(|error| {
+            format!("Could not remove existing post-process temp file: {error}")
+        })?;
     }
     Ok(())
 }
@@ -1084,7 +1239,10 @@ fn parse_duration_seconds(line: &str) -> Option<f32> {
     parse_progress_timestamp_seconds(timestamp)
 }
 
-fn parse_ffmpeg_transcode_progress_percent(line: &str, duration_seconds: Option<f32>) -> Option<f32> {
+fn parse_ffmpeg_transcode_progress_percent(
+    line: &str,
+    duration_seconds: Option<f32>,
+) -> Option<f32> {
     let duration = duration_seconds?;
     if duration <= 0.0 {
         return None;
@@ -1189,7 +1347,12 @@ fn output_conversion_command_line(
     media_probe: Option<&MediaProbeInfo>,
 ) -> String {
     let sidecar_subtitle = find_sidecar_subtitle(input_path);
-    let burn_filter = subtitle_burn_filter(settings, input_path, sidecar_subtitle.as_deref(), media_probe);
+    let burn_filter = subtitle_burn_filter(
+        settings,
+        input_path,
+        sidecar_subtitle.as_deref(),
+        media_probe,
+    );
     let mut parts = vec![
         quote_arg(ffmpeg),
         "-hide_banner".to_owned(),
@@ -1233,13 +1396,26 @@ fn output_conversion_command_line(
     }
     match settings.audio_policy {
         AudioPolicy::Auto => parts.extend(["-c:a".to_owned(), "copy".to_owned()]),
-        AudioPolicy::Aac => parts.extend(["-c:a".to_owned(), "aac".to_owned(), "-b:a".to_owned(), "192k".to_owned()]),
-        AudioPolicy::Opus => parts.extend(["-c:a".to_owned(), "libopus".to_owned(), "-b:a".to_owned(), "160k".to_owned()]),
+        AudioPolicy::Aac => parts.extend([
+            "-c:a".to_owned(),
+            "aac".to_owned(),
+            "-b:a".to_owned(),
+            "192k".to_owned(),
+        ]),
+        AudioPolicy::Opus => parts.extend([
+            "-c:a".to_owned(),
+            "libopus".to_owned(),
+            "-b:a".to_owned(),
+            "160k".to_owned(),
+        ]),
         AudioPolicy::Flac => parts.extend(["-c:a".to_owned(), "flac".to_owned()]),
     }
     match settings.subtitle_policy {
         SubtitlePolicy::Preserve | SubtitlePolicy::Embed => {
-            if matches!(settings.container_policy, ContainerPolicy::Mp4 | ContainerPolicy::Mov) {
+            if matches!(
+                settings.container_policy,
+                ContainerPolicy::Mp4 | ContainerPolicy::Mov
+            ) {
                 parts.extend(["-c:s".to_owned(), "mov_text".to_owned()]);
             } else {
                 parts.extend(["-c:s".to_owned(), "copy".to_owned()]);
@@ -1247,8 +1423,17 @@ fn output_conversion_command_line(
         }
         SubtitlePolicy::Burn => parts.push("-sn".to_owned()),
     }
-    if matches!(settings.container_policy, ContainerPolicy::Mp4 | ContainerPolicy::Mov) {
-        if matches!(encoder, VideoEncoderKind::HevcNvenc | VideoEncoderKind::HevcQsv | VideoEncoderKind::HevcAmf | VideoEncoderKind::LibX265) {
+    if matches!(
+        settings.container_policy,
+        ContainerPolicy::Mp4 | ContainerPolicy::Mov
+    ) {
+        if matches!(
+            encoder,
+            VideoEncoderKind::HevcNvenc
+                | VideoEncoderKind::HevcQsv
+                | VideoEncoderKind::HevcAmf
+                | VideoEncoderKind::LibX265
+        ) {
             parts.extend(["-tag:v".to_owned(), "hvc1".to_owned()]);
         }
         parts.extend(["-movflags".to_owned(), "+faststart".to_owned()]);

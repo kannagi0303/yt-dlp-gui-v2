@@ -172,6 +172,57 @@ pub fn ffprobe_companion_path(ffmpeg_path: &str) -> PathBuf {
         .unwrap_or_else(|| resolve_support_path(".\\tools\\ffmpeg\\ffprobe.exe"))
 }
 
+pub fn detect_dependency_tool_in_system_path(tool: DependencyTool) -> Option<PathBuf> {
+    find_dependency_tool_in_system_path(tool)
+}
+
+fn find_dependency_tool_in_system_path(tool: DependencyTool) -> Option<PathBuf> {
+    let path_value = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path_value) {
+        for name in system_path_executable_candidates(tool) {
+            let candidate = dir.join(name);
+            if !candidate.is_file() {
+                continue;
+            }
+            if tool == DependencyTool::Ffmpeg && !ffprobe_for_ffmpeg_path(&candidate).is_file() {
+                continue;
+            }
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn system_path_executable_candidates(tool: DependencyTool) -> &'static [&'static str] {
+    match tool {
+        DependencyTool::YtDlp => &[
+            "yt-dlp.exe",
+            "yt-dlp",
+            "yt-dlp.cmd",
+            "yt-dlp.bat",
+            "ytdl-patched.exe",
+            "ytdl-patched",
+            "ytdl-patched.cmd",
+            "ytdl-patched.bat",
+        ],
+        DependencyTool::Ffmpeg => &["ffmpeg.exe", "ffmpeg"],
+        DependencyTool::Aria2c => &["aria2c.exe", "aria2c"],
+        DependencyTool::Deno => &["deno.exe", "deno", "deno.cmd", "deno.bat"],
+    }
+}
+
+fn ffprobe_for_ffmpeg_path(ffmpeg_path: &Path) -> PathBuf {
+    let file_name = if cfg!(target_os = "windows") {
+        "ffprobe.exe"
+    } else {
+        "ffprobe"
+    };
+    ffmpeg_path
+        .parent()
+        .map(|parent| parent.join(file_name))
+        .unwrap_or_else(|| PathBuf::from(file_name))
+}
+
 pub fn install_dependency_tool(tool: DependencyTool) -> Result<InstalledDependencyTool, String> {
     install_dependency_tool_with_progress(tool, |_| {})
 }
@@ -555,26 +606,30 @@ fn download_file(
 }
 
 fn http_get(url: &str, proxy_url: Option<&str>) -> Result<HttpResponse, String> {
-    let mut builder = ureq::AgentBuilder::new()
-        .timeout_connect(Duration::from_secs(10))
-        .timeout_read(Duration::from_secs(10));
+    let mut builder = ureq::Agent::config_builder()
+        .timeout_connect(Some(Duration::from_secs(10)))
+        .timeout_recv_response(Some(Duration::from_secs(10)))
+        .timeout_recv_body(Some(Duration::from_secs(10)))
+        .user_agent(USER_AGENT);
     if let Some(proxy_url) = proxy_url.map(str::trim).filter(|value| !value.is_empty()) {
         let proxy = ureq::Proxy::new(proxy_url)
             .map_err(|error| format!("Invalid proxy URL {proxy_url}: {error}"))?;
-        builder = builder.proxy(proxy);
+        builder = builder.proxy(Some(proxy));
     }
 
     let response = builder
         .build()
+        .new_agent()
         .get(url)
-        .set("User-Agent", USER_AGENT)
         .call()
         .map_err(|error| format!("Could not download {url}: {error}"))?;
     let content_length = response
-        .header("Content-Length")
+        .headers()
+        .get("content-length")
+        .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse::<u64>().ok());
     Ok(HttpResponse {
-        reader: response.into_reader(),
+        reader: Box::new(response.into_parts().1.into_reader()),
         content_length,
     })
 }

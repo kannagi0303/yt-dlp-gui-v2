@@ -5,6 +5,9 @@
 /notes/
 /AGENTS.md
 
+# Local generated docs.
+/docs/
+
 # Local runtime data.
 /.codex-yt-dlp-temp/
 /cache/

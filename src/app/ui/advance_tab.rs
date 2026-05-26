@@ -1,6 +1,6 @@
 use eframe::egui::{self, Align, Layout, RichText, ScrollArea, TextEdit, Ui};
 
-use crate::app::state::{AppState, ProcessingDetailPage};
+use crate::app::state::{AdvanceDetailPage, AppState};
 use crate::infrastructure::FileTimeMode;
 
 use crate::app::widgets::icon::AppIcon;
@@ -13,7 +13,10 @@ use super::common::{
 const ADVANCE_TEXT_WIDTH: f32 = 280.0;
 
 pub(super) fn render_advance_tab(ui: &mut Ui, state: &mut AppState) {
-    if matches!(state.processing_detail_page, Some(ProcessingDetailPage::Transcode)) {
+    if matches!(
+        state.advance_detail_page,
+        Some(AdvanceDetailPage::Transcode)
+    ) {
         render_download_conversion_detail_page(ui, state);
         return;
     }
@@ -46,12 +49,12 @@ fn render_download_conversion_detail_page(ui: &mut Ui, state: &mut AppState) {
                         .button(format!("← {}", state.tr("options.back")))
                         .clicked()
                     {
-                        state.close_processing_detail_page();
+                        state.close_advance_detail_page();
                     }
                     ui.label(RichText::new(state.tr("advance.download_conversion")).strong());
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui.button(state.tr("action.confirm")).clicked() {
-                            state.close_processing_detail_page();
+                            state.close_advance_detail_page();
                         }
                     });
                 });
@@ -440,24 +443,33 @@ fn render_post_processing_section(ui: &mut Ui, state: &mut AppState, label_width
                 }
             });
         });
-        form_row_label(ui, label_width, state.tr("advance.download_conversion"), |ui| {
-            ui.horizontal_wrapped(|ui| {
-                let mut enabled = state.config.post_download_conversion_enabled;
-                if ui
-                    .checkbox(&mut enabled, state.tr("advance.enable"))
-                    .changed()
-                {
-                    state.set_enable_builtin_transcode_after_download(enabled);
-                }
+        form_row_label(
+            ui,
+            label_width,
+            state.tr("advance.download_conversion"),
+            |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    let mut enabled = state.config.post_download_conversion_enabled;
+                    if ui
+                        .checkbox(&mut enabled, state.tr("advance.enable"))
+                        .changed()
+                    {
+                        state.set_enable_builtin_transcode_after_download(enabled);
+                    }
 
-                if ui
-                    .add(text_trailing_icon_button(ui, state.tr("advance.settings"), AppIcon::MenuRight))
-                    .clicked()
-                {
-                    state.open_processing_detail_page(ProcessingDetailPage::Transcode);
-                }
-            });
-        });
+                    if ui
+                        .add(text_trailing_icon_button(
+                            ui,
+                            state.tr("advance.settings"),
+                            AppIcon::MenuRight,
+                        ))
+                        .clicked()
+                    {
+                        state.open_advance_detail_page(AdvanceDetailPage::Transcode);
+                    }
+                });
+            },
+        );
     });
 }
 

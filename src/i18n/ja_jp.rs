@@ -96,6 +96,7 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "item.failed" => "失敗",
         "item.clear_all" => "すべてクリア",
         "item.add_a_video_url" => "動画URLを追加してください",
+        "item.add_an_audio_url" => "音声 URL を追加",
         "item.after_adding_choose_the_video_format_here" => {
             "追加後、ここで動画形式を選択できます。"
         }
@@ -172,12 +173,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.current_language" => "現在の言語",
         "options.back" => "戻る",
         "options.choose" => "選択",
+        "options.auto_detect_tool_from" => "次から自動検出:",
         "options.auto_detect" => "自動検出",
+        "options.auto_detect_tool_hint" => {
+            "ポータブルツールフォルダーとシステム PATH からインストール済みツールを検出します。"
+        }
         "options.tool_paths" => "ツールのパス",
         "options.file_actions" => "ファイル操作",
         "options.action_button" => "操作ボタン",
         "options.cache" => "キャッシュ",
         "options.cache_location" => "キャッシュ位置",
+        "options.cache_usage" => "使用量",
+        "options.cache_usage_detail" => "合計: {total} · 音声: {audio} · 期限切れ: {expired}",
+        "options.cache_cleanup" => "クリーンアップ",
+        "options.cache_refresh" => "更新",
+        "options.cache_clear_expired" => "期限切れを削除",
+        "options.cache_clear_audio" => "音声を削除",
+        "options.cache_clear_all" => "すべて削除",
         "options.appearance_window" => "外観とウィンドウ",
         "options.notifications" => "通知",
         "options.enable" => "有効",
@@ -390,6 +402,15 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.skip_failed" => "Skip failed: {error}",
         "state.preparing_deployment" => "Preparing deployment",
         "state.tool_downloading_deploying" => "{tool} downloading and deploying...",
+        "state.tool_auto_detected" => "{tool} を PATH から検出しました: {path}",
+        "state.tool_auto_detect_not_found" => "システム PATH で {tool} が見つかりませんでした。",
+        "state.tools_auto_detected" => "PATH から {found}/{total} 個のツールを検出しました。",
+        "state.tools_auto_detect_missing" => "PATH で見つかりません: {tools}。",
+        "state.tools_auto_detect_none" => "システム PATH で依存ツールは見つかりませんでした。",
+        "state.cache_cleaned_expired" => "期限切れキャッシュを {count} 件削除しました（{size}）。",
+        "state.cache_cleaned_audio" => "音声キャッシュを削除しました: {count} 件（{size}）。",
+        "state.cache_cleaned_all" => "App キャッシュを削除しました: {count} 件（{size}）。",
+        "state.cache_cleanup_failed" => "キャッシュのクリーンアップに失敗しました: {error}",
         "state.found" => "Found",
         "state.not_found" => "Not found",
         "state.clipboard_monitor_enabled_auto_add" => {
@@ -655,7 +676,9 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.filter_executable" => "実行ファイル",
         "processing.output_conversion" => "ダウンロード後の出力",
         "processing.convert_after_download" => "ダウンロード後に変換",
-        "processing.convert_after_download_hint" => "映像、音声、コンテナ、または字幕を変更する場合のみ実行します。",
+        "processing.convert_after_download_hint" => {
+            "映像、音声、コンテナ、または字幕を変更する場合のみ実行します。"
+        }
         "processing.video" => "映像",
         "processing.audio" => "音声",
         "processing.container" => "コンテナ",
@@ -698,9 +721,7 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.apple_tv_hevc_h265" => "Apple TV HEVC / H.265",
         "options.processing_tab" => "Processing tab",
         "options.enable_processing_tab" => "Enable processing",
-        "state.apple_tv_hevc_post_processing_title" => {
-            "Converting for Apple TV: {title}"
-        }
+        "state.apple_tv_hevc_post_processing_title" => "Converting for Apple TV: {title}",
         "state.transcode_post_processing_title" => "Converting with {profile}: {title}",
         "processing.convert" => "Convert",
         "processing.tools" => "Tools",
@@ -718,7 +739,9 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "processing.locked" => "Locked",
         "processing.auto_recompute" => "Auto",
         "processing.apply" => "Apply",
-        "processing.apply_after_download" => "Apply the currently supported safe MP4 transcode after download",
+        "processing.apply_after_download" => {
+            "Apply the currently supported safe MP4 transcode after download"
+        }
         "processing.apply_after_download_hint" => {
             "Only the current executable safe MP4 backend is applied; not every intent setting is connected yet."
         }
@@ -795,6 +818,68 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.support.partial" => "Partially supported",
         "transcode.support.preview_only" => "Preview only",
         "log.not_implemented" => "Runtime log collection has not been implemented yet.",
+        "queue_display.normal" => "通常",
+        "queue_display.audio" => "音声",
+        "queue_display.normal.tooltip" => "通常のダウンロード一覧表示",
+        "queue_display.audio.tooltip" => "音声一覧表示と再生",
+        "main.queue_display_mode_hint" => "一覧表示と追加方法を切り替え",
+        "music.previous" => "前の曲",
+        "music.play" => "再生",
+        "music.pause" => "一時停止",
+        "music.next" => "次の曲",
+        "music.seek_cached_range_hint" => {
+            "ドラッグしてシーク。離すとキャッシュ済み範囲内に戻ります"
+        }
+        "music.seek_hint" => "ドラッグして再生位置を調整",
+        "music.status.completed" => "完了",
+        "music.status.resolving" => "解析中",
+        "music.status.buffering" => "バッファ中",
+        "music.status.ready" => "再生可能",
+        "music.status.caching" => "キャッシュ中",
+        "music.status.playing" => "再生中",
+        "music.status.paused" => "一時停止",
+        "music.status.failed" => "失敗",
+        "music.playback_mode.sequential" => "順番",
+        "music.playback_mode.repeat_all" => "リピート",
+        "music.playback_mode.shuffle" => "シャッフル",
+        "music.playback_mode.repeat_one" => "1曲リピート",
+        "music.playback_mode.sequential.tooltip" => "順番に再生",
+        "music.playback_mode.repeat_all.tooltip" => "リストをリピート",
+        "music.playback_mode.shuffle.tooltip" => "シャッフル再生",
+        "music.playback_mode.repeat_one.tooltip" => "1曲をリピート",
+        "options.music_download_format" => "音楽ダウンロード形式",
+        "options.music_download_format_title" => "どの音声形式で出力しますか？",
+        "options.music_download_format_body" => {
+            "完了済みの音楽キャッシュを優先して使用し、形式が異なる場合のみ変換します。"
+        }
+        "state.queue_display_mode_changed" => "リストモード: {mode}",
+        "state.downloading_music" => "音楽をダウンロード中: {title}",
+        "state.music_no_items_from_source" => "追加できる音楽項目がありません: {source}",
+        "state.music_items_added" => "{count} 件の音楽項目を追加しました。",
+        "state.music_playlist_parse_failed" => "音楽リストの解析に失敗しました: {error}",
+        "state.music_stream_ready" => "音楽ストリームの準備ができました: {source}",
+        "state.music_stream_parse_failed" => "音楽ストリームの解析に失敗しました: {error}",
+        "state.music_playback_finished" => "再生が完了しました。",
+        "state.music_playback_failed" => "再生に失敗しました: {error}",
+        "state.music_duplicate_with_cache" => {
+            "音楽項目はすでにリストにあります。ローカルキャッシュを使用しました。"
+        }
+        "state.music_duplicate" => "音楽項目はすでにリストにあります。",
+        "state.music_added_from_cache" => "ローカルキャッシュから音楽を追加しました: {title}",
+        "state.music_seek_clamped" => "キャッシュ済み範囲外のため、再生可能な位置に戻しました。",
+        "state.music_stream_still_preparing" => "音楽ストリームをまだ準備中です。",
+        "state.no_playable_music_items" => "再生できる音楽項目がありません。",
+        "state.music_cache_prepare_failed" => "音楽キャッシュの準備に失敗しました: {error}",
+        "state.preparing_music_playback" => "再生を準備中: {title}",
+        "state.music_missing_source_url" => "音楽項目にソースURLがありません。",
+        "state.resolving_music_stream" => "音楽ストリームを解析中: {title}",
+        "state.music_stream_still_resolving" => "音楽ストリームをまだ解析中です。",
+        "state.music_buffering" => "音楽をバッファ中です。",
+        "state.music_item_not_playable" => "この音楽項目は現在再生できません。",
+        "state.music_stream_not_ready" => "音楽ストリームはまだ準備できていません。",
+        "state.no_previous_music" => "前の曲はありません。",
+        "state.no_next_music" => "次の曲はありません。",
+        "state.music_playback_mode_changed" => "再生モード: {mode}",
         _ => super::en_us::text(key),
     }
 }

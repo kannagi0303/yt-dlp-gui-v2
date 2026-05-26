@@ -271,6 +271,22 @@ pub enum QualityPreset {
     AudioOnly,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QueueItemViewKind {
+    VideoCard,
+    MusicCompact,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CompactMusicState {
+    Resolving,
+    Ready,
+    Buffering,
+    Playing,
+    Paused,
+    Failed,
+}
+
 impl QualityPreset {
     pub fn label(self) -> &'static str {
         match self {
@@ -328,6 +344,16 @@ pub struct QueueItem {
     pub selection: DownloadSelection,
     pub progress: ItemProgress,
     pub workflows: Vec<WorkflowRun>,
+    pub view_kind: QueueItemViewKind,
+    pub compact_music_state: Option<CompactMusicState>,
+    pub music_stream_url: String,
+    pub music_stream_headers: Vec<(String, String)>,
+    pub music_stream_ext: String,
+    pub music_stream_format_id: String,
+    pub music_stream_acodec: String,
+    pub music_stream_expected_bytes: Option<u64>,
+    pub music_cache_key: String,
+    pub music_duration_seconds: Option<f64>,
     pub completed_selection: Option<CompletedSelection>,
     pub last_output_path: Option<String>,
     pub last_error: Option<String>,
@@ -347,6 +373,16 @@ impl QueueItem {
             selection: DownloadSelection::default(),
             progress: ItemProgress::default(),
             workflows: Vec::new(),
+            view_kind: QueueItemViewKind::VideoCard,
+            compact_music_state: None,
+            music_stream_url: String::new(),
+            music_stream_headers: Vec::new(),
+            music_stream_ext: String::new(),
+            music_stream_format_id: String::new(),
+            music_stream_acodec: String::new(),
+            music_stream_expected_bytes: None,
+            music_cache_key: String::new(),
+            music_duration_seconds: None,
             completed_selection: None,
             last_output_path: None,
             last_error: None,
