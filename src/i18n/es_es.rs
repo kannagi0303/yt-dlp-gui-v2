@@ -468,163 +468,163 @@ pub fn text<'a>(key: &'a str) -> &'a str {
             "yt-dlp no se ha encontrado: {path}. Instalar yt-dlp primero o maneje la implementación de dependencias en Opciones."
         }
         "runtime.cookie_file_source_missing" => {
-            "Cookies are enabled and the cookie source is file, but no valid Netscape cookies.txt is selected."
+            "Las cookies están activadas y el origen de las cookies es un archivo, pero no se ha seleccionado ningún archivo Netscape cookie.txt válido."
         }
         "runtime.cookie_source_missing" => {
-            "Cookies are enabled, but no browser or cookies.txt source is selected."
+            "Las cookies están activadas, pero no se selecciona ningún navegador ni fuente de cookies.txt."
         }
         "runtime.cookie_file_not_found" => {
-            "Cookie file was not found: {path}. Choose a Netscape cookies.txt again, or change the cookie source back to browser."
+            "No se ha encontrado el archivo cookie: {path}. Seleccionar nuevamente un archivo cookie.txt de Netscape o cambie la fuente de la cookie nuevamente del navegador."
         }
-        "runtime.download_folder_empty" => "Download folder cannot be empty.",
-        "runtime.could_not_start_yt_dlp" => "Could not start yt-dlp: {error}",
-        "runtime.yt_dlp_analysis_failed" => "yt-dlp analysis failed: {error}",
-        "runtime.could_not_parse_yt_dlp_json" => "Could not parse yt-dlp JSON: {error}",
-        "runtime.yt_dlp_download_failed" => "yt-dlp download failed: {error}",
-        "runtime.could_not_wait_yt_dlp" => "Could not wait for yt-dlp to finish: {error}",
+        "runtime.download_folder_empty" => "La carpeta de descarga no puede estar vacía.",
+        "runtime.could_not_start_yt_dlp" => "No se puede iniciar yt-dlp: {error}",
+        "runtime.yt_dlp_analysis_failed" => "Error en el análisis de yt-dlp: {error}",
+        "runtime.could_not_parse_yt_dlp_json" => "No se puede analizar yt-dlp JSON: {error}",
+        "runtime.yt_dlp_download_failed" => "Error en la descarga de yt-dlp: {error}",
+        "runtime.could_not_wait_yt_dlp" => "No se puede esperar a finalizar yt-dlp.: {error}",
         "runtime.could_not_wait_yt_dlp_missing" => {
-            "Could not wait for yt-dlp to finish: child process missing"
+            "No se puede esperar a que finalice yt-dlp: falta el proceso secundario"
         }
         "runtime.could_not_determine_subtitle_output" => {
-            "Could not determine subtitle output file name: {error}"
+            "No se puede determinar el nombre del archivo de salida de subtítulos: {error}"
         }
         "runtime.converted_subtitle_missing" => {
-            "yt-dlp finished, but the converted subtitle file was not found: {error}"
+            "yt-dlp ha finalizado, pero no se ha encontrado el archivo de subtítulos convertido: {error}"
         }
         "runtime.could_not_overwrite_subtitle" => {
-            "Could not overwrite existing subtitle file: {error}"
+            "No se puede sobrescribir el archivo de subtítulos existente: {error}"
         }
         "runtime.could_not_copy_subtitle" => {
-            "Could not copy subtitle file to target location: {error}"
+            "No se puede copiar el archivo de subtítulos a la ubicación de destino: {error}"
         }
         "runtime.could_not_remove_temp_subtitle" => {
-            "Could not remove temporary subtitle file: {error}"
+            "No se puede eliminar el archivo de subtítulos temporal: {error}"
         }
-        "runtime.could_not_create_download_folder" => "Could not create download folder: {error}",
-        "runtime.file_does_not_exist" => "File does not exist: {error}",
-        "runtime.file_location_does_not_exist" => "File location does not exist: {error}",
-        "runtime.could_not_open_file" => "Could not open file: {error}",
-        "runtime.could_not_open_containing_folder" => "Could not open containing folder: {error}",
-        "runtime.could_not_open_folder" => "Could not open folder: {error}",
-        "runtime.thumbnail_empty_url" => "Thumbnail load failed: empty URL",
-        "runtime.thumbnail_no_data" => "Thumbnail load failed: no data received",
-        "runtime.thumbnail_too_large" => "Thumbnail load failed: image too large",
-        "runtime.thumbnail_decode_failed" => "Thumbnail decode failed: {error}",
-        "runtime.invalid_thumbnail_proxy" => "Invalid thumbnail proxy setting: {error}",
-        "runtime.thumbnail_http" => "Thumbnail load failed: HTTP {error}",
-        "runtime.thumbnail_load_failed" => "Thumbnail load failed: {error}",
-        "runtime.config_create_folder" => "Could not create config folder: {error}",
-        "runtime.config_serialize" => "Could not serialize config file: {error}",
-        "runtime.config_write" => "Could not write config file: {error}",
-        "runtime.toast_create_notifier" => "Could not create Windows Toast notifier: {error}",
-        "runtime.toast_create_content" => "Could not create Windows Toast content: {error}",
-        "runtime.toast_send" => "Could not send Windows Toast: {error}",
+        "runtime.could_not_create_download_folder" => "No se puede crear la carpeta de descarga: {error}",
+        "runtime.file_does_not_exist" => "El archivo no existe: {error}",
+        "runtime.file_location_does_not_exist" => "La ubicación del archivo no existe: {error}",
+        "runtime.could_not_open_file" => No se puede abrir el archivo: {error}",
+        "runtime.could_not_open_containing_folder" => "No se puede abrir la carpeta que lo contiene: {error}",
+        "runtime.could_not_open_folder" => "No se puede abrir la carpeta: {error}",
+        "runtime.thumbnail_empty_url" => "Error al cargar la miniatura: URL vacía",
+        "runtime.thumbnail_no_data" => "Error al cargar la miniatura: no se han recibido datos",
+        "runtime.thumbnail_too_large" => "Error al cargar la miniatura: la imagen es demasiado grande",
+        "runtime.thumbnail_decode_failed" => "Error en la decodificación de miniaturas: {error}",
+        "runtime.invalid_thumbnail_proxy" => "Configuración de proxy de miniatura no válida: {error}",
+        "runtime.thumbnail_http" => "Error al cargar la miniatura: HTTP {error}",
+        "runtime.thumbnail_load_failed" => "Error al cargar la miniatura: {error}",
+        "runtime.config_create_folder" => "No se puede crear la carpeta config: {error}",
+        "runtime.config_serialize" => "No se puede serializar el archivo config: {error}",
+        "runtime.config_write" => "No se puede escribir el archivo config: {error}",
+        "runtime.toast_create_notifier" => "No se puede crear el notificador de Windows Toast: {error}",
+        "runtime.toast_create_content" => "No se puede crear contenido de Windows Toast: {error}",
+        "runtime.toast_send" => "No se puede enviar Windows Toast: {error}",
         "runtime.toast_create_registration" => {
-            "Could not create Windows Toast registration data: {error}"
+            "No se pueden crear los datos de registro de Windows Toast: {error}"
         }
-        "runtime.toast_register_aumid" => "Could not register Windows Toast AUMID: {error}",
+        "runtime.toast_register_aumid" => "No se puede crear la carpeta de herramientas {path}: {error}",
         "runtime.dependency_windows_only" => {
-            "Dependency deployment currently only supports Windows."
+            "Actualmente, la implementación de dependencias solo es compatible con Windows."
         }
         "runtime.could_not_create_tools_folder" => "Could not create tools folder {path}: {error}",
         "runtime.install_finished_missing" => {
-            "{tool} installation finished, but {path} was not found."
+            "{tool} instalación terminada, pero {path} no se ha encontrado."
         }
-        "runtime.could_not_start_powershell" => "Could not start PowerShell: {error}",
-        "runtime.could_not_read_powershell_stdout" => "Could not read PowerShell stdout.",
-        "runtime.could_not_read_powershell_stderr" => "Could not read PowerShell stderr.",
-        "runtime.could_not_read_powershell_output" => "Could not read PowerShell output: {error}",
-        "runtime.could_not_wait_powershell" => "Could not wait for PowerShell to finish: {error}",
-        "runtime.powershell_failed_exit" => "PowerShell failed: exit code {error}",
+        "runtime.could_not_start_powershell" => "No se puede iniciar PowerShell: {error}",
+        "runtime.could_not_read_powershell_stdout" => "No se puede leer PowerShell stdout.",
+        "runtime.could_not_read_powershell_stderr" => "No se puede leer PowerShell stderr.",
+        "runtime.could_not_read_powershell_output" => "No se puede leer la salida de PowerShell: {error}",
+        "runtime.could_not_wait_powershell" => "No se puede esperar a que finalice PowerShell: {error}",
+        "runtime.powershell_failed_exit" => "Error de PowerShell: código {error}",
         "runtime.could_not_read_playlist_output" => {
-            "Could not read yt-dlp playlist output: {error}"
+            "No se puede leer la salida de la lista de reproducción de yt-dlp: {error}"
         }
-        "runtime.batch_import_failed" => "yt-dlp batch import failed: {error}",
-        "runtime.current_path" => "Current path: {path}",
-        "runtime.default_path" => "Default path: {path}",
-        "runtime.not_found_path" => "Not found: {path}",
-        "runtime.can_install_to" => "Can install to {path}.",
-        "runtime.can_save_path" => "Can save: {path}",
-        "runtime.system_check" => "System check: {detail}",
-        "runtime.save_test" => "Save test: {detail}",
-        "runtime.write_test" => "Write test: {detail}",
-        "runtime.path_is_folder" => "{path} is a folder",
-        "runtime.path_is_not_folder" => "{path} is not a folder",
-        "runtime.writable_path" => "Writable: {path}",
-        "runtime.missing_parent_directory" => "missing parent directory",
-        "runtime.could_not_create_config_folder" => "Could not create config folder",
-        "runtime.could_not_read_config_file_status" => "Could not read config file status",
+        "runtime.batch_import_failed" => "Error al importar por lotes con yt-dlp: {error}",
+        "runtime.current_path" => "Ruta actual: {path}",
+        "runtime.default_path" => "Ruta predeterminada: {path}",
+        "runtime.not_found_path" => "No encontrado: {path}",
+        "runtime.can_install_to" => "Se puede instalar en {path}.",
+        "runtime.can_save_path" => "Puede guardar: {path}",
+        "runtime.system_check" => "Comprobar sistema: {detail}",
+        "runtime.save_test" => "Guardar prueba: {detail}",
+        "runtime.write_test" => "Escribir prueba: {detail}",
+        "runtime.path_is_folder" => "{path} es una carpeta",
+        "runtime.path_is_not_folder" => "{path} no es una carpeta",
+        "runtime.writable_path" => "Escribible: {path}",
+        "runtime.missing_parent_directory" => "falta el directorio principal",
+        "runtime.could_not_create_config_folder" => "No se puede crear la carpeta config",
+        "runtime.could_not_read_config_file_status" => "No se puede leer el estado del archivo config",
         "runtime.could_not_open_config_file_for_writing" => {
-            "Could not open config file for writing"
+            "No se puede abrir el archivo config para escribir"
         }
-        "runtime.could_not_create_folder" => "Could not create folder",
+        "runtime.could_not_create_folder" => "No se puede crear la carpeta",
         "runtime.could_not_create_rename_delete_test_file" => {
-            "Could not create, rename, or delete the test file"
+             "No se puede crear, renombrar o eliminar el archivo de prueba"
         }
         "runtime.reason_path_inaccessible" => {
-            "Path does not exist or the parent path is inaccessible"
+            "La ruta no existe o la ruta principal es inaccesible"
         }
-        "runtime.recommend_parent_exists" => "Make sure the drive and parent folder exist.",
+        "runtime.recommend_parent_exists" => "Asegúrese de que existan la unidad y la carpeta principal.",
         "runtime.reason_permission_denied_windows" => {
-            "Permission denied or blocked by Windows security settings"
+            "Permiso denegado o bloqueado por la configuración de seguridad de Windows"
         }
         "runtime.recommend_move_portable_defender" => {
-            "Move the app to a writable portable folder; if Desktop/Documents/Downloads still fail, Defender Controlled Folder Access may be blocking it."
+            "Mueva la aplicación a una carpeta portable grabable; si el Escritorio/Documentos/Descargas aún fallan, el acceso a carpetas controladas por Defender puede estar bloqueándolo."
         }
-        "runtime.reason_in_use" => "File or folder is being used by another program",
+        "runtime.reason_in_use" => "Otro programa está utilizando el archivo o carpeta",
         "runtime.recommend_close_program" => {
-            "Close the program that may be using this folder, or choose another folder."
+            "Cierre el programa que pueda estar usando esta carpeta o seleccione otra carpeta."
         }
-        "runtime.reason_name_conflict" => "Test file already exists or name conflict",
-        "runtime.reason_disk_space" => "Not enough disk space",
-        "runtime.recommend_free_space" => "Free disk space or choose another disk.",
-        "runtime.reason_path_too_long" => "Path is too long",
+        "runtime.reason_name_conflict" => "El archivo de prueba ya existe o el nombre está en conflicto",,
+        "runtime.reason_disk_space" => "No hay suficiente espacio en disco",
+        "runtime.recommend_free_space" => "Libere espacio en disco o seleccione otro disco.",
+        "runtime.reason_path_too_long" => "Ruta demasiado larga",
         "runtime.recommend_shorter_path" => {
-            "Move the app to a shorter path, for example D:\\Portable\\yt-dlp-gui-v2."
+            "Mover la aplicación a una ruta más corta, por ejemplo D:\\Portable\\yt-dlp-gui-v2."
         }
-        "runtime.reason_windows_error_code" => "Windows error code {code}",
+        "runtime.reason_windows_error_code" => "Código de error de Windows {code}",
         "runtime.recommend_writable_portable_folder" => {
-            "Choose a clearly writable portable folder and check again."
+            "Seleccionar una carpeta portable en la que se pueda escribir claramente y verificar."
         }
-        "runtime.reason_permission_denied" => "Permission denied or blocked by security settings",
-        "runtime.reason_path_not_exist" => "Path does not exist",
-        "runtime.reason_file_already_exists" => "File already exists",
-        "runtime.reason_write_failed" => "Write failed",
+        "runtime.reason_permission_denied" => "Permiso denegado o bloqueado por la configuración de seguridad",
+        "runtime.reason_path_not_exist" => "La ruta no existe",
+        "runtime.reason_file_already_exists" => "El archivo ya existe",
+        "runtime.reason_write_failed" => "Error de escritura",
         "runtime.recommend_not_system_folder" => {
-            "Do not place the portable app under Program Files or the Windows directory; move it to D:\\Portable or a user folder."
+            "No coloque la aplicación portable en Archivos de programa o en el directorio de Windows; moverlo a D:\\Portable o una carpeta de usuario."
         }
         "runtime.recommend_non_synced_folder" => {
-            "Move it to a non-synced folder, for example D:\\Portable\\yt-dlp-gui-v2."
+            "Mover a una carpeta no sincronizada, por ejemplo D:\\Portable\\yt-dlp-gui-v2."
         }
-        "runtime.could_not_read_playlist_output_empty" => "Could not read yt-dlp playlist output.",
+        "runtime.could_not_read_playlist_output_empty" => "No se puede leer la salida de la lista de reproducción yt-dlp.",
         "runtime.chromium_cookie_locked" => {
-            "Could not read the Chromium/Chrome cookie database directly. The browser may have locked the Network\\Cookies database. Close the browser and retry, or change Cookie source to Use file (cookies.txt) in Advanced. Original message: {error}"
+            "No se puede leer la base de datos de cookies de Chromium/Chrome directamente. Es posible que el navegador haya bloqueado la base de datos Network\\Cookies. Cierre el navegador y vuelva a intentarlo, o cambie el origen de las cookies a Usar archivo (cookies.txt) en Avanzado. Mensaje original: {error}"
         }
-        "advance.cookie_source_file" => "Use file (cookies.txt)",
+        "advance.cookie_source_file" => "Usar archivo (cookies.txt)",
         "advance.filter_netscape_cookies_txt" => "Netscape cookies.txt",
-        "advance.filter_all_files" => "All files",
-        "state.untitled_task" => "Untitled task",
-        "state.imported_source" => "Imported {tail}",
-        "state.chapter_fallback" => "Chapter {index}",
-        "runtime.config_path_unresolved" => "Config file path could not be resolved",
-        "runtime.folder_readonly" => "Folder is marked read-only",
+        "advance.filter_all_files" => "Todos los archivos",
+        "state.untitled_task" => "Tarea sin título",
+        "state.imported_source" => "Importado {tail}",
+        "state.chapter_fallback" => "Capítulo {index}",
+        "runtime.config_path_unresolved" => "La ruta del archivo config no se puede resolver",
+        "runtime.folder_readonly" => "La carpeta está marcada como de solo lectura.",
         "runtime.network_path_warning" => {
-            "Located on a network path; permissions or file locks may affect it"
+            "Ubicado en una ruta de red; permisos o bloqueos de archivos pueden afectarlo"
         }
-        "runtime.protected_directory_warning" => "Located in a Windows protected directory",
+        "runtime.protected_directory_warning" => "Ubicado en un directorio protegido de Windows",
         "runtime.onedrive_warning" => {
-            "Located in a OneDrive sync path; sync locks or security blocking may occur"
+            "Ubicado en una ruta de sincronización de OneDrive; Pueden ocurrir bloqueos de sincronización o bloqueos de seguridad."
         }
         "runtime.youtube_auto_translated_subtitle_429" => {
-            "YouTube temporarily rejected the auto-translated subtitle request (HTTP 429 Too Many Requests). This is rate limiting on YouTube timedtext auto-translation. The GUI keeps the native yt-dlp flow and diagnostic output instead of switching to a custom downloader. Try enabling Cookie/cookies.txt for this item, or choose original automatic subtitles/original subtitles and retry. Original message: {error}"
+            "YouTube ha rechazado temporalmente la solicitud de subtítulos traducidos automáticamente (HTTP 429 Demasiadas solicitudes). Esta es una limitación en la traducción automática de YouTube. La GUI mantiene el flujo nativo de yt-dlp y la salida de diagnóstico en lugar de cambiar a un descargador personalizado. Intente habilitar Cookie/cookies.txt para este elemento, o elija subtítulos automáticos originales/subtítulos originales y vuelva a intentarlo. Mensaje original: {error}"
         }
         "runtime.youtube_subtitle_429_conversion" => {
-            "YouTube temporarily rejected the subtitle request (HTTP 429 Too Many Requests). The source subtitle file was not downloaded, so SRT conversion will not run. Retry later, or enable browser cookies before exporting. Original message: {error}"
+            "YouTube ha rechazado temporalmente la solicitud de subtítulos (HTTP 429 Demasiadas solicitudes). El archivo de subtítulos fuente no se ha descargado, por lo que no se ejecutará la conversión SRT. Vuelva a intentarlo más tarde o habilite las cookies del navegador antes de exportar. mensaje original: {error}"
         }
         "runtime.youtube_subtitle_429_analysis" => {
-            "YouTube rejected the subtitle request (HTTP 429 Too Many Requests). This often happens on the YouTube auto-translation timedtext endpoint. cookies.txt can provide login state, but may not satisfy PO Token / rate-limit requirements for that endpoint. The GUI keeps the native yt-dlp flow and diagnostic logs instead of switching to a custom downloader. Original message: {error}"
+            "YouTube ha rechazado la solicitud de subtítulos (HTTP 429 Demasiadas solicitudes). Esto sucede a menudo en el punto final de texto cronometrado de traducción automática de YouTube. cookies.txt puede proporcionar un estado de inicio de sesión, pero es posible que no cumpla con los requisitos de límite de velocidad/token de PO para ese punto final. La GUI mantiene el flujo nativo de yt-dlp y los registros de diagnóstico en lugar de cambiar a un descargador personalizado. Mensaje original: {error}"
         }
-        "options.filter_executable" => "Executable",
+        "options.filter_executable" => "Ejecutable",
 
         // English fallback translations added to keep every bundled language key-complete.
         "tab.processing" => "Processing",
