@@ -14,7 +14,7 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "action.paste" => "Pegar",
         "action.clear" => "Borrar",
         "item.thumbnail" => "Miniatura",
-        "item.thumbnail_preview" => "Vista previa de miniatura",
+        "item.thumbnail_preview" => "Previo miniatura",
         "notification.download_finished" => "Descarga completada",
         "notification.download_failed" => "Descarga fallida",
         "notification.download_finished_detail_prefix" => "Completado: ",
@@ -26,66 +26,66 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "media.audio" => "Audio",
         "media.subtitle" => "Subtítulos",
         "media.section" => "Rango",
-        "item.file_name" => "Nombre de archivo",
+        "item.file_name" => "Archivo",
         "main.target_folder" => "Carpeta de salida",
         "picker.title.video" => "Seleccionar formato de vídeo",
         "picker.title.audio" => "Seleccionar formato de audio",
         "picker.title.subtitle" => "Seleccionar subtítulos",
-        "picker.title.section" => "Seleccionar rango",
-        "action.back" => "Volver",
+        "picker.title.section" => "Seleccionar sección",
+        "action.back" => "Atrás",
         "picker.mode.filter" => "Filtros",
         "picker.mode.table" => "Tabla",
         "action.confirm" => "Confirmar",
-        "picker.empty_table" => "No format items to display",
+        "picker.empty_table" => "No hay elementos para mostrar",
         "picker.header.resolution" => "Resolución",
         "picker.header.range" => "Rango",
         "picker.header.fps" => "FPS",
         "picker.header.format" => "Formato",
         "picker.header.codec" => "Códec",
         "picker.header.size" => "Tamaño",
-        "picker.header.sample_rate" => "Frecuencia de muestreo",
+        "picker.header.sample_rate" => "Frecuencia",
         "picker.filter.resolution" => "Resolución",
         "picker.filter.range" => "Rango",
-        "picker.filter.fps" => "FPS",
+        "picker.filter.fps" => "CPS",
         "picker.filter.codec" => "Códec",
-        "picker.filter.sample_rate" => "Frecuencia de muestreo",
+        "picker.filter.sample_rate" => "Frecuencia",
         "main.tooltip.missing_yt_dlp" => {
-            "yt-dlp is missing. Install it or choose yt-dlp.exe in Options."
+            "Falta yt-dlp. Instalar o seleccionar yt-dlp.exe en Opciones."
         }
-        "advance.source" => "Fuente",
+        "advance.source" => "Entrada",
         "advance.config" => "Configuración",
-        "advance.none" => "Ninguno",
-        "advance.network_access" => "Red y acceso",
+        "advance.none" => "Ninguna",
+        "advance.network_access" => "Red",
         "advance.proxy" => "Proxy",
         "advance.enable_proxy" => "Activar proxy",
         "advance.certificate" => "Certificado",
-        "advance.skip_certificate_verification" => "Omitir verificación de certificado",
+        "advance.skip_certificate_verification" => "Omitir verificación certificado",
         "advance.use_cookies" => "Usar cookies",
         "advance.enable_cookies" => "Activar cookies",
-        "advance.cookie_source" => "Origen de cookies",
-        "advance.cookie_file" => "Archivo de cookies",
-        "advance.no_cookies_txt_selected" => "No se seleccionó cookies.txt",
-        "advance.browse" => "Examinar",
-        "advance.select_netscape_cookies_txt" => "Select Netscape cookies.txt",
+        "advance.cookie_source" => "Cookies",
+        "advance.cookie_file" => "Archivo cookies",
+        "advance.no_cookies_txt_selected" => "No se ha seleccionado cookies.txt",
+        "advance.browse" => "Buscar",
+        "advance.select_netscape_cookies_txt" => "Seleccionar Netscape cookies.txt",
         "advance.clear" => "Borrar",
         "advance.browser" => "Navegador",
         "advance.default" => "Predeterminado",
         "advance.external_downloader" => "Descargador externo",
-        "advance.use_aria2_for_faster_downloads" => "Use Aria2 for faster downloads",
-        "advance.download_control" => "Control de descarga",
-        "advance.concurrent_fragments" => "Concurrent fragments",
-        "advance.1_default" => "1 (default)",
-        "advance.rate_limit" => "Límite de velocidad",
+        "advance.use_aria2_for_faster_downloads" => "Usar Aria2 para descargas más rápidas",
+        "advance.download_control" => "Control descargas",
+        "advance.concurrent_fragments" => "Fragmentos actuales",
+        "advance.1_default" => "1 (predeterminado)",
+        "advance.rate_limit" => "Límite transferencia",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => {
-            "e.g. 2M, 800K; leave empty for unlimited"
+            "e.j. 2M, 800K; dejar vacío para ilimitado"
         }
         "advance.chapters" => "Capítulos",
-        "advance.chapter_download_compatibility_mode" => "Chapter download compatibility mode",
-        "advance.file_time" => "Hora del archivo",
-        "advance.post_processing" => "Posprocesamiento",
+        "advance.chapter_download_compatibility_mode" => "Modo compatibilidad de descarga de capítulos",
+        "advance.file_time" => "Rango tiempo",
+        "advance.post_processing" => "Posprocesado",
         "advance.thumbnail" => "Miniatura",
         "advance.download" => "Descargar",
-        "advance.embed" => "Incrustar",
+        "advance.embed" => "Integrar",
         "advance.subtitles" => "Subtítulos",
         "item.stop_download" => "Detener descarga",
         "item.remove" => "Eliminar",
@@ -94,148 +94,148 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "item.all" => "Todo",
         "item.queued" => "En cola",
         "item.done" => "Completado",
-        "item.failed" => "Falló",
+        "item.failed" => "Error",
         "item.clear_all" => "Borrar todo",
-        "item.add_a_video_url" => "Añade una URL de vídeo",
+        "item.add_a_video_url" => "Añadir una URL de vídeo",
         "item.after_adding_choose_the_video_format_here" => {
-            "After adding, choose the video format here."
+            "Después de añadir, selecciona el formato de video aquí."
         }
         "item.after_adding_choose_the_audio_format_here" => {
-            "After adding, choose the audio format here."
+            "Después de añadir, selecciona el formato de audio aquí."
         }
-        "item.loading_thumbnail" => "Loading thumbnail",
-        "item.file_actions" => "Acciones de archivo",
+        "item.loading_thumbnail" => "Cargando miniatura",
+        "item.file_actions" => "Acciones archivo",
         "item.open_file" => "Abrir archivo",
         "item.open_folder" => "Abrir carpeta",
         "item.copy_path" => "Copiar ruta",
-        "item.opened_output_file" => "Opened output file.",
+        "item.opened_output_file" => "Abrir archivo de salida",
         "item.file_not_found_opened_the_output_location" => {
-            "File not found; opened the output location."
+            "Archivo no encontrado; abierta la ubicación de salida."
         }
-        "item.opened_output_location" => "Opened output location.",
-        "item.copied_output_path" => "Copied output path.",
+        "item.opened_output_location" => "Abrir ubicación de archivo",
+        "item.copied_output_path" => "Ruta de salida copiada.",
         "item.file_actions_are_available_after_download_co" => {
-            "File actions are available after download completes"
+            "Las acciones de los archivos están disponibles una vez completada la descarga"
         }
         "prepare.language" => "Idioma",
-        "prepare.back" => "Volver",
-        "prepare.choose" => "Elegir",
+        "prepare.back" => "Atrás",
+        "prepare.choose" => "Seleccionar",
         "prepare.auto_detect" => "Detectar automáticamente",
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
-            "Install the required tools now, or skip and handle them later in Options."
+            "Instalar las herramientas necesarias ahora u omitir para más tarde en Opciones."
         }
-        "prepare.required" => "Obligatorio",
+        "prepare.required" => "Requerido",
         "prepare.recommended" => "Recomendado",
         "prepare.optional" => "Opcional",
         "prepare.missing" => "Falta",
         "prepare.install_later" => "Instalar más tarde",
-        "prepare.downloading_100" => "Downloading 100%",
-        "prepare.extracting_100" => "Extracting 100%",
-        "prepare.install_failed" => "Instalación fallida",
+        "prepare.downloading_100" => "Descargando 100%",
+        "prepare.extracting_100" => "Extrayendo 100%",
+        "prepare.install_failed" => "Error en la instalación",
         "prepare.install_all" => "Instalar todo",
         "prepare.reinstall" => "Reinstalar",
         "prepare.installing" => "Instalando",
         "prepare.skip" => "Omitir",
         "prepare.install" => "Instalar",
         "prepare.another_tool_is_already_being_installed" => {
-            "Another tool is already being installed."
+            "Ya se está instalando otra herramienta."
         }
         "prepare.needs_attention" => "Requiere atención",
         "options.this_url_contains_both_a_video_and_a_playlis" => {
-            "This URL contains both a video and a playlist"
+            "Esta URL contiene un vídeo y una lista de reproducción."
         }
-        "options.detected" => "Detected ",
-        "options.playlist_prompt" => "Playlist prompt",
-        "options.which_one_should_be_loaded" => "Which one should be loaded?",
-        "options.both_video_and_playlist_were_detected" => "Both video and playlist were detected",
-        "options.this_playlist_may_contain_many_items" => "This playlist may contain many items.",
+        "options.detected" => "Detectado ",
+        "options.playlist_prompt" => "Lista de reproducción",
+        "options.which_one_should_be_loaded" => "¿Cuál debería descargar?",
+        "options.both_video_and_playlist_were_detected" => "Se ha detectado tanto el vídeo como la lista de reproducción.",
+        "options.this_playlist_may_contain_many_items" => "Esta lista de reproducción puede contener muchos elementos.",
         "options.video" => "Vídeo",
         "options.playlist" => "Lista de reproducción",
         "options.cancel" => "Cancelar",
         "options.load" => "Cargar",
         "options.behavior" => "Comportamiento",
-        "options.add_action" => "Add action",
+        "options.add_action" => "Añadir acción",
         "options.download_directly" => "Descargar directamente",
         "options.clipboard_change" => "Cambio del portapapeles",
-        "options.run_immediately" => "Ejecutar de inmediato",
+        "options.run_immediately" => "Ejecutar",
         "options.playlist_2" => "Lista de reproducción",
-        "options.with_playlist" => "With playlist",
+        "options.with_playlist" => "Con lista de reproducción",
         "options.ask" => "Preguntar",
         "options.single_video" => "Vídeo único",
         "options.full_playlist" => "Lista completa",
-        "options.high_risk_prompt" => "High-risk prompt",
+        "options.high_risk_prompt" => "Alto riesgo",
         "options.on" => "Activado",
-        "options.playlist_count" => "Playlist count",
+        "options.playlist_count" => "Recuento lista de reproducción",
         "options.limit" => "Límite",
         "options.max" => "Max:",
-        "options.items" => " items",
+        "options.items" => " elementos",
         "options.language" => "Idioma",
         "options.current_language" => "Idioma actual",
-        "options.back" => "Volver",
-        "options.choose" => "Elegir",
+        "options.back" => "Atrás",
+        "options.choose" => "Seleccionar",
         "options.auto_detect" => "Detectar automáticamente",
-        "options.tool_paths" => "Rutas de herramientas",
-        "options.file_actions" => "Acciones de archivo",
-        "options.action_button" => "Action button",
+        "options.tool_paths" => "Ruta herramientas",
+        "options.file_actions" => "Acciones archivo",
+        "options.action_button" => "Botón acción",
         "options.cache" => "Caché",
-        "options.cache_location" => "Cache location",
-        "options.appearance_window" => "Apariencia y ventana",
+        "options.cache_location" => "Ubicación del caché",
+        "options.appearance_window" => "Apariencia ventana",
         "options.notifications" => "Notificaciones",
         "options.enable" => "Activar",
-        "options.ui_scale" => "Escala de interfaz",
+        "options.ui_scale" => "Escala interfaz",
         "options.apply" => "Aplicar",
         "options.current" => "Actual",
-        "options.always_on_top" => "Siempre encima",
-        "options.window_position" => "Posición de ventana",
+        "options.always_on_top" => "Siempre visible",
+        "options.window_position" => "Posición ventana",
         "options.remember" => "Recordar",
-        "options.window_size" => "Tamaño de ventana",
+        "options.window_size" => "Tamaño ventana",
         "options.reinstall" => "Reinstalar",
         "options.installing" => "Instalando",
-        "options.browse" => "Examinar",
+        "options.browse" => "Buscar",
         "options.install" => "Instalar",
-        "options.file_not_found" => "File not found: ",
-        "options.will_install_to" => "Will install to: ",
+        "options.file_not_found" => "Archivo no encontrado: ",
+        "options.will_install_to" => "Se instalará en: ",
         "options.another_tool_is_being_installed_please_wait" => {
-            "Another tool is being installed. Please wait for it to finish."
+            "Se está instalando otra herramienta. Espere a que termine."
         }
-        "options.install_to" => "Install to: ",
+        "options.install_to" => "Instalar en: ",
         "options.executable" => "executable",
         "main.clipboard_monitor_on_the_next_youtube_url_ch" => {
-            "Clipboard monitor: on. The next YouTube URL change will be added immediately."
+            "Monitor del portapapeles: activado. El próximo cambio de URL de YouTube se agregará inmediatamente."
         }
         "main.clipboard_monitor_on_the_next_youtube_url_ch_2" => {
-            "Clipboard monitor: on. The next YouTube URL change will fill the URL field."
+            "Monitor del portapapeles: activado. El próximo cambio de la URL de YouTube llenará el campo URL."
         }
         "main.clipboard_monitor_off_turning_it_on_only_mem" => {
-            "Clipboard monitor: off. Turning it on only memorizes the current clipboard; the next change will be handled."
+            "Monitor del portapapeles: desactivado. Al activarlo sólo se memoriza el portapapeles actual; se gestionará en el siguiente cambio."
         }
-        "main.controlled_by_config" => "Controlled by config: ",
-        "main.controlled_by_config_2" => "Controlled by config",
-        "main.actual_path" => "Actual path: ",
-        "picker.no_chapters_available" => "No chapters available.",
+        "main.controlled_by_config" => "Controlado por config: ",
+        "main.controlled_by_config_2" => "Controlado por config",
+        "main.actual_path" => "Ruta actual: ",
+        "picker.no_chapters_available" => "No hay capítulos disponibles",
         "picker.choose_the_range_to_download_for_this_item_d" => {
-            "Choose the range to download for this item. Default is the full video."
+            "Seleccionar que descargar. El valor predeterminado es el vídeo completo."
         }
         "picker.chapter_compatibility_mode_is_on_chapter_dow" => {
-            "Chapter compatibility mode is on: chapter downloads will use a more stable single-file format."
+            "El modo de compatibilidad de capítulos está activado: las descargas de capítulos utilizarán un formato de archivo único más estable."
         }
-        "picker.subtitles_will_not_be_downloaded" => "Subtitles will not be downloaded.",
+        "picker.subtitles_will_not_be_downloaded" => "Los subtítulos no se descargarán.",
         "picker.no_subtitles_are_available_for_this_video" => {
-            "No subtitles are available for this video."
+            "No hay subtítulos disponibles para este vídeo."
         }
         "picker.no_subtitles_are_available_in_this_tab" => {
-            "No subtitles are available in this tab."
+            "No hay subtítulos disponibles en esta pestaña."
         }
         "picker.source_language" => "Idioma de origen",
         "picker.translation_target" => "Idioma de destino",
         "picker.tip_youtube_auto_translated_subtitles_are_mo" => {
-            "Tip: YouTube auto-translated subtitles are more likely to be rate-limited than original subtitles. Choose “No translation” if you only need the source text."
+            "Consejo: Los subtítulos autotraducidos de YouTube tienen más probabilidades de estar limitados que los subtítulos originales. Seleccionar "Sin traducción" si sólo necesita el texto original."
         }
         "picker.no_subtitles_are_available_for_this_source" => {
-            "No subtitles are available for this source."
+            "No hay subtítulos disponibles para esta entrada."
         }
         "picker.target" => "Destino",
-        "picker.available_subtitles" => "Available subtitles",
+        "picker.available_subtitles" => "Subtítulos disponibles",
         "picker.language" => "Idioma",
         "picker.subtitle_tab.none" => "Sin subtítulos",
         "picker.subtitle_tab.original" => "Subtítulos originales",
@@ -243,17 +243,17 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "config.youtube_playlist_mode.ask" => "Preguntar",
         "config.youtube_playlist_mode.video" => "Vídeo",
         "config.youtube_playlist_mode.ignore" => "Ignorar",
-        "config.output_action.menu" => "Show menu",
+        "config.output_action.menu" => "Mostrar menú",
         "config.output_action.open_folder" => "Abrir carpeta",
         "config.output_action.open_file" => "Abrir archivo",
         "tools.file_time.none" => "No cambiar",
         "tools.file_time.use_upload_date" => "Usar fecha de subida del video",
-        "tools.file_time.use_download_time" => "Usar hora de descarga",
+        "tools.file_time.use_download_time" => "Usar fecha de descarga",
         "tools.file_time.none_hint" => {
-            "No pasa --mtime/--no-mtime ni modifica la hora del archivo final."
+            "No pasa --mtime/--no-mtime ni modifica el tiempo del archivo final."
         }
         "tools.file_time.use_upload_date_hint" => {
-            "Después de que yt-dlp informe la ruta final, ajusta la hora de modificación a la fecha de subida del video."
+            "Después de que yt-dlp informe la ruta final, ajusta el tiempo a la fecha de subida del video."
         }
         "tools.file_time.use_download_time_hint" => "--no-mtime",
         "tools.cache_mode.default" => "Predeterminado",
@@ -264,208 +264,208 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tools.subtitle_source.automatic" => "Subtítulos automáticos",
         "tools.quality.best" => "Mejor",
         "tools.quality.audio_only" => "Solo audio",
-        "tools.youtube_playlist.channel_generated" => "YouTube generated channel playlist",
+        "tools.youtube_playlist.channel_generated" => "Lista de reproducción generada por YouTube",
         "tools.youtube_playlist.mix_radio" => "YouTube Mix / Radio",
         "tools.youtube_playlist.music_album" => "YouTube Music album/collection",
-        "tools.youtube_playlist.liked_videos" => "Liked videos",
-        "tools.youtube_playlist.favorites_legacy" => "Legacy favorites playlist",
-        "prepare.severity.required" => "Required item",
-        "prepare.severity.recommended" => "Recommended item",
-        "prepare.severity.optional" => "Optional item",
+        "tools.youtube_playlist.liked_videos" => "Vídeos que me gustan",
+        "tools.youtube_playlist.favorites_legacy" => "Lista de reproducción de favoritos heredada",
+        "prepare.severity.required" => "Elemento requerido",
+        "prepare.severity.recommended" => "Elemento recomendado",
+        "prepare.severity.optional" => "Elemento opcional",
         "prepare.status.ready" => "Listo",
         "prepare.status.missing" => "Falta",
         "prepare.status.warning" => "Requiere atención",
-        "prepare.status.failed" => "Falló",
-        "tool_install.stage.preparing" => "Preparing",
-        "tool_install.stage.downloading" => "Downloading",
-        "tool_install.stage.extracting" => "Extracting",
-        "tool_install.stage.installing" => "Installing",
-        "tool_install.stage.completed" => "Completed",
-        "tool_install.stage.failed" => "Failed",
+        "prepare.status.failed" => "Error",
+        "tool_install.stage.preparing" => "Preparando",
+        "tool_install.stage.downloading" => "Descargando",
+        "tool_install.stage.extracting" => "Extrayendo",
+        "tool_install.stage.installing" => "Instalación",
+        "tool_install.stage.completed" => "Completado",
+        "tool_install.stage.failed" => "Error",
         "domain.media.video" => "video",
         "domain.media.audio" => "audio",
-        "domain.media.muxed" => "muxed",
-        "domain.media.subtitle" => "subtitle",
-        "domain.media.other" => "other",
+        "domain.media.muxed" => "multiplexado",
+        "domain.media.subtitle" => "subtítulo",
+        "domain.media.other" => "otro",
         "domain.quality.best" => "Mejor",
         "domain.quality.audio_only" => "Solo audio",
-        "prepare.severity.short.required" => "Required",
-        "prepare.severity.short.recommended" => "Recommended",
-        "prepare.severity.short.optional" => "Optional",
-        "item.status.idle" => "Not started",
-        "item.status.queued" => "Queued",
-        "item.status.running" => "Running",
-        "item.status.finished" => "Done",
-        "item.status.failed" => "Failed",
-        "item.status.cancelled" => "Cancelled",
-        "item.status.waiting_analysis" => "Waiting for analysis",
-        "item.status.analyzing" => "Analyzing",
-        "item.status.analysis_failed" => "Analysis failed",
-        "picker.waiting_analysis" => "Waiting for analysis",
-        "picker.audio_from_video" => "Decided by Video format",
-        "picker.not_selected" => "Not selected",
-        "picker.full_video" => "Full video",
-        "picker.no_translation" => "No translation",
-        "picker.until_end" => "end",
-        "state.clipboard_detected_url" => "Detected a YouTube URL from the clipboard.",
-        "state.no_url_to_analyze" => "There is no URL to analyze.",
-        "state.analyzing_source" => "Analyzing: {source}",
-        "state.batch_add_running" => "Batch add is still running.",
-        "state.no_url_to_add" => "There is no URL to add.",
+        "prepare.severity.short.required" => "Necesario",
+        "prepare.severity.short.recommended" => "Recomendado",
+        "prepare.severity.short.optional" => "Opcional",
+        "item.status.idle" => "No iniciado",
+        "item.status.queued" => "En cola",
+        "item.status.running" => "Ejecutando",
+        "item.status.finished" => "Hecho",
+        "item.status.failed" => "Error",
+        "item.status.cancelled" => "Cancelado",
+        "item.status.waiting_analysis" => "Esperando análisis",
+        "item.status.analyzing" => "Analizando",
+        "item.status.analysis_failed" => "Error al analizar",
+        "picker.waiting_analysis" => "Esperando análisis",
+        "picker.audio_from_video" => "Decidido por formato de vídeo",
+        "picker.not_selected" => "No seleccionado",
+        "picker.full_video" => "Vídeo completo",
+        "picker.no_translation" => "Sin traducción",
+        "picker.until_end" => "final",
+        "state.clipboard_detected_url" => "Detectada una URL de YouTube desde el portapapeles",
+        "state.no_url_to_analyze" => "No hay ninguna URL para analizar.",
+        "state.analyzing_source" => "Analizando: {source}",
+        "state.batch_add_running" => "Añadir por lotes aún se está ejecutando.",
+        "state.no_url_to_add" => "No hay ninguna URL para añadir.",
         "state.video_url_contains_playlist" => {
-            "Detected a video URL that also contains a playlist."
+            "Se ha detectado una URL de video que también contiene una lista de reproducción."
         }
-        "state.detected_high_risk_playlist" => "Detected high-risk YouTube playlist: {kind}",
-        "state.no_url_to_download_now" => "There is no URL to download immediately.",
+        "state.detected_high_risk_playlist" => "Detectada lista de reproducción de YouTube de alto riesgo: {kind}",
+        "state.no_url_to_download_now" => "No hay ninguna URL para descargar.",
         "state.download_now_single_video_only" => {
-            "Download now currently only handles one video URL."
+            "Descargar ahora solo maneja una URL de video."
         }
-        "state.added_ready_download_now" => "Added and ready to download now: {title}",
-        "state.current_action_cancelled" => "Current action cancelled.",
-        "state.stopping_batch_add" => "Stopping batch add...",
-        "state.retrying_analysis_cookie" => "Retrying analysis with cookies: {source}",
-        "state.batch_no_new_items" => "No new items were found in the batch.",
+        "state.added_ready_download_now" => "Añadido y listo para descargar: {title}",
+        "state.current_action_cancelled" => "Acción cancelada.",
+        "state.stopping_batch_add" => "Deteniendo añadir por lotes...",
+        "state.retrying_analysis_cookie" => "Reintentar el análisis con cookies: {source}",
+        "state.batch_no_new_items" => "No se han encontrado elementos nuevos en el lote.",
         "state.playlist_added_limited" => {
-            "Added {count} batch items from the playlist (limit applied)."
+            "Añadido {count} elementos por lotes de la lista de reproducción (se aplica límite)."
         }
-        "state.batch_added_title" => "Added to batch: {title}",
-        "state.playlist_added" => "Added {count} batch items from the playlist.",
-        "state.batch_add_cancelled" => "Batch add cancelled.",
-        "state.batch_add_cancelled_with_count" => "Batch add cancelled; {count} items were added.",
-        "state.batch_add_interrupted" => "Batch add was interrupted.",
-        "state.deployment_complete" => "Deployment complete",
-        "state.tool_deployed" => "{tool} downloaded and deployed.",
-        "state.tool_deploy_failed" => "{tool} deployment failed: {error}",
-        "state.download_item_fallback" => "Download item",
-        "state.download_stopped" => "Download stopped.",
-        "state.no_url_to_add_batch" => "There is no URL to add to the batch.",
-        "state.batch_input_added" => "Added {count} queued items from batch input.",
-        "state.no_url_to_download" => "There is no URL to download.",
+        "state.batch_added_title" => "Añadido a lote: {title}",
+        "state.playlist_added" => "Añadir {count} elementos por lotes de la lista de reproducción.",
+        "state.batch_add_cancelled" => "Cancelado añadir a lote.",
+        "state.batch_add_cancelled_with_count" => "Cancelado añadir a lote; {count} elementos añadidos.",
+        "state.batch_add_interrupted" => "Interrumpido añadir a lotes..",
+        "state.deployment_complete" => "Implementación completa",
+        "state.tool_deployed" => "{tool} descargado e implementado.",
+        "state.tool_deploy_failed" => "{tool} la implementación ha fallado: {error}",
+        "state.download_item_fallback" => "Descargar elemento",
+        "state.download_stopped" => "Descarga detenida",
+        "state.no_url_to_add_batch" => "No hay ninguna URL para añadir al lote.",
+        "state.batch_input_added" => "Añadido {count} elementos en cola de entrada por lotes.",
+        "state.no_url_to_download" => "No hay URL para descargar.",
         "state.download_already_running" => {
-            "A download is already running. Please wait for it to finish."
+            "Ya se está ejecutando una descarga. Espere a que finalice."
         }
-        "state.no_runnable_batch_items" => "There are no runnable batch items.",
-        "state.no_download_to_stop" => "There is no download to stop.",
-        "state.stopping_download" => "Stopping download...",
-        "state.target_download_not_found" => "Target download item was not found.",
-        "state.analyze_before_download" => "Analyze the video before starting download.",
-        "state.downloading_title" => "Downloading: {title}",
+        "state.no_runnable_batch_items" => "No hay elementos por lotes ejecutables.",
+        "state.no_download_to_stop" => "No hay ninguna descarga que detener.",
+        "state.stopping_download" => "Deteniendo la descarga...",
+        "state.target_download_not_found" => "No se ha encontrado el elemento de descarga de destino.",
+        "state.analyze_before_download" => "Analizar el vídeo antes de iniciar la descarga.",
+        "state.downloading_title" => "Descargando: {title}",
         "state.downloading_title_aria2_fallback" => {
-            "Downloading: {title} (Aria2 not found; using yt-dlp native download)"
+            "Descargando: {title} (Aria2 no encontrado; usando la descarga nativa de yt-dlp)"
         }
-        "state.target_export_not_found" => "Target export item was not found.",
-        "state.cannot_export_item" => "This item cannot be exported right now.",
-        "state.analyze_before_export" => "Analyze the video before exporting.",
-        "state.choose_subtitles_before_export" => "Choose subtitles before exporting.",
-        "state.specify_file_extension" => "Specify a file extension.",
-        "state.exporting_video" => "Exporting video: {title}",
-        "state.exporting_audio" => "Exporting audio: {title}",
-        "state.exporting_subtitles" => "Exporting subtitles: {title}",
-        "state.cleared_queue" => "Queue cleared.",
-        "state.cannot_remove_running_item" => "Running items cannot be removed.",
-        "state.removed_item" => "Removed: {title}",
-        "state.controlled_by_config" => "Controlled by config",
-        "state.install_blocked_by_prepare" => "Handle {items} before installing dependency tools.",
-        "state.tool_deployment_running" => "{tool} deployment is still running.",
-        "state.no_tools_to_install" => "There are no tools to install.",
-        "state.no_selected_tools_to_install" => "There are no selected deployable items.",
+        "state.target_export_not_found" => "No se ha encontrado el elemento a exportar.",
+        "state.cannot_export_item" => "Este elemento no se puede exportar en este momento.",
+        "state.analyze_before_export" => "Analizar el vídeo antes de exportar.",
+        "state.choose_subtitles_before_export" => "Seleccionar los subtítulos antes de exportar.",
+        "state.specify_file_extension" => "Especificar una extensión de archivo.",
+        "state.exporting_video" => "Exportando vídeo: {title}",
+        "state.exporting_audio" => "Exportando audio: {title}",
+        "state.exporting_subtitles" => "Exportando subtítulos: {title}",
+        "state.cleared_queue" => "Cola borrada.",
+        "state.cannot_remove_running_item" => "Los elementos en ejecución no se pueden eliminar.",
+        "state.removed_item" => "Eliminado: {title}",
+        "state.controlled_by_config" => "Controlado por config",
+        "state.install_blocked_by_prepare" => "Manejar {items} antes de instalar herramientas de dependencia.",
+        "state.tool_deployment_running" => "{tool} implementación aún está en ejecución.",
+        "state.no_tools_to_install" => "No hay herramientas para instalar.",
+        "state.no_selected_tools_to_install" => "No hay elementos desplegables seleccionados.",
         "state.prepare_skipped" => {
-            "Prepare page skipped. You can handle dependency deployment later in Options."
+            "Omitida la página de preparación. Puede manejar la implementación de dependencias más adelante en Opciones."
         }
-        "state.skip_failed" => "Skip failed: {error}",
-        "state.preparing_deployment" => "Preparing deployment",
-        "state.tool_downloading_deploying" => "{tool} downloading and deploying...",
-        "state.found" => "Found",
-        "state.not_found" => "Not found",
+        "state.skip_failed" => "Error omitir: {error}",
+        "state.preparing_deployment" => "Preparando implementación",
+        "state.tool_downloading_deploying" => "{tool} descargando e implementando...",
+        "state.found" => "Encontrado",
+        "state.not_found" => "No encontrado",
         "state.clipboard_monitor_enabled_auto_add" => {
-            "Clipboard monitor enabled; the next YouTube URL change will be added immediately."
+            "Monitor de portapapeles activado; El próximo cambio de la URL de YouTube se añadirá inmediatamente."
         }
         "state.clipboard_monitor_enabled_fill" => {
-            "Clipboard monitor enabled; the next YouTube URL change will fill the URL field."
+            "Monitor de portapapeles activado; el próximo cambio de la URL de YouTube llenará el campo de URL."
         }
-        "state.clipboard_monitor_disabled" => "Clipboard monitor disabled.",
+        "state.clipboard_monitor_disabled" => "Monitor del portapapeles desactivado.",
         "state.clipboard_will_auto_add" => {
-            "YouTube URLs will be added immediately after the clipboard changes."
+            "Las URL de YouTube se añadirán inmediatamente después de que cambie el portapapeles."
         }
-        "state.clipboard_will_fill_only" => "Clipboard changes will only fill the URL field.",
-        "state.adding_source" => "Adding: {source}",
-        "state.added_to_list" => "Added to list: {title}",
-        "state.range_set_item_full" => "Download range set: Item {index} / Full video",
-        "state.range_set_item_value" => "Download range set: Item {index} / {value}",
+        "state.clipboard_will_fill_only" => "Los cambios en el portapapeles solo llenarán el campo URL.",
+        "state.adding_source" => "Añadiendo: {source}",
+        "state.added_to_list" => "Añadido a lista: {title}",
+        "state.range_set_item_full" => "Descargar rangos: Elemento {index} / vídeo completo",
+        "state.range_set_item_value" => "Descargar rangos: Elemento {index} / {value}",
         "state.format_selection_updated" => {
-            "Format selection updated: Item {index} / {kind} / {value}"
+            "Selección de formato actualizado: Item {index} / {kind} / {value}"
         }
-        "state.range_set_title_full" => "Download range set: {title} / Full video",
-        "state.range_set_title_value" => "Download range set: {title} / {value}",
-        "state.playlist_ignored_for_now" => "Playlist is ignored for now: {target}",
-        "state.untitled_video" => "Untitled video",
-        "state.analysis_complete" => "Analysis complete: {title}",
-        "state.video_extension_error" => "Video export only supports mkv / mp4 / webm / mov / flv.",
+        "state.range_set_title_full" => "Descargar rangos: {title} / vídeo completo",
+        "state.range_set_title_value" => "Descargar rangos: {title} / {value}",
+        "state.playlist_ignored_for_now" => "La lista de reproducción se ignora por ahora: {target}",
+        "state.untitled_video" => "Vídeo sin título",
+        "state.analysis_complete" => "Análisis completo: {title}",
+        "state.video_extension_error" => "La exportación de vídeo solo es compatible con mkv / mp4 / webm / mov / flv.",
         "state.audio_extension_error" => {
-            "Audio export only supports opus / aac / m4a / mp3 / vorbis / alac / flac / wav."
+            "La exportación de audio solo es compatible con opus / aac / m4a / mp3 / vorbis / alac / flac / wav."
         }
         "state.subtitle_extension_error" => {
-            "Subtitle extension must be srt, vtt, ass, ssa, lrc, ttml, dfxp, json3, srv3, srv2, or srv1."
+            "La extensión de los subtítulos debe ser srt, vtt, ass, ssa, lrc, ttml, dfxp, json3, srv3, srv2, o srv1."
         }
-        "state.action_aria2_fallback" => "{action} (Aria2 not found; using yt-dlp native download)",
-        "state.cache_yt_dlp_default" => "yt-dlp default",
+        "state.action_aria2_fallback" => "{action} (Aria2 no encontrada; usando la descarga nativa de yt-dlp)",
+        "state.cache_yt_dlp_default" => "yt-dlp predeterminado",
         "playlist.note.mix_radio" => {
-            "This Mix / Radio playlist may contain many items and can change over time."
+            "Esta lista de reproducción Mix/Radio puede contener muchos elementos y puede cambiar con el tiempo."
         }
         "playlist.note.channel_generated" => {
-            "Treat this YouTube-generated channel playlist conservatively."
+            "Trate esta lista de reproducción de canal generada por YouTube de manera conservadora."
         }
-        "playlist.note.liked_videos" => "Liked videos usually require login or cookies.",
+        "playlist.note.liked_videos" => "Los videos que me gustan generalmente requieren inicio de sesión o cookies.",
         "playlist.note.favorites_legacy" => {
-            "This is a legacy favorites playlist style and may not be stable now."
+            "Este es un estilo de lista de reproducción de favoritos heredado y es posible que no sea estable ahora."
         }
-        "playlist.note.music_album" => "This is usually a YouTube Music album or collection.",
-        "prepare.tool.ytdlp.description" => "Core video analysis and downloading.",
-        "prepare.tool.deno.description" => "Improves YouTube analysis stability.",
+        "playlist.note.music_album" => "Suele ser un álbum o una colección de YouTube Music.",
+        "prepare.tool.ytdlp.description" => "Análisis y descarga de videos principales.",
+        "prepare.tool.deno.description" => "Mejora la estabilidad del análisis de YouTube.",
         "prepare.tool.ffmpeg.description" => {
-            "Merges video/audio, converts formats, and handles thumbnails/subtitles."
+            "Combina video/audio, convierte formatos y maneja miniaturas/subtítulos."
         }
-        "prepare.req.app_root.title" => "App folder",
+        "prepare.req.app_root.title" => "Carpeta App",
         "prepare.req.app_root.description" => {
-            "The portable folder must be writable for settings and support folders."
+            "La carpeta portable debe poder escribirse en las carpetas de configuración y soporte."
         }
-        "prepare.req.tools_dir.title" => "tools folder",
+        "prepare.req.tools_dir.title" => "carpeta herramientas",
         "prepare.req.tools_dir.description" => {
-            "Dependency deployment stores yt-dlp, FFmpeg, and Deno here."
+            "Almacenes de implementación de dependencia yt-dlp, FFmpeg, y Deno aquí."
         }
-        "prepare.req.tool_install_cache.title" => "Deployment temp",
+        "prepare.req.tool_install_cache.title" => "Temp implementación",
         "prepare.req.tool_install_cache.description" => {
-            "FFmpeg and Deno extraction uses this temp folder."
+            "La extracción de FFmpeg y Deno utiliza esta carpeta temporal."
         }
-        "prepare.req.cache.title" => "Download cache",
-        "prepare.req.cache.description" => "yt-dlp-gui cache mode stores yt-dlp cache here.",
-        "prepare.req.output.title" => "Output folder",
-        "prepare.req.output.description" => "Videos, audio, and subtitles are saved here.",
-        "prepare.req.output.recommendation" => "Choose a valid output folder from Main or Options.",
-        "prepare.req.config.title" => "Config file",
+        "prepare.req.cache.title" => "Caché descarga",
+        "prepare.req.cache.description" => "El modo de caché yt-dlp-gui almacena el caché de yt-dlp aquí.",
+        "prepare.req.output.title" => "Carpeta de salida",
+        "prepare.req.output.description" => "Aquí se guardan vídeos, audio y subtítulos.",
+        "prepare.req.output.recommendation" => "Seleccionar una carpeta de salida válida entre Principal u Opciones.",
+        "prepare.req.config.title" => "Archivo config",
         "prepare.req.config.description" => {
-            "The app must be able to save prepare-page skip and tool path settings."
+            "La aplicación debe poder guardar la configuración de ruta de herramientas y página de preparación."
         }
-        "prepare.req.move_to_writable" => "Move the app to a writable portable folder.",
+        "prepare.req.move_to_writable" => "Mover la aplicación a una carpeta portable grabable.",
         "prepare.req.move_to_writable_example" => {
-            "Move the app to a writable portable folder, for example D:\\Portable\\yt-dlp-gui-v2."
+            "Mueva la aplicación a una carpeta portable grabable, por ejemplo D:\\Portable\\yt-dlp-gui-v2."
         }
         "prepare.req.generic_writable_recommendation" => {
-            "If deployment or config saving fails later, move the app to a writable non-synced portable folder."
+            "Si la implementación o el guardado de la configuración falla, mueva la aplicación a una carpeta portable grabable no sincronizada."
         }
-        "prepare.req.use_folder_path" => "Use a folder path instead.",
-        "prepare.req.path_not_folder" => "{path} is not a folder",
-        "prepare.req.config_not_folder" => "Make sure the config path is not a folder.",
-        "prepare.req.config_readonly" => "Config file is read-only",
+        "prepare.req.use_folder_path" => "Usar una carpeta en su lugar.",
+        "prepare.req.path_not_folder" => "{path} no es una carpeta",
+        "prepare.req.config_not_folder" => "Asegúrese de que la ruta de configuración no sea una carpeta.",
+        "prepare.req.config_readonly" => "El archivo config es de solo lectura",
         "prepare.req.config_readonly_recommendation" => {
-            "Clear the config file read-only attribute, or move it to a writable portable folder."
+            "Borra el atributo de solo lectura del archivo cofig o mover a una carpeta portable grabable."
         }
         "prepare.req.clear_write_test" => {
-            "Retry later, or remove the leftover .yt-dlp-gui-write-test file in the folder."
+            "Vuelva a intentarlo más tarde o elimine el archivo .yt-dlp-gui-write-test sobrante de la carpeta."
         }
-        "runtime.download_cancelled" => "Download cancelled.",
+        "runtime.download_cancelled" => "Descarga cancelada.",
         "runtime.yt_dlp_not_found" => {
-            "yt-dlp was not found: {path}. Install yt-dlp first, or handle dependency deployment in Options."
+            "yt-dlp no se ha encontrado: {path}. Instalar yt-dlp primero o maneje la implementación de dependencias en Opciones."
         }
         "runtime.cookie_file_source_missing" => {
             "Cookies are enabled and the cookie source is file, but no valid Netscape cookies.txt is selected."
