@@ -1,14 +1,17 @@
-use eframe::egui::{self, Align, Layout, ScrollArea, Sense, Ui};
-use egui_extras::{Column, Size, StripBuilder, TableBuilder};
-
 use crate::app::state::{
     AppState, FormatPickerFilters, FormatPickerKind, FormatPickerViewMode, SubtitlePickerTab,
 };
+use crate::app::widgets::icon::{AppIcon, icon_image, standard_icon_color};
 use crate::domain::{FormatOption, MediaKind, SubtitleSource};
+use eframe::egui::{self, Align, Layout, ScrollArea, Sense, Ui};
+use egui_extras::{Column, Size, StripBuilder, TableBuilder};
+use egui_taffy::taffy::prelude::{length, percent};
+use egui_taffy::{TuiBuilderLogic as _, taffy, tui};
 
 use super::common::{
     UiText, cell_label, cell_label_center, cell_label_right, natural_button_width,
 };
+use super::measure::{WidthRange, measured_column_width, measured_text_width, text_width};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FilterField {
@@ -19,68 +22,318 @@ enum FilterField {
     SampleRate,
 }
 
+struct FilterChainStage {
+    label: String,
+    field: FilterField,
+    values: Vec<String>,
+    compatible_values: Vec<String>,
+    selected: Option<String>,
+}
+
+struct FilterNodeRect {
+    value: String,
+    rect: egui::Rect,
+    selected: bool,
+}
+
 pub(super) fn render_format_picker_screen(ui: &mut Ui, state: &mut AppState) {
     let pending_selection = pending_picker_selection_id(state);
-    let header_height = ui.spacing().interact_size.y + ui.spacing().item_spacing.y + 20.0;
+    let selection_summary = pending_picker_selection_summary(state);
+    let available_width = ui.available_width();
+    let available_height = ui.available_height();
+    let header_height = ui.spacing().interact_size.y + 12.0;
+    let gap = ui.spacing().item_spacing.x;
     let back_width = natural_button_width(ui, state.tr(UiText::BACK_TO_MAIN));
     let confirm_width = natural_button_width(ui, state.tr(UiText::CONFIRM));
+    let center_width = format_picker_header_center_width(ui, state);
+    let wanted_summary_width = selection_summary
+        .as_deref()
+        .map(|summary| text_width(ui, summary, egui::TextStyle::Body) + gap * 1.5)
+        .unwrap_or(0.0);
+    let max_summary_width =
+        (available_width - back_width - center_width - confirm_width - gap * 4.0).max(0.0);
+    let summary_width = wanted_summary_width.min(max_summary_width);
 
-    StripBuilder::new(ui)
-        .size(Size::exact(header_height))
-        .size(Size::remainder().at_least(0.0))
-        .vertical(|mut strip| {
-            strip.cell(|ui| {
-                StripBuilder::new(ui)
-                    .size(Size::initial(back_width))
-                    .size(Size::remainder().at_least(0.0))
-                    .size(Size::initial(confirm_width))
-                    .horizontal(|mut strip| {
-                        strip.cell(|ui| {
-                            if ui.button(state.tr(UiText::BACK_TO_MAIN)).clicked() {
-                                state.cancel_format_picker();
+    tui(ui, ui.id().with("format-picker-root"))
+        .reserve_width(available_width)
+        .reserve_height(available_height)
+        .style(format_picker_root_style(available_height))
+        .show(|tui| {
+            tui.style(format_picker_fixed_row_style(header_height))
+                .add(|tui| {
+                    tui.style(format_picker_header_row_style(header_height, gap))
+                        .add(|tui| {
+                            tui.style(format_picker_fixed_cell_style(back_width))
+                                .ui(|ui| {
+                                    ui.centered_and_justified(|ui| {
+                                        if ui.button(state.tr(UiText::BACK_TO_MAIN)).clicked() {
+                                            state.cancel_format_picker();
+                                        }
+                                    });
+                                });
+                            tui.style(format_picker_fixed_cell_style(center_width))
+                                .ui(|ui| {
+                                    ui.centered_and_justified(|ui| {
+                                        render_format_picker_header_center(ui, state);
+                                    });
+                                });
+                            tui.style(format_picker_flex_spacer_style()).ui(|_| {});
+                            if summary_width > 0.0 {
+                                tui.style(format_picker_fixed_cell_style(summary_width))
+                                    .ui(|ui| {
+                                        if let Some(summary) = selection_summary.as_deref() {
+                                            ui.centered_and_justified(|ui| {
+                                                ui.label(
+                                                    egui::RichText::new(summary)
+                                                        .color(ui.visuals().weak_text_color()),
+                                                );
+                                            });
+                                        }
+                                    });
                             }
+                            tui.style(format_picker_fixed_cell_style(confirm_width))
+                                .ui(|ui| {
+                                    ui.centered_and_justified(|ui| {
+                                        if ui
+                                            .add_enabled(
+                                                pending_selection.is_some(),
+                                                egui::Button::new(state.tr(UiText::CONFIRM)),
+                                            )
+                                            .clicked()
+                                        {
+                                            if let Some(format_id) = pending_selection.as_deref() {
+                                                state.confirm_format_picker_selection(format_id);
+                                            }
+                                        }
+                                    });
+                                });
                         });
-                        strip.cell(|ui| {
-                            ui.vertical(|ui| {
-                                let title = match state.format_picker.kind {
-                                    Some(FormatPickerKind::Video) => UiText::SELECT_VIDEO_TITLE,
-                                    Some(FormatPickerKind::Audio) => UiText::SELECT_AUDIO_TITLE,
-                                    Some(FormatPickerKind::Subtitle) => {
-                                        UiText::SELECT_SUBTITLE_TITLE
-                                    }
-                                    Some(FormatPickerKind::Section) => UiText::SELECT_SECTION_TITLE,
-                                    None => "",
-                                };
-                                ui.label(state.tr(title));
-
-                                let item_title =
-                                    state.format_picker_target_title().unwrap_or_default();
-                                let response = ui.add(egui::Label::new(item_title).truncate());
-                                if !item_title.is_empty() {
-                                    response.on_hover_text(item_title);
-                                }
-                            });
-                        });
-                        strip.cell(|ui| {
-                            if ui
-                                .add_enabled(
-                                    pending_selection.is_some(),
-                                    egui::Button::new(state.tr(UiText::CONFIRM)),
-                                )
-                                .clicked()
-                            {
-                                if let Some(format_id) = pending_selection.as_deref() {
-                                    state.confirm_format_picker_selection(format_id);
-                                }
-                            }
-                        });
-                    });
-            });
-            strip.cell(|ui| {
+                });
+            tui.style(format_picker_flex_content_style()).ui(|ui| {
                 ui.separator();
                 render_format_picker_contents(ui, state);
             });
         });
+}
+
+fn format_picker_root_style(height: f32) -> taffy::Style {
+    taffy::Style {
+        display: taffy::Display::Flex,
+        flex_direction: taffy::FlexDirection::Column,
+        align_items: Some(taffy::AlignItems::Stretch),
+        size: taffy::Size {
+            width: percent(1.0),
+            height: length(height),
+        },
+        min_size: taffy::Size {
+            width: percent(1.0),
+            height: length(0.0),
+        },
+        gap: length(0.0),
+        padding: length(0.0),
+        margin: length(0.0),
+        ..Default::default()
+    }
+}
+
+fn format_picker_fixed_row_style(height: f32) -> taffy::Style {
+    taffy::Style {
+        display: taffy::Display::Block,
+        size: taffy::Size {
+            width: percent(1.0),
+            height: length(height),
+        },
+        min_size: taffy::Size {
+            width: percent(1.0),
+            height: length(height),
+        },
+        max_size: taffy::Size {
+            width: percent(1.0),
+            height: length(height),
+        },
+        flex_grow: 0.0,
+        flex_shrink: 0.0,
+        padding: length(0.0),
+        margin: length(0.0),
+        ..Default::default()
+    }
+}
+
+fn format_picker_flex_content_style() -> taffy::Style {
+    taffy::Style {
+        display: taffy::Display::Block,
+        size: taffy::Size {
+            width: percent(1.0),
+            height: length(0.0),
+        },
+        min_size: taffy::Size {
+            width: length(0.0),
+            height: length(0.0),
+        },
+        flex_basis: length(0.0),
+        flex_grow: 1.0,
+        flex_shrink: 1.0,
+        padding: length(0.0),
+        margin: length(0.0),
+        ..Default::default()
+    }
+}
+
+fn format_picker_header_row_style(height: f32, gap: f32) -> taffy::Style {
+    taffy::Style {
+        display: taffy::Display::Flex,
+        flex_direction: taffy::FlexDirection::Row,
+        align_items: Some(taffy::AlignItems::Stretch),
+        size: taffy::Size {
+            width: percent(1.0),
+            height: length(height),
+        },
+        min_size: taffy::Size {
+            width: percent(1.0),
+            height: length(height),
+        },
+        max_size: taffy::Size {
+            width: percent(1.0),
+            height: length(height),
+        },
+        gap: length(gap),
+        padding: length(0.0),
+        margin: length(0.0),
+        ..Default::default()
+    }
+}
+
+fn format_picker_fixed_cell_style(width: f32) -> taffy::Style {
+    taffy::Style {
+        display: taffy::Display::Block,
+        size: taffy::Size {
+            width: length(width),
+            height: percent(1.0),
+        },
+        min_size: taffy::Size {
+            width: length(width),
+            height: length(0.0),
+        },
+        max_size: taffy::Size {
+            width: length(width),
+            height: percent(1.0),
+        },
+        flex_grow: 0.0,
+        flex_shrink: 0.0,
+        padding: length(0.0),
+        margin: length(0.0),
+        ..Default::default()
+    }
+}
+
+fn format_picker_flex_spacer_style() -> taffy::Style {
+    taffy::Style {
+        display: taffy::Display::Block,
+        size: taffy::Size {
+            width: length(0.0),
+            height: percent(1.0),
+        },
+        min_size: taffy::Size {
+            width: length(0.0),
+            height: length(0.0),
+        },
+        flex_basis: length(0.0),
+        flex_grow: 1.0,
+        flex_shrink: 1.0,
+        padding: length(0.0),
+        margin: length(0.0),
+        ..Default::default()
+    }
+}
+
+fn format_picker_header_center_width(ui: &Ui, state: &AppState) -> f32 {
+    let Some(kind) = state.format_picker.kind else {
+        return 0.0;
+    };
+
+    let gap = ui.spacing().item_spacing.x;
+    match kind {
+        FormatPickerKind::Video | FormatPickerKind::Audio => {
+            natural_button_width(ui, state.tr(UiText::PICKER_MODE_FILTER))
+                + natural_button_width(ui, state.tr(UiText::PICKER_MODE_TABLE))
+                + gap
+        }
+        FormatPickerKind::Subtitle => {
+            natural_button_width(ui, state.tr(SubtitlePickerTab::None.label()))
+                + natural_button_width(ui, state.tr(SubtitlePickerTab::Original.label()))
+                + natural_button_width(ui, state.tr(SubtitlePickerTab::Automatic.label()))
+                + gap * 2.0
+        }
+        FormatPickerKind::Section => {
+            let title = state.tr(UiText::SELECT_SECTION_TITLE);
+            text_width(ui, title, egui::TextStyle::Body) + gap * 2.0
+        }
+    }
+}
+
+fn render_format_picker_header_center(ui: &mut Ui, state: &mut AppState) {
+    let Some(kind) = state.format_picker.kind else {
+        return;
+    };
+
+    if matches!(kind, FormatPickerKind::Video | FormatPickerKind::Audio) {
+        let previous_mode = state.format_picker.view_mode;
+        let picker_mode_filter = state.tr(UiText::PICKER_MODE_FILTER);
+        let picker_mode_table = state.tr(UiText::PICKER_MODE_TABLE);
+        ui.horizontal(|ui| {
+            ui.selectable_value(
+                &mut state.format_picker.view_mode,
+                FormatPickerViewMode::Filter,
+                picker_mode_filter,
+            );
+            ui.selectable_value(
+                &mut state.format_picker.view_mode,
+                FormatPickerViewMode::Table,
+                picker_mode_table,
+            );
+        });
+        if state.format_picker.view_mode != previous_mode {
+            sync_picker_mode(state);
+        }
+        return;
+    }
+
+    if kind == FormatPickerKind::Subtitle {
+        render_subtitle_picker_header_tabs(ui, state);
+        return;
+    }
+
+    let title = match kind {
+        FormatPickerKind::Video => UiText::SELECT_VIDEO_TITLE,
+        FormatPickerKind::Audio => UiText::SELECT_AUDIO_TITLE,
+        FormatPickerKind::Subtitle => UiText::SELECT_SUBTITLE_TITLE,
+        FormatPickerKind::Section => UiText::SELECT_SECTION_TITLE,
+    };
+    ui.label(state.tr(title));
+}
+
+fn render_subtitle_picker_header_tabs(ui: &mut Ui, state: &mut AppState) {
+    let none_label = state.tr(SubtitlePickerTab::None.label());
+    let original_label = state.tr(SubtitlePickerTab::Original.label());
+    let automatic_label = state.tr(SubtitlePickerTab::Automatic.label());
+
+    ui.horizontal(|ui| {
+        ui.selectable_value(
+            &mut state.format_picker.subtitle_tab,
+            SubtitlePickerTab::None,
+            none_label,
+        );
+        ui.selectable_value(
+            &mut state.format_picker.subtitle_tab,
+            SubtitlePickerTab::Original,
+            original_label,
+        );
+        ui.selectable_value(
+            &mut state.format_picker.subtitle_tab,
+            SubtitlePickerTab::Automatic,
+            automatic_label,
+        );
+    });
 }
 
 fn render_format_picker_contents(ui: &mut Ui, state: &mut AppState) {
@@ -101,7 +354,6 @@ fn render_format_picker_contents(ui: &mut Ui, state: &mut AppState) {
 
     let options = state.format_picker_options(kind);
     let filtered_rows = filtered_rows(&options, &state.format_picker.filters);
-    let previous_mode = state.format_picker.view_mode;
 
     if let Some(selected_row) = state.format_picker.selected_row {
         if selected_row >= options.len() {
@@ -113,53 +365,68 @@ fn render_format_picker_contents(ui: &mut Ui, state: &mut AppState) {
         state.format_picker.selected_row = filtered_rows.first().copied();
     }
 
-    let tab_height = ui.spacing().interact_size.y;
-    let picker_mode_filter = state.tr(UiText::PICKER_MODE_FILTER);
-    let picker_mode_table = state.tr(UiText::PICKER_MODE_TABLE);
+    match state.format_picker.view_mode {
+        FormatPickerViewMode::Filter => {
+            if filtered_rows.is_empty() {
+                ui.add_space(12.0);
+                ui.label(state.tr(UiText::EMPTY_TABLE));
+            }
+            render_format_picker_filters(ui, state, kind, &options);
+        }
+        FormatPickerViewMode::Table => {
+            if options.is_empty() {
+                ui.add_space(12.0);
+                ui.label(state.tr(UiText::EMPTY_TABLE));
+            } else {
+                render_format_picker_table(ui, state, kind, &options);
+            }
+        }
+    }
+}
 
-    StripBuilder::new(ui)
-        .size(Size::exact(tab_height))
-        .size(Size::remainder().at_least(0.0))
-        .vertical(|mut strip| {
-            strip.cell(|ui| {
-                ui.horizontal(|ui| {
-                    ui.selectable_value(
-                        &mut state.format_picker.view_mode,
-                        FormatPickerViewMode::Filter,
-                        picker_mode_filter,
-                    );
-                    ui.selectable_value(
-                        &mut state.format_picker.view_mode,
-                        FormatPickerViewMode::Table,
-                        picker_mode_table,
-                    );
-                    let _sort_state = state.format_picker.sort_state;
-                });
-            });
-            strip.cell(|ui| {
-                ui.separator();
-                match state.format_picker.view_mode {
-                    FormatPickerViewMode::Filter => {
-                        if filtered_rows.is_empty() {
-                            ui.add_space(12.0);
-                            ui.label(state.tr(UiText::EMPTY_TABLE));
-                        }
-                        render_format_picker_filters(ui, state, kind, &options);
-                    }
-                    FormatPickerViewMode::Table => {
-                        if options.is_empty() {
-                            ui.add_space(12.0);
-                            ui.label(state.tr(UiText::EMPTY_TABLE));
-                        } else {
-                            render_format_picker_table(ui, state, kind, &options);
-                        }
-                    }
-                }
-            });
-        });
+fn pending_picker_selection_summary(state: &AppState) -> Option<String> {
+    let kind = state.format_picker.kind?;
+    if !matches!(kind, FormatPickerKind::Video | FormatPickerKind::Audio) {
+        return None;
+    }
 
-    if state.format_picker.view_mode != previous_mode {
-        sync_picker_mode(state);
+    let size_label = state.tr(UiText::HEADER_FILESIZE);
+    let filesize = pending_picker_selected_format(state)
+        .map(|option| option.filesize.trim().to_owned())
+        .filter(|filesize| !filesize.is_empty())
+        .unwrap_or_else(|| "—".to_owned());
+    Some(format!("{size_label} {filesize}"))
+}
+
+fn pending_picker_selected_format(state: &AppState) -> Option<FormatOption> {
+    let kind = state.format_picker.kind?;
+    if !matches!(kind, FormatPickerKind::Video | FormatPickerKind::Audio) {
+        return None;
+    }
+
+    let options = state.format_picker_options(kind);
+    match state.format_picker.view_mode {
+        FormatPickerViewMode::Filter => {
+            let visible_rows = filtered_rows(&options, &state.format_picker.filters);
+            if visible_rows.len() == 1 {
+                return visible_rows
+                    .first()
+                    .and_then(|&index| options.get(index))
+                    .cloned();
+            }
+
+            state
+                .format_picker
+                .selected_row
+                .filter(|row| visible_rows.iter().any(|index| index == row))
+                .and_then(|row| options.get(row))
+                .cloned()
+        }
+        FormatPickerViewMode::Table => state
+            .format_picker
+            .selected_row
+            .and_then(|row| options.get(row))
+            .cloned(),
     }
 }
 
@@ -320,19 +587,9 @@ fn render_subtitle_picker_contents(ui: &mut Ui, state: &mut AppState) {
         state.format_picker.subtitle_source_key = SubtitleSource::None.key().to_owned();
     }
 
-    let none_label = state.tr(SubtitlePickerTab::None.label());
-    let original_label = state.tr(SubtitlePickerTab::Original.label());
-    let automatic_label = state.tr(SubtitlePickerTab::Automatic.label());
-    let active_page = &mut state.format_picker.subtitle_tab;
+    let active_page = state.format_picker.subtitle_tab;
 
-    ui.horizontal(|ui| {
-        ui.selectable_value(active_page, SubtitlePickerTab::None, none_label);
-        ui.selectable_value(active_page, SubtitlePickerTab::Original, original_label);
-        ui.selectable_value(active_page, SubtitlePickerTab::Automatic, automatic_label);
-    });
-    ui.separator();
-
-    if *active_page == SubtitlePickerTab::None {
+    if active_page == SubtitlePickerTab::None {
         state.format_picker.subtitle_source_key = SubtitleSource::None.key().to_owned();
         state.format_picker.selected_row = Some(0);
         ui.label(state.tr("picker.subtitles_will_not_be_downloaded"));
@@ -349,7 +606,7 @@ fn render_subtitle_picker_contents(ui: &mut Ui, state: &mut AppState) {
         .iter()
         .filter(|option| {
             matches!(
-                (*active_page, option.source),
+                (active_page, option.source),
                 (SubtitlePickerTab::Original, SubtitleSource::Original)
                     | (SubtitlePickerTab::Automatic, SubtitleSource::Automatic)
             )
@@ -380,7 +637,7 @@ fn render_subtitle_picker_contents(ui: &mut Ui, state: &mut AppState) {
         }
     }
 
-    if *active_page == SubtitlePickerTab::Original {
+    if active_page == SubtitlePickerTab::Original {
         render_original_subtitle_picker(ui, state, &page_sources);
         return;
     }
@@ -637,99 +894,65 @@ fn render_format_picker_filters(
     kind: FormatPickerKind,
     options: &[FormatOption],
 ) {
-    ScrollArea::vertical().show(ui, |ui| {
-        ui.set_width(ui.available_width());
+    let filters_snapshot = state.format_picker.filters.clone();
+    let stages = match kind {
+        FormatPickerKind::Video => vec![
+            FilterChainStage {
+                label: state.tr(UiText::FILTER_RESOLUTION).to_owned(),
+                field: FilterField::Resolution,
+                values: all_resolution_values(options),
+                compatible_values: compatible_resolution_values(options, &filters_snapshot),
+                selected: filters_snapshot.resolution.clone(),
+            },
+            FilterChainStage {
+                label: state.tr(UiText::FILTER_FPS).to_owned(),
+                field: FilterField::Fps,
+                values: all_fps_values(options),
+                compatible_values: compatible_fps_values(options, &filters_snapshot),
+                selected: filters_snapshot.fps.clone(),
+            },
+            FilterChainStage {
+                label: state.tr(UiText::FILTER_CODEC).to_owned(),
+                field: FilterField::Codec,
+                values: all_codec_values(options),
+                compatible_values: compatible_codec_values(options, &filters_snapshot),
+                selected: filters_snapshot.codec.clone(),
+            },
+            FilterChainStage {
+                label: state.tr(UiText::FILTER_RANGE).to_owned(),
+                field: FilterField::DynamicRange,
+                values: all_range_values(options),
+                compatible_values: compatible_range_values(options, &filters_snapshot),
+                selected: filters_snapshot.dynamic_range.clone(),
+            },
+        ],
+        FormatPickerKind::Audio => vec![
+            FilterChainStage {
+                label: state.tr(UiText::FILTER_SAMPLE_RATE).to_owned(),
+                field: FilterField::SampleRate,
+                values: all_sample_rate_values(options),
+                compatible_values: compatible_sample_rate_values(options, &filters_snapshot),
+                selected: filters_snapshot.sample_rate.clone(),
+            },
+            FilterChainStage {
+                label: state.tr(UiText::FILTER_CODEC).to_owned(),
+                field: FilterField::Codec,
+                values: all_codec_values(options),
+                compatible_values: compatible_codec_values(options, &filters_snapshot),
+                selected: filters_snapshot.codec.clone(),
+            },
+        ],
+        FormatPickerKind::Subtitle | FormatPickerKind::Section => Vec::new(),
+    };
 
-        match kind {
-            FormatPickerKind::Video => {
-                let resolution_label = state.tr(UiText::FILTER_RESOLUTION);
-                let fps_label = state.tr(UiText::FILTER_FPS);
-                let codec_label = state.tr(UiText::FILTER_CODEC);
-                let range_label = state.tr(UiText::FILTER_RANGE);
-                let filters = &mut state.format_picker.filters;
-                let selected_row = &mut state.format_picker.selected_row;
-                render_filter_row(
-                    ui,
-                    resolution_label,
-                    FilterField::Resolution,
-                    all_resolution_values(options),
-                    compatible_resolution_values(options, filters),
-                    filters.resolution.clone(),
-                    kind,
-                    options,
-                    filters,
-                    selected_row,
-                );
-                render_filter_row(
-                    ui,
-                    fps_label,
-                    FilterField::Fps,
-                    all_fps_values(options),
-                    compatible_fps_values(options, filters),
-                    filters.fps.clone(),
-                    kind,
-                    options,
-                    filters,
-                    selected_row,
-                );
-                render_filter_row(
-                    ui,
-                    codec_label,
-                    FilterField::Codec,
-                    all_codec_values(options),
-                    compatible_codec_values(options, filters),
-                    filters.codec.clone(),
-                    kind,
-                    options,
-                    filters,
-                    selected_row,
-                );
-                render_filter_row(
-                    ui,
-                    range_label,
-                    FilterField::DynamicRange,
-                    all_range_values(options),
-                    compatible_range_values(options, filters),
-                    filters.dynamic_range.clone(),
-                    kind,
-                    options,
-                    filters,
-                    selected_row,
-                );
-            }
-            FormatPickerKind::Audio => {
-                let sample_rate_label = state.tr(UiText::FILTER_SAMPLE_RATE);
-                let codec_label = state.tr(UiText::FILTER_CODEC);
-                let filters = &mut state.format_picker.filters;
-                let selected_row = &mut state.format_picker.selected_row;
-                render_filter_row(
-                    ui,
-                    sample_rate_label,
-                    FilterField::SampleRate,
-                    all_sample_rate_values(options),
-                    compatible_sample_rate_values(options, filters),
-                    filters.sample_rate.clone(),
-                    kind,
-                    options,
-                    filters,
-                    selected_row,
-                );
-                render_filter_row(
-                    ui,
-                    codec_label,
-                    FilterField::Codec,
-                    all_codec_values(options),
-                    compatible_codec_values(options, filters),
-                    filters.codec.clone(),
-                    kind,
-                    options,
-                    filters,
-                    selected_row,
-                );
-            }
-            FormatPickerKind::Subtitle | FormatPickerKind::Section => {}
-        }
-    });
+    render_filter_chain(
+        ui,
+        stages,
+        kind,
+        options,
+        &mut state.format_picker.filters,
+        &mut state.format_picker.selected_row,
+    );
 }
 
 fn available_filter_values(
@@ -822,49 +1045,239 @@ fn compatible_sample_rate_values(
     available_filter_values(options, &filters, |option| option.sample_rate.clone())
 }
 
-fn render_filter_row(
+fn render_filter_chain(
     ui: &mut Ui,
-    label: &str,
-    field: FilterField,
-    values: Vec<String>,
-    compatible_values: Vec<String>,
-    selected: Option<String>,
+    stages: Vec<FilterChainStage>,
     kind: FormatPickerKind,
     options: &[FormatOption],
     filters: &mut FormatPickerFilters,
     selected_row: &mut Option<usize>,
 ) {
-    if values.is_empty() {
+    let stages: Vec<FilterChainStage> = stages
+        .into_iter()
+        .filter(|stage| !stage.values.is_empty())
+        .collect();
+    if stages.is_empty() {
         return;
     }
 
-    ui.vertical(|ui| {
-        ui.set_width(ui.available_width());
-        ui.label(label);
-        ui.horizontal_wrapped(|ui| {
-            ui.set_width(ui.available_width());
-            for value in values {
-                let is_selected = selected.as_deref() == Some(value.as_str());
-                let is_enabled = is_selected || compatible_values.iter().any(|item| item == &value);
-                let mut button = egui::Button::new(&value)
-                    .frame(true)
-                    .min_size(egui::vec2(0.0, ui.spacing().interact_size.y + 8.0));
-                if !is_enabled && !is_selected {
-                    button = button.fill(incompatible_filter_button_fill(ui));
-                }
+    let button_padding = egui::vec2(5.0, 1.0);
+    let node_height = (ui.spacing().interact_size.y - 10.0).clamp(20.0, 24.0);
+    let stage_widths = measure_filter_stage_widths(ui, &stages, button_padding.x);
+    let stage_count = stages.len();
+    let viewport_width = (ui.available_width() - 18.0).max(1.0);
+    let slot_width = (viewport_width / stage_count as f32).max(1.0);
+    let content_width = viewport_width;
 
-                if ui.add(button.selected(is_selected)).clicked() {
-                    if is_selected {
-                        set_filter_value(filters, field, None);
-                        *selected_row = selected_row_for_filters(options, filters);
-                    } else {
-                        *selected_row =
-                            force_pick_filter_value(filters, field, value, kind, options);
-                    }
+    ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            ui.set_min_width(content_width);
+            ui.set_min_height(ui.available_height());
+
+            let mut columns: Vec<Vec<FilterNodeRect>> = Vec::with_capacity(stages.len());
+
+            ui.horizontal_top(|ui| {
+                for (stage_index, stage) in stages.iter().enumerate() {
+                    let stage_width = stage_widths[stage_index].min((slot_width - 8.0).max(48.0));
+                    let mut node_rects = Vec::with_capacity(stage.values.len());
+
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(slot_width, ui.available_height()),
+                        Layout::top_down(Align::Center),
+                        |ui| {
+                            ui.set_width(slot_width);
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(stage.label.as_str()).strong(),
+                                )
+                                .selectable(false),
+                            );
+                            ui.add_space(5.0);
+
+                            ui.scope(|ui| {
+                                ui.spacing_mut().button_padding = button_padding;
+                                for value in &stage.values {
+                                    let is_selected =
+                                        stage.selected.as_deref() == Some(value.as_str());
+                                    let is_enabled = is_selected
+                                        || stage
+                                            .compatible_values
+                                            .iter()
+                                            .any(|compatible| compatible == value);
+                                    let mut button = egui::Button::new(value.as_str())
+                                        .frame(true)
+                                        .min_size(egui::vec2(stage_width, node_height));
+                                    if !is_enabled && !is_selected {
+                                        button = button.fill(incompatible_filter_button_fill(ui));
+                                    }
+
+                                    let response = ui.add_sized(
+                                        egui::vec2(stage_width, node_height),
+                                        button.selected(is_selected),
+                                    );
+
+                                    if response.clicked() {
+                                        if is_selected {
+                                            set_filter_value(filters, stage.field, None);
+                                            *selected_row =
+                                                selected_row_for_filters(options, filters);
+                                        } else {
+                                            *selected_row = force_pick_filter_value(
+                                                filters,
+                                                stage.field,
+                                                value.clone(),
+                                                kind,
+                                                options,
+                                            );
+                                        }
+                                    }
+
+                                    node_rects.push(FilterNodeRect {
+                                        value: value.clone(),
+                                        rect: response.rect,
+                                        selected: is_selected,
+                                    });
+
+                                    ui.add_space(3.0);
+                                }
+                            });
+                        },
+                    );
+                    columns.push(node_rects);
                 }
-            }
+            });
+
+            draw_filter_chain_connections(ui, &stages, &columns, options, *selected_row);
         });
-    });
+}
+
+fn draw_filter_chain_connections(
+    ui: &Ui,
+    stages: &[FilterChainStage],
+    columns: &[Vec<FilterNodeRect>],
+    options: &[FormatOption],
+    selected_row: Option<usize>,
+) {
+    if stages.len() < 2 || columns.len() < 2 {
+        return;
+    }
+
+    let active_color = filter_flow_active_line_color(ui);
+    let painter = ui.painter();
+    let selected_option = selected_row.and_then(|row| options.get(row));
+
+    for pair_index in 0..(stages.len() - 1) {
+        let left_stage = &stages[pair_index];
+        let right_stage = &stages[pair_index + 1];
+        let left_nodes = &columns[pair_index];
+        let right_nodes = &columns[pair_index + 1];
+
+        let Some(left_value) = selected_filter_value(selected_option, left_stage) else {
+            continue;
+        };
+        let Some(right_value) = selected_filter_value(selected_option, right_stage) else {
+            continue;
+        };
+
+        let Some(left_node) = left_nodes.iter().find(|node| node.value == left_value) else {
+            continue;
+        };
+        let Some(right_node) = right_nodes.iter().find(|node| node.value == right_value) else {
+            continue;
+        };
+        if !left_node.selected || !right_node.selected {
+            continue;
+        }
+
+        let stroke = egui::Stroke::new(2.0, active_color);
+        let start = egui::pos2(left_node.rect.right(), left_node.rect.center().y);
+        let end = egui::pos2(right_node.rect.left(), right_node.rect.center().y);
+        draw_curved_filter_connection(painter, start, end, stroke);
+    }
+}
+
+fn measure_filter_stage_widths(
+    ui: &Ui,
+    stages: &[FilterChainStage],
+    horizontal_padding: f32,
+) -> Vec<f32> {
+    stages
+        .iter()
+        .map(|stage| {
+            measured_text_width(
+                ui,
+                stage.values.iter().map(|value| value.as_str()),
+                egui::TextStyle::Button,
+                horizontal_padding * 2.0 + 8.0,
+                WidthRange::new(64.0, 220.0),
+            )
+        })
+        .collect()
+}
+
+fn selected_filter_value(
+    selected_option: Option<&FormatOption>,
+    stage: &FilterChainStage,
+) -> Option<String> {
+    if let Some(option) = selected_option {
+        let value = value_for_field(option, stage.field);
+        if !value.is_empty() {
+            return Some(value.to_owned());
+        }
+    }
+    stage.selected.clone()
+}
+
+fn draw_curved_filter_connection(
+    painter: &egui::Painter,
+    start: egui::Pos2,
+    end: egui::Pos2,
+    stroke: egui::Stroke,
+) {
+    let mid_x = (start.x + end.x) * 0.5;
+    let dy = end.y - start.y;
+    if dy.abs() < 1.0 {
+        painter.line_segment([start, end], stroke);
+        return;
+    }
+
+    let direction = dy.signum();
+    let radius = dy.abs().mul_add(0.25, 0.0).clamp(8.0, 14.0);
+    let left_corner_start = egui::pos2(mid_x - radius, start.y);
+    let left_corner_end = egui::pos2(mid_x, start.y + direction * radius);
+    let right_corner_start = egui::pos2(mid_x, end.y - direction * radius);
+    let right_corner_end = egui::pos2(mid_x + radius, end.y);
+
+    painter.line_segment([start, left_corner_start], stroke);
+    painter.add(egui::epaint::CubicBezierShape::from_points_stroke(
+        [
+            left_corner_start,
+            egui::pos2(mid_x - radius * 0.45, start.y),
+            egui::pos2(mid_x, start.y + direction * radius * 0.55),
+            left_corner_end,
+        ],
+        false,
+        egui::Color32::TRANSPARENT,
+        stroke,
+    ));
+    painter.line_segment([left_corner_end, right_corner_start], stroke);
+    painter.add(egui::epaint::CubicBezierShape::from_points_stroke(
+        [
+            right_corner_start,
+            egui::pos2(mid_x, end.y - direction * radius * 0.55),
+            egui::pos2(mid_x + radius * 0.45, end.y),
+            right_corner_end,
+        ],
+        false,
+        egui::Color32::TRANSPARENT,
+        stroke,
+    ));
+    painter.line_segment([right_corner_end, end], stroke);
+}
+
+fn filter_flow_active_line_color(ui: &Ui) -> egui::Color32 {
+    ui.visuals().widgets.active.bg_fill
 }
 
 fn incompatible_filter_button_fill(ui: &Ui) -> egui::Color32 {
@@ -1043,108 +1456,256 @@ fn render_format_picker_table(
 ) {
     let row_height = 24.0;
     let max_height = ui.available_height().max(160.0);
+    let table_widths = measure_format_picker_table_widths(ui, state, kind, options);
+    let exact_width = table_widths.exact_width_for(kind);
+    let available_width = ui.available_width();
+    let needs_horizontal_scroll = exact_width > available_width + 2.0;
 
     ui.set_height(max_height);
-    ScrollArea::both()
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            let table = match kind {
-                FormatPickerKind::Video => TableBuilder::new(ui)
-                    .id_salt("video-format-picker-table")
-                    .striped(true)
-                    .sense(Sense::click())
-                    .cell_layout(Layout::left_to_right(Align::Center))
-                    .column(Column::exact(20.0))
-                    .column(Column::remainder().at_least(96.0))
-                    .column(Column::auto().at_least(32.0))
-                    .column(Column::auto().at_least(24.0))
-                    .column(Column::auto().at_least(96.0))
-                    .column(Column::auto().at_least(72.0))
-                    .min_scrolled_height(180.0)
-                    .max_scroll_height(max_height)
-                    .header(row_height, |mut header| {
-                        header.col(|ui| cell_label_center(ui, ""));
-                        header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_RESOLUTION)));
-                        header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_RANGE)));
-                        header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_FPS)));
-                        header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_CODEC)));
-                        header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_FILESIZE)));
-                    }),
-                FormatPickerKind::Audio => TableBuilder::new(ui)
-                    .id_salt("audio-format-picker-table")
-                    .striped(true)
-                    .sense(Sense::click())
-                    .cell_layout(Layout::left_to_right(Align::Center))
-                    .column(Column::exact(20.0))
-                    .column(Column::auto().at_least(84.0))
-                    .column(Column::remainder().at_least(96.0))
-                    .column(Column::auto().at_least(72.0))
-                    .min_scrolled_height(180.0)
-                    .max_scroll_height(max_height)
-                    .header(row_height, |mut header| {
-                        header.col(|ui| cell_label_center(ui, ""));
-                        header
-                            .col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_SAMPLE_RATE)));
-                        header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_CODEC)));
-                        header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_FILESIZE)));
-                    }),
-                FormatPickerKind::Subtitle | FormatPickerKind::Section => unreachable!(),
-            };
-
-            table.body(|body| {
-                body.rows(row_height, options.len(), |mut row| {
-                    let option_index = row.index();
-                    let option = &options[option_index];
-                    let is_selected = state.format_picker.selected_row == Some(option_index);
-                    row.set_selected(is_selected);
-
-                    match kind {
-                        FormatPickerKind::Video => {
-                            row.col(|ui| {
-                                cell_label(
-                                    ui,
-                                    if option.kind == MediaKind::Muxed {
-                                        "⛓"
-                                    } else {
-                                        ""
-                                    },
-                                )
-                            });
-                            row.col(|ui| cell_label_center(ui, &option.resolution));
-                            row.col(|ui| cell_label_center(ui, &option.dynamic_range));
-                            row.col(|ui| cell_label_right(ui, &option.fps));
-                            row.col(|ui| cell_label_center(ui, &option.codec));
-                            row.col(|ui| cell_label_right(ui, &option.filesize));
-                        }
-                        FormatPickerKind::Audio => {
-                            row.col(|ui| {
-                                cell_label(
-                                    ui,
-                                    if option.kind == MediaKind::Muxed {
-                                        "⛓"
-                                    } else {
-                                        ""
-                                    },
-                                )
-                            });
-                            row.col(|ui| cell_label(ui, &option.sample_rate));
-                            row.col(|ui| cell_label(ui, &option.codec));
-                            row.col(|ui| cell_label(ui, &option.filesize));
-                        }
-                        FormatPickerKind::Subtitle | FormatPickerKind::Section => unreachable!(),
-                    }
-
-                    let response = row.response();
-                    if response.clicked() {
-                        state.format_picker.selected_row = Some(option_index);
-                        apply_filters_from_option(&mut state.format_picker.filters, kind, option);
-                    }
-                    if response.double_clicked() {
-                        state.confirm_format_picker_selection(&option.id);
-                    }
-                });
+    if needs_horizontal_scroll {
+        ScrollArea::horizontal()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.set_min_width(exact_width);
+                render_format_picker_table_inner(
+                    ui,
+                    state,
+                    kind,
+                    options,
+                    table_widths,
+                    row_height,
+                    max_height,
+                );
             });
+    } else {
+        render_format_picker_table_inner(
+            ui,
+            state,
+            kind,
+            options,
+            table_widths,
+            row_height,
+            max_height,
+        );
+    }
+}
+
+fn render_format_picker_table_inner(
+    ui: &mut Ui,
+    state: &mut AppState,
+    kind: FormatPickerKind,
+    options: &[FormatOption],
+    table_widths: FormatPickerTableWidths,
+    row_height: f32,
+    max_height: f32,
+) {
+    let table = match kind {
+        FormatPickerKind::Video => TableBuilder::new(ui)
+            .id_salt("video-format-picker-table")
+            .striped(true)
+            .sense(Sense::click())
+            .cell_layout(Layout::left_to_right(Align::Center))
+            .column(Column::exact(table_widths.marker))
+            .column(Column::exact(table_widths.resolution))
+            .column(Column::exact(table_widths.dynamic_range))
+            .column(Column::exact(table_widths.fps))
+            .column(Column::exact(table_widths.codec))
+            .column(Column::exact(table_widths.filesize))
+            .column(Column::remainder().at_least(0.0))
+            .min_scrolled_height(180.0)
+            .max_scroll_height(max_height)
+            .header(row_height, |mut header| {
+                header.col(|ui| cell_label_center(ui, ""));
+                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_RESOLUTION)));
+                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_RANGE)));
+                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_FPS)));
+                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_CODEC)));
+                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_FILESIZE)));
+                header.col(|_| {});
+            }),
+        FormatPickerKind::Audio => TableBuilder::new(ui)
+            .id_salt("audio-format-picker-table")
+            .striped(true)
+            .sense(Sense::click())
+            .cell_layout(Layout::left_to_right(Align::Center))
+            .column(Column::exact(table_widths.marker))
+            .column(Column::exact(table_widths.sample_rate))
+            .column(Column::exact(table_widths.codec))
+            .column(Column::exact(table_widths.filesize))
+            .column(Column::remainder().at_least(0.0))
+            .min_scrolled_height(180.0)
+            .max_scroll_height(max_height)
+            .header(row_height, |mut header| {
+                header.col(|ui| cell_label_center(ui, ""));
+                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_SAMPLE_RATE)));
+                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_CODEC)));
+                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_FILESIZE)));
+                header.col(|_| {});
+            }),
+        FormatPickerKind::Subtitle | FormatPickerKind::Section => unreachable!(),
+    };
+
+    table.body(|body| {
+        body.rows(row_height, options.len(), |mut row| {
+            let option_index = row.index();
+            let option = &options[option_index];
+            let is_selected = state.format_picker.selected_row == Some(option_index);
+            row.set_selected(is_selected);
+
+            match kind {
+                FormatPickerKind::Video => {
+                    row.col(|ui| render_muxed_marker(ui, option.kind == MediaKind::Muxed));
+                    row.col(|ui| cell_label_center(ui, &option.resolution));
+                    row.col(|ui| cell_label_center(ui, &option.dynamic_range));
+                    row.col(|ui| cell_label_center(ui, &option.fps));
+                    row.col(|ui| cell_label_center(ui, &option.codec));
+                    row.col(|ui| cell_label_right(ui, &option.filesize));
+                    row.col(|_| {});
+                }
+                FormatPickerKind::Audio => {
+                    row.col(|ui| render_muxed_marker(ui, option.kind == MediaKind::Muxed));
+                    row.col(|ui| cell_label(ui, &option.sample_rate));
+                    row.col(|ui| cell_label(ui, &option.codec));
+                    row.col(|ui| cell_label(ui, &option.filesize));
+                    row.col(|_| {});
+                }
+                FormatPickerKind::Subtitle | FormatPickerKind::Section => unreachable!(),
+            }
+
+            let response = row.response();
+            if response.clicked() {
+                state.format_picker.selected_row = Some(option_index);
+                apply_filters_from_option(&mut state.format_picker.filters, kind, option);
+            }
+            if response.double_clicked() {
+                state.confirm_format_picker_selection(&option.id);
+            }
         });
+    });
+}
+
+fn render_muxed_marker(ui: &mut Ui, visible: bool) {
+    if !visible {
+        return;
+    }
+    let icon_size = 14.0;
+    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        ui.add(icon_image(
+            AppIcon::LinkVariant,
+            icon_size,
+            standard_icon_color(ui).linear_multiply(0.72),
+        ));
+    });
+}
+
+#[derive(Clone, Copy)]
+struct FormatPickerTableWidths {
+    marker: f32,
+    resolution: f32,
+    dynamic_range: f32,
+    fps: f32,
+    codec: f32,
+    filesize: f32,
+    sample_rate: f32,
+}
+
+impl FormatPickerTableWidths {
+    fn exact_width_for(self, kind: FormatPickerKind) -> f32 {
+        match kind {
+            FormatPickerKind::Video => {
+                self.marker
+                    + self.resolution
+                    + self.dynamic_range
+                    + self.fps
+                    + self.codec
+                    + self.filesize
+            }
+            FormatPickerKind::Audio => self.marker + self.sample_rate + self.codec + self.filesize,
+            FormatPickerKind::Subtitle | FormatPickerKind::Section => 0.0,
+        }
+    }
+}
+
+fn measure_format_picker_table_widths(
+    ui: &Ui,
+    state: &AppState,
+    kind: FormatPickerKind,
+    options: &[FormatOption],
+) -> FormatPickerTableWidths {
+    let marker = 18.0;
+    let resolution = measure_format_table_column(
+        ui,
+        state.tr(UiText::HEADER_RESOLUTION),
+        options.iter().map(|option| option.resolution.as_str()),
+        72.0,
+        128.0,
+    );
+    let dynamic_range = measure_format_table_column(
+        ui,
+        state.tr(UiText::HEADER_RANGE),
+        options.iter().map(|option| option.dynamic_range.as_str()),
+        44.0,
+        88.0,
+    );
+    let fps = measure_format_table_column(
+        ui,
+        state.tr(UiText::HEADER_FPS),
+        options.iter().map(|option| option.fps.as_str()),
+        36.0,
+        72.0,
+    );
+    let sample_rate = measure_format_table_column(
+        ui,
+        state.tr(UiText::HEADER_SAMPLE_RATE),
+        options.iter().map(|option| option.sample_rate.as_str()),
+        76.0,
+        124.0,
+    );
+    let codec_min = match kind {
+        FormatPickerKind::Audio => 96.0,
+        _ => 84.0,
+    };
+    let codec = measure_format_table_column(
+        ui,
+        state.tr(UiText::HEADER_CODEC),
+        options.iter().map(|option| option.codec.as_str()),
+        codec_min,
+        220.0,
+    );
+    let filesize = measure_format_table_column(
+        ui,
+        state.tr(UiText::HEADER_FILESIZE),
+        options.iter().map(|option| option.filesize.as_str()),
+        70.0,
+        112.0,
+    );
+
+    FormatPickerTableWidths {
+        marker,
+        resolution,
+        dynamic_range,
+        fps,
+        codec,
+        filesize,
+        sample_rate,
+    }
+}
+
+fn measure_format_table_column<'a>(
+    ui: &Ui,
+    header: &str,
+    values: impl IntoIterator<Item = &'a str>,
+    min_width: f32,
+    max_width: f32,
+) -> f32 {
+    measured_column_width(
+        ui,
+        header,
+        values,
+        egui::TextStyle::Body,
+        ui.spacing().item_spacing.x * 2.0 + 14.0,
+        WidthRange::new(min_width, max_width),
+    )
 }
 
 #[cfg(test)]

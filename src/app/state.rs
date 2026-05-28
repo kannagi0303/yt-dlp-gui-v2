@@ -14,17 +14,19 @@ use serde_json::Value;
 
 use crate::i18n::{self, Language, LanguageSelection};
 
+pub use crate::app::app_mode::{AppMode, QueueDisplayMode};
 use crate::app::batch_add_worker::{
     BatchAddEvent, request_batch_add_stop, run_batch_add_worker, terminate_child_process,
 };
 use crate::app::download_worker::{
-    DOWNLOAD_CANCELLED_MESSAGE, DownloadEvent, DownloadProgressSlot, request_download_stop,
-    run_download_worker,
+    DOWNLOAD_CANCELLED_MESSAGE, DownloadEvent, DownloadProgressDetail, DownloadProgressSlot,
+    request_download_stop, run_download_worker,
 };
 pub use crate::app::format_picker_state::{
     FormatPickerFilters, FormatPickerKind, FormatPickerState, FormatPickerViewMode,
     SubtitlePickerTab,
 };
+use crate::app::media_probe::{ffprobe_companion_path_for_ffmpeg, probe_media_with_ffprobe};
 pub use crate::app::metadata::sanitize_file_name_for_windows;
 use crate::app::metadata::{
     PlaylistEntrySeed, display_file_stem, extract_chapters, extract_formats,
@@ -45,7 +47,9 @@ use crate::app::queue_status::{
     QueueSummaryBucket, is_pending_download_state, item_can_enter_download_queue,
     item_latest_download_state, item_summary_bucket, selection_matches_completed,
 };
-use crate::app::thumbnail_worker::{ThumbnailFetchEvent, run_thumbnail_fetch_worker};
+use crate::app::thumbnail_worker::{
+    ThumbnailFetchEvent, fetch_thumbnail_bytes, run_thumbnail_fetch_worker,
+};
 use crate::app::tool_install_worker::{ToolInstallEvent, run_tool_install_worker};
 use crate::app::transcode_plan::resolve_transcode_plan;
 use crate::domain::{
@@ -70,6 +74,8 @@ use crate::infrastructure::{
 };
 
 const MUSIC_STREAM_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
+const MUSIC_LYRICS_DISPLAY_LEAD_SECONDS: f64 = 0.2;
+const MUSIC_LYRICS_FADE_SECONDS: f64 = 0.14;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppTab {
@@ -80,40 +86,11 @@ pub enum AppTab {
     Log,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum QueueDisplayMode {
-    Normal,
-    Audio,
-}
-
-impl QueueDisplayMode {
-    pub fn from_config_value(value: &str) -> Self {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "audio" | "music" | "music_compact" => Self::Audio,
-            _ => Self::Normal,
-        }
-    }
-
-    pub fn config_value(self) -> &'static str {
-        match self {
-            Self::Normal => "normal",
-            Self::Audio => "audio",
-        }
-    }
-
-    pub fn label_key(self) -> &'static str {
-        match self {
-            Self::Normal => "queue_display.normal",
-            Self::Audio => "queue_display.audio",
-        }
-    }
-
-    pub fn tooltip_key(self) -> &'static str {
-        match self {
-            Self::Normal => "queue_display.normal.tooltip",
-            Self::Audio => "queue_display.audio.tooltip",
-        }
-    }
+#[derive(Clone, Debug)]
+pub struct MusicLyricsDisplayLine {
+    pub current: String,
+    pub previous: Option<String>,
+    pub fade: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -223,6 +200,8 @@ impl MusicDownloadFormat {
 pub enum MusicDownloadSourceKind {
     CacheCopy,
     CacheConvert,
+    /// yt-dlp selected an online source that already matches the requested audio codec.
+    YtDlpOnlineTarget,
     YtDlpDownload,
 }
 
@@ -251,6 +230,7 @@ pub struct AppState {
     pub empty_item_preview: VideoMetadata,
     pub queue_items: Vec<QueueItem>,
     queue_display_mode: QueueDisplayMode,
+    app_mode: AppMode,
     pub item_defaults: DownloadOptions,
     pub config: AppConfig,
     pending_ui_scale_percent: u16,
@@ -302,6 +282,10 @@ pub struct AppState {
     music_seek_drag_ratio: Option<f32>,
     music_seek_snap_ratio: Option<f32>,
     music_seek_snap_deadline: Option<Instant>,
+    music_lyrics_cache: HashMap<String, CachedLrcTrack>,
+    music_lyrics_display_line: Option<String>,
+    music_lyrics_previous_line: Option<String>,
+    music_lyrics_transition_started_at: Option<Instant>,
     thumbnail_cache: HashMap<String, ThumbnailCacheEntry>,
     installing_dependency_tool: Option<DependencyTool>,
     tool_install_cancel_handle: Option<ToolInstallCancelHandle>,
@@ -366,6 +350,7 @@ struct MusicStreamSeed {
     acodec: String,
     expected_bytes: Option<u64>,
     cache_key: String,
+    lyrics_track: Option<SubtitleOption>,
 }
 
 struct CompleteMusicCacheHit {
@@ -378,6 +363,28 @@ struct CompleteMusicCacheHit {
     format_id: String,
     acodec: String,
     expected_bytes: Option<u64>,
+}
+
+#[derive(Clone, Debug)]
+struct CachedLrcTrack {
+    path: PathBuf,
+    modified: Option<SystemTime>,
+    lines: Vec<LrcLine>,
+    missing_checked_at: Option<Instant>,
+}
+
+#[derive(Clone, Debug)]
+struct LrcLine {
+    seconds: f64,
+    text: String,
+}
+
+#[derive(Clone, Debug)]
+struct MusicLyricsCacheJob {
+    source_url: String,
+    cache_key: String,
+    language_code: String,
+    use_cookies: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -483,6 +490,59 @@ fn progress_summary_text(language: Language, progress: &ToolInstallProgress) -> 
     }
 }
 
+fn format_download_progress_detail(language: Language, detail: &DownloadProgressDetail) -> String {
+    let mut lines = Vec::new();
+
+    push_detail_line(&mut lines, "Downloaded", detail.downloaded.as_deref());
+    push_detail_line(&mut lines, "Total", detail.total.as_deref());
+    push_detail_line(&mut lines, "Speed", detail.speed.as_deref());
+    push_detail_line(&mut lines, "Elapsed", detail.elapsed.as_deref());
+    push_detail_line(&mut lines, "Frame", detail.frame.as_deref());
+    push_detail_line(&mut lines, "FPS", detail.fps.as_deref());
+    push_detail_line(&mut lines, "Time", detail.time.as_deref());
+
+    if lines.is_empty() {
+        i18n::text(language, "item.status.running").to_owned()
+    } else {
+        lines.join("\n")
+    }
+}
+
+fn push_detail_line(lines: &mut Vec<String>, label: &str, value: Option<&str>) {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return;
+    };
+    lines.push(format!("{label}\t{value}"));
+}
+
+fn single_mode_status_workflow_visible(run: &WorkflowRun, item: &QueueItem) -> bool {
+    if !matches!(
+        run.kind,
+        WorkflowKind::DownloadMedia | WorkflowKind::ExportMedia | WorkflowKind::PostProcess
+    ) {
+        return false;
+    }
+
+    matches!(run.state, WorkflowState::Queued | WorkflowState::Running)
+        || !run.detail.trim().is_empty()
+        || run.output_path.is_some()
+        || run.error.is_some()
+        || item.last_error.is_some()
+}
+
+fn workflow_tool_label(tool: &ToolKind) -> String {
+    match tool {
+        ToolKind::YtDlp => "yt-dlp".to_owned(),
+        ToolKind::Ffmpeg => "FFMPEG".to_owned(),
+        ToolKind::Aria2c => "aria2c".to_owned(),
+        ToolKind::Other(label) => label.clone(),
+    }
+}
+
+fn status_lines_contain(lines: &[(String, String)], label: &str) -> bool {
+    lines.iter().any(|(candidate, _)| candidate == label)
+}
+
 fn queue_item_status_key(item: &QueueItem) -> &'static str {
     if let Some(run) = item.workflows.iter().rev().find(|run| {
         matches!(
@@ -560,6 +620,10 @@ fn reset_item_for_new_work(item: &mut QueueItem, target_kind: DownloadTargetKind
 impl AppState {
     pub fn new() -> Self {
         let (config, tool_paths) = AppConfig::load_runtime();
+        Self::from_runtime(config, tool_paths)
+    }
+
+    pub fn from_runtime(mut config: AppConfig, tool_paths: ToolPaths) -> Self {
         let (analyze_result_tx, analyze_result_rx) = mpsc::channel();
         let (download_result_tx, download_result_rx) = mpsc::channel();
         let (post_process_result_tx, post_process_result_rx) = mpsc::channel();
@@ -571,7 +635,10 @@ impl AppState {
         let pending_ui_scale_percent = config.ui_scale_percent;
         let music_volume = config.music_volume.clamp(0.0, 1.0);
         let music_playback_mode = MusicPlaybackMode::from_config_value(&config.music_playback_mode);
-        let queue_display_mode = QueueDisplayMode::from_config_value(&config.queue_display_mode);
+        let app_mode = AppMode::from_config_value(&config.app_mode);
+        let queue_display_mode = QueueDisplayMode::from_app_mode(app_mode);
+        config.app_mode = app_mode.config_value().to_owned();
+        config.queue_display_mode = queue_display_mode.config_value().to_owned();
         let mut state = Self {
             active_tab: AppTab::Main,
             url_input: String::new(),
@@ -583,6 +650,7 @@ impl AppState {
             empty_item_preview: VideoMetadata::empty_preview(),
             queue_items: Vec::new(),
             queue_display_mode,
+            app_mode,
             item_defaults: {
                 let mut defaults = DownloadOptions::default();
                 defaults.output_dir = config.download_dir.clone();
@@ -646,6 +714,10 @@ impl AppState {
             music_seek_drag_ratio: None,
             music_seek_snap_ratio: None,
             music_seek_snap_deadline: None,
+            music_lyrics_cache: HashMap::new(),
+            music_lyrics_display_line: None,
+            music_lyrics_previous_line: None,
+            music_lyrics_transition_started_at: None,
             thumbnail_cache: HashMap::new(),
             installing_dependency_tool: None,
             tool_install_cancel_handle: None,
@@ -759,6 +831,23 @@ impl AppState {
         }
 
         let source = source.to_owned();
+        if self.app_mode == AppMode::Origin {
+            if youtube_url_has_video_and_playlist(&source) {
+                let single_source =
+                    youtube_url_force_single_video(&source).unwrap_or_else(|| source.clone());
+                self.add_single_url_to_batch(single_source);
+                return;
+            }
+            if looks_like_playlist_url(&source) {
+                self.last_action = self
+                    .tr("state.single_mode_playlist_not_supported")
+                    .to_owned();
+                return;
+            }
+            self.add_single_url_to_batch(source);
+            return;
+        }
+
         if youtube_url_has_video_and_playlist(&source) {
             match self.config.youtube_video_playlist_mode {
                 YoutubeVideoPlaylistMode::Ask => {
@@ -811,7 +900,9 @@ impl AppState {
     }
 
     pub fn run_primary_url_action(&mut self) {
-        if self.queue_display_mode == QueueDisplayMode::Audio {
+        if self.app_mode == AppMode::Origin {
+            self.add_current_url_to_batch();
+        } else if self.queue_display_mode == QueueDisplayMode::Audio {
             self.add_current_url_to_music_compact_batch();
         } else if self.config.direct_download_on_add {
             self.immediate_download_current_url();
@@ -827,6 +918,8 @@ impl AppState {
             } else {
                 self.tr("action.stop")
             }
+        } else if self.app_mode == AppMode::Origin {
+            self.tr("action.analyze")
         } else if self.queue_display_mode == QueueDisplayMode::Audio {
             self.tr("action.add")
         } else if self.config.direct_download_on_add {
@@ -863,8 +956,26 @@ impl AppState {
             return;
         }
 
-        let item_id = self.ensure_queue_item_for_url(&source);
-        self.url_input.clear();
+        let item_id = if self.app_mode == AppMode::Origin {
+            if !self.active_workflows.is_empty() {
+                self.last_action = self
+                    .tr("state.single_mode_wait_for_current_item")
+                    .to_owned();
+                return;
+            }
+            self.stop_music_playback();
+            self.queue_items.clear();
+            self.batch_input.clear();
+            let item = self.build_queue_item_from_url(&source);
+            let item_id = item.id;
+            self.queue_items.push(item);
+            item_id
+        } else {
+            self.ensure_queue_item_for_url(&source)
+        };
+        if self.app_mode != AppMode::Origin {
+            self.url_input.clear();
+        }
         let fallback_title = infer_title(
             &source,
             self.tr("state.untitled_task"),
@@ -1195,13 +1306,18 @@ impl AppState {
                     workflow_id,
                     slot,
                     percent,
+                    detail,
                 }) => {
+                    let language = self.language();
                     if let Some(item) = self.queue_item_mut_by_id(item_id) {
                         let display_percent = percent.clamp(0.0, 100.0);
                         if let Some(run) =
                             item.workflows.iter_mut().find(|run| run.id == workflow_id)
                         {
                             run.progress = monotonic_progress(run.progress, display_percent);
+                            if let Some(detail) = detail.as_ref() {
+                                run.detail = format_download_progress_detail(language, detail);
+                            }
                         }
                         match slot {
                             DownloadProgressSlot::Video => {
@@ -1445,6 +1561,47 @@ impl AppState {
         );
     }
 
+    pub fn app_mode(&self) -> AppMode {
+        self.app_mode
+    }
+
+    pub fn set_app_mode(&mut self, mode: AppMode) {
+        if self.app_mode == mode {
+            return;
+        }
+        self.app_mode = mode;
+        match mode {
+            AppMode::Audio => {
+                if self.queue_display_mode != QueueDisplayMode::Audio {
+                    self.queue_display_mode = QueueDisplayMode::Audio;
+                    self.config.queue_display_mode =
+                        QueueDisplayMode::Audio.config_value().to_owned();
+                    self.prepare_queue_items_for_audio_mode();
+                }
+            }
+            AppMode::Origin | AppMode::Standard => {
+                if self.queue_display_mode == QueueDisplayMode::Audio {
+                    self.queue_display_mode = QueueDisplayMode::Normal;
+                    self.config.queue_display_mode =
+                        QueueDisplayMode::Normal.config_value().to_owned();
+                    if let Some(control) = self.music_playback.take() {
+                        control.stop();
+                        self.mark_music_playback_state(control.item_id, CompactMusicState::Ready);
+                    }
+                    self.music_player_current_item_id = None;
+                    self.music_player_error = None;
+                    self.media_session.clear();
+                    for item in &mut self.queue_items {
+                        item.view_kind = QueueItemViewKind::VideoCard;
+                    }
+                }
+            }
+        }
+        self.config.app_mode = mode.config_value().to_owned();
+        let _ = self.config.save();
+        self.last_action = self.tr(mode.label_key()).to_owned();
+    }
+
     pub fn queue_display_mode(&self) -> QueueDisplayMode {
         self.queue_display_mode
     }
@@ -1458,7 +1615,13 @@ impl AppState {
             return;
         }
         self.queue_display_mode = mode;
+        if mode == QueueDisplayMode::Audio {
+            self.app_mode = AppMode::Audio;
+        } else if self.app_mode == AppMode::Audio {
+            self.app_mode = AppMode::Standard;
+        }
         self.config.queue_display_mode = mode.config_value().to_owned();
+        self.config.app_mode = self.app_mode.config_value().to_owned();
         let _ = self.config.save();
         if mode == QueueDisplayMode::Audio {
             self.prepare_queue_items_for_audio_mode();
@@ -1471,7 +1634,11 @@ impl AppState {
             self.music_player_error = None;
             self.media_session.clear();
         }
-        let mode_label = self.tr(mode.label_key()).to_owned();
+        let mode_label_key = match mode {
+            QueueDisplayMode::Normal => "queue_display.normal",
+            QueueDisplayMode::Audio => "queue_display.audio",
+        };
+        let mode_label = self.tr(mode_label_key).to_owned();
         self.last_action = self.trf(
             "state.queue_display_mode_changed",
             &[("{mode}", mode_label.as_str())],
@@ -2154,6 +2321,33 @@ impl AppState {
             return ThumbnailRenderSource::DirectUrl;
         };
 
+        self.thumbnail_render_source_with_proxy(ctx, url, proxy_url)
+    }
+
+    pub fn single_thumbnail_render_source_for_url(
+        &mut self,
+        ctx: &eframe::egui::Context,
+        url: &str,
+    ) -> ThumbnailRenderSource {
+        let url = url.trim();
+        if url.is_empty() {
+            return ThumbnailRenderSource::None;
+        }
+
+        let proxy_url = self
+            .tool_paths
+            .effective_proxy_url()
+            .map(str::to_owned)
+            .unwrap_or_default();
+        self.thumbnail_render_source_with_proxy(ctx, url, proxy_url)
+    }
+
+    fn thumbnail_render_source_with_proxy(
+        &mut self,
+        ctx: &eframe::egui::Context,
+        url: &str,
+        proxy_url: String,
+    ) -> ThumbnailRenderSource {
         if !thumbnail_needs_memory_loader(url) {
             return ThumbnailRenderSource::DirectUrl;
         }
@@ -2200,6 +2394,69 @@ impl AppState {
             })
             || self.installing_dependency_tool.is_some()
             || !self.pending_dependency_installs.is_empty()
+    }
+
+    pub fn save_thumbnail_url_to_path(&mut self, url: &str, path: &Path) -> Result<(), String> {
+        let url = url.trim();
+        if url.is_empty() {
+            return Err(self.tr("runtime.thumbnail_empty_url").to_owned());
+        }
+
+        let proxy_url = self
+            .tool_paths
+            .effective_proxy_url()
+            .map(str::to_owned)
+            .unwrap_or_default();
+        let bytes = fetch_thumbnail_bytes(url, &proxy_url, self.tool_paths.no_check_certificates)?;
+        Self::save_thumbnail_bytes_as(&bytes, path)?;
+        let display_path = path.display().to_string();
+        self.last_action = self.trf(
+            "state.thumbnail_saved",
+            &[("{path}", display_path.as_str())],
+        );
+        Ok(())
+    }
+
+    fn save_thumbnail_bytes_as(bytes: &[u8], path: &Path) -> Result<(), String> {
+        let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
+            fs::write(path, bytes).map_err(|error| format!("Could not save thumbnail: {error}"))?;
+            return Ok(());
+        };
+
+        match extension.trim().to_ascii_lowercase().as_str() {
+            "jpg" | "jpeg" => Self::save_thumbnail_as_jpeg(bytes, path),
+            "png" => Self::save_thumbnail_as_image_format(bytes, path, image::ImageFormat::Png),
+            "webp" => Self::save_thumbnail_as_image_format(bytes, path, image::ImageFormat::WebP),
+            _ => {
+                fs::write(path, bytes).map_err(|error| format!("Could not save thumbnail: {error}"))
+            }
+        }
+    }
+
+    fn save_thumbnail_as_jpeg(bytes: &[u8], path: &Path) -> Result<(), String> {
+        let image = image::load_from_memory(bytes)
+            .map_err(|error| format!("Could not decode thumbnail: {error}"))?;
+        let rgb = image.to_rgb8();
+        let mut file =
+            fs::File::create(path).map_err(|error| format!("Could not save thumbnail: {error}"))?;
+        let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut file, 92);
+        encoder
+            .encode_image(&rgb)
+            .map_err(|error| format!("Could not encode thumbnail: {error}"))
+    }
+
+    fn save_thumbnail_as_image_format(
+        bytes: &[u8],
+        path: &Path,
+        format: image::ImageFormat,
+    ) -> Result<(), String> {
+        let image = image::load_from_memory(bytes)
+            .map_err(|error| format!("Could not decode thumbnail: {error}"))?;
+        let mut file =
+            fs::File::create(path).map_err(|error| format!("Could not save thumbnail: {error}"))?;
+        image
+            .write_to(&mut file, format)
+            .map_err(|error| format!("Could not encode thumbnail: {error}"))
     }
 
     fn enqueue_item_analysis(&mut self, item_id: QueueItemId, source: String) {
@@ -2626,6 +2883,7 @@ impl AppState {
             title: item.title.clone(),
             output_dir,
             target_format: format,
+            source_acodec: item.music_stream_acodec.clone(),
             cache_media_path,
             cover_path,
             cover_cache_dir,
@@ -3163,6 +3421,8 @@ impl AppState {
                 result,
             } => match result {
                 Ok(seed) => {
+                    let lyrics_track = seed.lyrics_track.clone();
+                    let mut updated_item = None;
                     if let Some(item) = self.queue_item_mut_by_id(item_id) {
                         item.source_url = seed.source_url;
                         item.title = seed.title;
@@ -3190,6 +3450,10 @@ impl AppState {
                             item.selection.file_name =
                                 sanitize_file_name_for_windows(item.title.trim());
                         }
+                        updated_item = Some(item.clone());
+                    }
+                    if let Some(item) = updated_item.as_ref() {
+                        self.cache_music_lyrics_for_item(item, lyrics_track.as_ref());
                     }
                     self.music_player_error = None;
                     self.last_action =
@@ -3290,6 +3554,7 @@ impl AppState {
                         let source_label = match source_kind {
                             MusicDownloadSourceKind::CacheCopy => "cache copy",
                             MusicDownloadSourceKind::CacheConvert => "cache convert",
+                            MusicDownloadSourceKind::YtDlpOnlineTarget => "yt-dlp online target",
                             MusicDownloadSourceKind::YtDlpDownload => "yt-dlp",
                         };
                         self.push_runtime_log(format!(
@@ -3564,8 +3829,8 @@ impl AppState {
         let imported_template = self.tr("state.imported_source").to_owned();
         thread::spawn(move || {
             let result = (|| -> Result<PlaylistEntrySeed, String> {
-                let mut command = tool_paths
-                    .prepare_music_flat_update_command(&source, use_cookies)?;
+                let mut command =
+                    tool_paths.prepare_music_flat_update_command(&source, use_cookies)?;
                 command
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
@@ -3760,6 +4025,158 @@ impl AppState {
                 eprintln!("[music-stream] flat cover cache skipped: {error}");
             }
         });
+    }
+
+    fn cache_music_lyrics_for_item(&self, item: &QueueItem, track: Option<&SubtitleOption>) {
+        let Some(track) = track.filter(|track| track.source == SubtitleSource::Original) else {
+            return;
+        };
+        let language_code = track.download_language_code.trim();
+        if language_code.is_empty() {
+            return;
+        }
+        let cache_key = if item.music_cache_key.trim().is_empty() {
+            music_cache_key(&item.source_url, "lyrics", "", "")
+        } else {
+            item.music_cache_key.clone()
+        };
+        let lyrics_path = music_lrc_cache_path(&self.music_stream_cache_root(), &cache_key);
+        if lyrics_path.is_file() {
+            return;
+        }
+        let job = MusicLyricsCacheJob {
+            source_url: item.source_url.clone(),
+            cache_key,
+            language_code: language_code.to_owned(),
+            use_cookies: item.selection.use_cookies,
+        };
+        let tool_paths = self.tool_paths.clone();
+        let cache_root = self.music_stream_cache_root();
+        thread::spawn(move || {
+            if let Err(error) = cache_music_lyrics_with_yt_dlp(&tool_paths, &cache_root, job) {
+                eprintln!("[music-lyrics] cache skipped: {error}");
+            }
+        });
+    }
+
+    pub fn music_current_lyrics_display(&mut self) -> Option<MusicLyricsDisplayLine> {
+        let current = self.current_music_lyrics_line_with_lead();
+        self.update_music_lyrics_display_state(current)
+    }
+
+    fn current_music_lyrics_line_with_lead(&mut self) -> Option<String> {
+        let control = self.music_playback.clone()?;
+        let item = self.queue_item_by_id(control.item_id)?.clone();
+        let cache_key = item.music_cache_key.trim();
+        if cache_key.is_empty() {
+            return None;
+        }
+        let seconds =
+            if self.music_seek_drag_ratio.is_some() || self.music_seek_snap_ratio.is_some() {
+                control
+                    .duration_seconds()
+                    .map(|duration| {
+                        duration * f64::from(self.music_seek_display_ratio().clamp(0.0, 1.0))
+                    })
+                    .unwrap_or_else(|| control.playback_seconds())
+            } else {
+                control.playback_seconds()
+            } + MUSIC_LYRICS_DISPLAY_LEAD_SECONDS;
+        let path = music_lrc_cache_path(&self.music_stream_cache_root(), cache_key);
+        let lines = self.cached_music_lrc_lines(cache_key, path)?;
+        current_lrc_line_text(&lines, seconds)
+    }
+
+    fn update_music_lyrics_display_state(
+        &mut self,
+        current: Option<String>,
+    ) -> Option<MusicLyricsDisplayLine> {
+        let now = Instant::now();
+        match current {
+            Some(current) => {
+                if self.music_lyrics_display_line.as_deref() != Some(current.as_str()) {
+                    self.music_lyrics_previous_line = self.music_lyrics_display_line.take();
+                    self.music_lyrics_display_line = Some(current);
+                    self.music_lyrics_transition_started_at = Some(now);
+                }
+            }
+            None => {
+                self.music_lyrics_display_line = None;
+                self.music_lyrics_previous_line = None;
+                self.music_lyrics_transition_started_at = None;
+                return None;
+            }
+        }
+
+        let fade = self
+            .music_lyrics_transition_started_at
+            .map(|started| {
+                (now.duration_since(started).as_secs_f64() / MUSIC_LYRICS_FADE_SECONDS)
+                    .clamp(0.0, 1.0) as f32
+            })
+            .unwrap_or(1.0);
+        if fade >= 1.0 {
+            self.music_lyrics_previous_line = None;
+            self.music_lyrics_transition_started_at = None;
+        }
+
+        self.music_lyrics_display_line
+            .as_ref()
+            .map(|current| MusicLyricsDisplayLine {
+                current: current.clone(),
+                previous: self.music_lyrics_previous_line.clone(),
+                fade,
+            })
+    }
+
+    fn cached_music_lrc_lines(&mut self, cache_key: &str, path: PathBuf) -> Option<Vec<LrcLine>> {
+        let metadata = fs::metadata(&path).ok();
+        let modified = metadata.as_ref().and_then(|meta| meta.modified().ok());
+        let now = Instant::now();
+        if metadata.is_none() {
+            let entry = self
+                .music_lyrics_cache
+                .entry(cache_key.to_owned())
+                .or_insert_with(|| CachedLrcTrack {
+                    path: path.clone(),
+                    modified: None,
+                    lines: Vec::new(),
+                    missing_checked_at: Some(now),
+                });
+            let recently_checked = entry
+                .missing_checked_at
+                .is_some_and(|checked| now.duration_since(checked) < Duration::from_secs(1));
+            if !recently_checked {
+                entry.path = path;
+                entry.modified = None;
+                entry.lines.clear();
+                entry.missing_checked_at = Some(now);
+            }
+            return None;
+        }
+
+        let reload = self
+            .music_lyrics_cache
+            .get(cache_key)
+            .map_or(true, |entry| {
+                entry.path != path || entry.modified != modified || entry.lines.is_empty()
+            });
+        if reload {
+            let lines = parse_lrc_file(&path).unwrap_or_default();
+            self.music_lyrics_cache.insert(
+                cache_key.to_owned(),
+                CachedLrcTrack {
+                    path,
+                    modified,
+                    lines,
+                    missing_checked_at: None,
+                },
+            );
+        }
+        self.music_lyrics_cache
+            .get(cache_key)
+            .map(|entry| entry.lines.clone())
+            .filter(|lines| !lines.is_empty())
     }
 
     pub fn has_music_compact_items(&self) -> bool {
@@ -4095,6 +4512,12 @@ impl AppState {
                 }
             }
         };
+
+        let lyrics_track = item
+            .metadata()
+            .and_then(primary_original_subtitle_track_from_metadata)
+            .cloned();
+        self.cache_music_lyrics_for_item(&item, lyrics_track.as_ref());
 
         let stream = ResolvedMusicStream {
             item_id,
@@ -4643,7 +5066,6 @@ impl AppState {
         self.config.theme_accent_color = color;
         let _ = self.config.save();
     }
-
 
     pub fn set_show_log_tab(&mut self, enabled: bool) {
         self.config.show_log_tab = enabled;
@@ -5676,6 +6098,64 @@ impl AppState {
         self.tr(queue_item_status_key(item))
     }
 
+    pub fn single_mode_status_lines(&self) -> Vec<(String, String)> {
+        let Some(item) = self.queue_items.first() else {
+            return Vec::new();
+        };
+
+        let Some(run) = item
+            .workflows
+            .iter()
+            .rev()
+            .find(|run| single_mode_status_workflow_visible(run, item))
+        else {
+            return Vec::new();
+        };
+
+        let mut lines = Vec::new();
+        lines.push(("Downloader".to_owned(), workflow_tool_label(&run.tool)));
+
+        for line in run.detail.lines() {
+            let Some((label, value)) = line.split_once('\t') else {
+                continue;
+            };
+            let label = label.trim();
+            let value = value.trim();
+            if !label.is_empty() && !value.is_empty() {
+                lines.push((label.to_owned(), value.to_owned()));
+            }
+        }
+
+        if run.progress > 0.0 && run.progress < 100.0 && !status_lines_contain(&lines, "Progress") {
+            lines.push((
+                "Progress".to_owned(),
+                format!("{:.0}%", run.progress.round()),
+            ));
+        }
+
+        let status = match run.state {
+            WorkflowState::Queued => self.tr("item.status.queued"),
+            WorkflowState::Running => self.tr("item.status.running"),
+            WorkflowState::Finished if item.last_error.is_some() => self.tr("item.status.failed"),
+            WorkflowState::Finished => self.tr("item.status.finished"),
+            WorkflowState::Failed => self.tr("item.status.failed"),
+            WorkflowState::Cancelled => self.tr("item.status.cancelled"),
+        };
+        lines.push(("Status".to_owned(), status.to_owned()));
+
+        if let Some(error) = run
+            .error
+            .as_deref()
+            .or(item.last_error.as_deref())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            lines.push(("Error".to_owned(), error.to_owned()));
+        }
+
+        lines
+    }
+
     pub fn item_title_text(&self, item_index: usize) -> String {
         let Some(item) = self.queue_items.get(item_index) else {
             return String::new();
@@ -5699,6 +6179,22 @@ impl AppState {
                 .any(|run| run.state == WorkflowState::Running)
     }
 
+    pub fn single_mode_analysis_running(&self) -> bool {
+        if self.app_mode != AppMode::Origin {
+            return false;
+        }
+        let Some(item) = self.queue_items.first() else {
+            return false;
+        };
+        matches!(
+            item.metadata_state,
+            MetadataState::Queued | MetadataState::Running
+        ) || item.workflows.iter().any(|run| {
+            run.kind == WorkflowKind::AnalyzeMetadata
+                && matches!(run.state, WorkflowState::Queued | WorkflowState::Running)
+        })
+    }
+
     pub fn url_input_locked(&self) -> bool {
         self.is_adding_batch || self.youtube_playlist_prompt.is_some()
     }
@@ -5709,8 +6205,26 @@ impl AppState {
             return;
         }
 
-        let item_id = self.ensure_queue_item_for_url(&source);
-        self.url_input.clear();
+        let item_id = if self.app_mode == AppMode::Origin {
+            if !self.active_workflows.is_empty() {
+                self.last_action = self
+                    .tr("state.single_mode_wait_for_current_item")
+                    .to_owned();
+                return;
+            }
+            self.stop_music_playback();
+            self.queue_items.clear();
+            self.batch_input.clear();
+            let item = self.build_queue_item_from_url(&source);
+            let item_id = item.id;
+            self.queue_items.push(item);
+            item_id
+        } else {
+            self.ensure_queue_item_for_url(&source)
+        };
+        if self.app_mode != AppMode::Origin {
+            self.url_input.clear();
+        }
         let fallback_title = infer_title(
             &source,
             self.tr("state.untitled_task"),
@@ -6001,6 +6515,13 @@ impl AppState {
         self.format_picker.open = true;
         self.format_picker.target_item_id = Some(target_item_id);
         self.format_picker.kind = Some(kind);
+        self.format_picker.view_mode = if self.app_mode == AppMode::Origin
+            && matches!(kind, FormatPickerKind::Video | FormatPickerKind::Audio)
+        {
+            FormatPickerViewMode::Table
+        } else {
+            FormatPickerViewMode::Filter
+        };
         self.format_picker.filter_text.clear();
         self.format_picker.filters.clear();
 
@@ -6506,12 +7027,12 @@ impl AppState {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_owned();
-        let uploader = json
-            .get("uploader")
-            .or_else(|| json.get("channel"))
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned();
+        let channel = json_str_field(&json, "channel").unwrap_or_default();
+        let channel_url = json_str_field(&json, "channel_url").unwrap_or_default();
+        let uploader = json_str_field(&json, "uploader").unwrap_or_default();
+        let uploader_url = json_str_field(&json, "uploader_url").unwrap_or_default();
+        let creator = json_str_field(&json, "creator").unwrap_or_default();
+        let creator_url = json_str_field(&json, "creator_url").unwrap_or_default();
         let duration_text = json
             .get("duration_string")
             .and_then(Value::as_str)
@@ -6544,15 +7065,16 @@ impl AppState {
 
         let metadata = VideoMetadata {
             title: title.clone(),
+            channel,
+            channel_url,
             uploader,
+            uploader_url,
+            creator,
+            creator_url,
             duration_text,
             webpage_url,
             description,
-            view_count_text: json
-                .get("view_count")
-                .and_then(Value::as_i64)
-                .map(|value| value.to_string())
-                .unwrap_or_default(),
+            view_count_text: json_number_or_str_field(&json, "view_count").unwrap_or_default(),
             upload_date_text,
             thumbnail_hint,
             thumbnail_url,
@@ -7026,7 +7548,307 @@ fn music_stream_seed_from_json(json: &Value, source: &str) -> Result<MusicStream
         acodec,
         expected_bytes,
         cache_key,
+        lyrics_track: primary_original_subtitle_track_from_json(json),
     })
+}
+
+fn primary_original_subtitle_track_from_json(json: &Value) -> Option<SubtitleOption> {
+    let tracks = extract_subtitle_tracks(json);
+    primary_original_subtitle_track_from_tracks(json, tracks.into_iter())
+}
+
+fn primary_original_subtitle_track_from_metadata(
+    metadata: &VideoMetadata,
+) -> Option<&SubtitleOption> {
+    let original_tracks = metadata
+        .subtitle_tracks
+        .iter()
+        .filter(|track| is_direct_original_subtitle_track(track))
+        .collect::<Vec<_>>();
+    if original_tracks.is_empty() {
+        return None;
+    }
+
+    let preferred_languages = metadata_language_candidates_from_metadata(metadata);
+    for language in preferred_languages {
+        if let Some(track) = original_tracks.iter().find(|track| {
+            subtitle_language_matches(&track.download_language_code, &language)
+                || subtitle_language_matches(&track.source_language_code, &language)
+        }) {
+            return Some(*track);
+        }
+    }
+
+    original_tracks.into_iter().next()
+}
+
+fn primary_original_subtitle_track_from_tracks(
+    json: &Value,
+    tracks: impl Iterator<Item = SubtitleOption>,
+) -> Option<SubtitleOption> {
+    let original_tracks = tracks
+        .filter(is_direct_original_subtitle_track)
+        .collect::<Vec<_>>();
+    if original_tracks.is_empty() {
+        return None;
+    }
+
+    let preferred_languages = metadata_language_candidates(json);
+    for language in preferred_languages {
+        if let Some(track) = original_tracks.iter().find(|track| {
+            subtitle_language_matches(&track.download_language_code, &language)
+                || subtitle_language_matches(&track.source_language_code, &language)
+        }) {
+            return Some(track.clone());
+        }
+    }
+
+    original_tracks.into_iter().next()
+}
+
+fn is_direct_original_subtitle_track(track: &SubtitleOption) -> bool {
+    track.source == SubtitleSource::Original && track.target_language_code.is_none()
+}
+
+fn metadata_language_candidates(json: &Value) -> Vec<String> {
+    let mut languages = Vec::new();
+    for key in ["language", "original_language", "lang"] {
+        if let Some(value) = json_str_field(json, key) {
+            push_unique_language(&mut languages, value);
+        }
+    }
+    push_text_inferred_language_candidates(
+        &mut languages,
+        [
+            "track",
+            "title",
+            "fulltitle",
+            "alt_title",
+            "artist",
+            "artists",
+            "creator",
+            "channel",
+            "uploader",
+        ]
+        .into_iter()
+        .filter_map(|key| json_str_field(json, key)),
+    );
+    languages
+}
+
+fn metadata_language_candidates_from_metadata(metadata: &VideoMetadata) -> Vec<String> {
+    let mut languages = Vec::new();
+    push_text_inferred_language_candidates(
+        &mut languages,
+        [
+            metadata.title.as_str(),
+            metadata.creator.as_str(),
+            metadata.channel.as_str(),
+            metadata.uploader.as_str(),
+        ],
+    );
+    languages
+}
+
+fn push_text_inferred_language_candidates<T: AsRef<str>>(
+    languages: &mut Vec<String>,
+    texts: impl IntoIterator<Item = T>,
+) {
+    let mut saw_japanese_kana = false;
+    let mut saw_hangul = false;
+    let mut saw_thai = false;
+
+    for text in texts {
+        for ch in text.as_ref().chars() {
+            let code = ch as u32;
+            saw_japanese_kana |= (0x3040..=0x309f).contains(&code)
+                || (0x30a0..=0x30ff).contains(&code)
+                || (0xff66..=0xff9d).contains(&code);
+            saw_hangul |= (0xac00..=0xd7af).contains(&code)
+                || (0x1100..=0x11ff).contains(&code)
+                || (0x3130..=0x318f).contains(&code);
+            saw_thai |= (0x0e00..=0x0e7f).contains(&code);
+        }
+    }
+
+    if saw_japanese_kana {
+        push_unique_language(languages, "ja".to_owned());
+    }
+    if saw_hangul {
+        push_unique_language(languages, "ko".to_owned());
+    }
+    if saw_thai {
+        push_unique_language(languages, "th".to_owned());
+    }
+}
+
+fn push_unique_language(languages: &mut Vec<String>, value: String) {
+    let normalized = normalize_subtitle_language_code(&value);
+    if normalized.is_empty() {
+        return;
+    }
+    if !languages.iter().any(|item| item == &normalized) {
+        languages.push(normalized);
+    }
+}
+
+fn subtitle_language_matches(left: &str, right: &str) -> bool {
+    let left = normalize_subtitle_language_code(left);
+    let right = normalize_subtitle_language_code(right);
+    !left.is_empty()
+        && !right.is_empty()
+        && (left == right
+            || left.starts_with(&format!("{right}-"))
+            || right.starts_with(&format!("{left}-")))
+}
+
+fn normalize_subtitle_language_code(value: &str) -> String {
+    let normalized = value.trim().replace('_', "-").to_ascii_lowercase();
+    match normalized.as_str() {
+        "jp" | "jpn" | "japanese" => "ja".to_owned(),
+        "kr" | "kor" | "korean" => "ko".to_owned(),
+        "cn" | "chi" | "zho" | "chinese" => "zh".to_owned(),
+        "tw" => "zh-tw".to_owned(),
+        _ => normalized,
+    }
+}
+
+fn music_lrc_cache_path(cache_root: &Path, cache_key: &str) -> PathBuf {
+    cache_root
+        .join("lyrics")
+        .join(sanitize_music_cache_key(cache_key))
+        .join("lyrics.lrc")
+}
+
+fn cache_music_lyrics_with_yt_dlp(
+    tool_paths: &ToolPaths,
+    cache_root: &Path,
+    job: MusicLyricsCacheJob,
+) -> Result<(), String> {
+    let lyrics_dir = cache_root
+        .join("lyrics")
+        .join(sanitize_music_cache_key(&job.cache_key));
+    fs::create_dir_all(&lyrics_dir)
+        .map_err(|error| format!("Could not create lyrics cache folder: {error}"))?;
+    let target_path = lyrics_dir.join("lyrics.lrc");
+    if target_path.is_file() {
+        return Ok(());
+    }
+    let mut command = tool_paths.prepare_music_lyrics_cache_command(
+        &job.source_url,
+        &lyrics_dir,
+        &job.language_code,
+        job.use_cookies,
+    )?;
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not start yt-dlp lyrics cache: {error}"))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr)
+            .lines()
+            .rev()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("unknown yt-dlp error")
+            .to_owned();
+        return Err(format!("yt-dlp lyrics cache failed: {detail}"));
+    }
+    let Some(candidate) = find_latest_file_in_dir(&lyrics_dir, "lrc") else {
+        return Err("yt-dlp finished, but no LRC lyrics file was produced.".to_owned());
+    };
+    if candidate != target_path {
+        if target_path.exists() {
+            let _ = fs::remove_file(&target_path);
+        }
+        fs::rename(&candidate, &target_path)
+            .or_else(|_| fs::copy(&candidate, &target_path).map(|_| ()))
+            .map_err(|error| format!("Could not move LRC lyrics into cache: {error}"))?;
+    }
+    cleanup_music_lyrics_cache_dir(&lyrics_dir, &target_path);
+    Ok(())
+}
+
+fn cleanup_music_lyrics_cache_dir(lyrics_dir: &Path, keep_path: &Path) {
+    let Ok(entries) = fs::read_dir(lyrics_dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path != keep_path && path.is_file() {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
+fn parse_lrc_file(path: &Path) -> Result<Vec<LrcLine>, String> {
+    let text = fs::read_to_string(path)
+        .map_err(|error| format!("Could not read LRC lyrics cache: {error}"))?;
+    Ok(parse_lrc_text(&text))
+}
+
+fn parse_lrc_text(text: &str) -> Vec<LrcLine> {
+    let mut lines = Vec::new();
+    for raw_line in text.lines() {
+        let mut rest = raw_line.trim();
+        let mut timestamps = Vec::new();
+        while let Some(stripped) = rest.strip_prefix('[') {
+            let Some((timestamp, tail)) = stripped.split_once(']') else {
+                break;
+            };
+            let Some(seconds) = parse_lrc_timestamp(timestamp) else {
+                break;
+            };
+            timestamps.push(seconds);
+            rest = tail.trim_start();
+        }
+        let text = rest.trim();
+        if text.is_empty() || timestamps.is_empty() {
+            continue;
+        }
+        for seconds in timestamps {
+            lines.push(LrcLine {
+                seconds,
+                text: text.to_owned(),
+            });
+        }
+    }
+    lines.sort_by(|left, right| {
+        left.seconds
+            .partial_cmp(&right.seconds)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    lines
+}
+
+fn parse_lrc_timestamp(value: &str) -> Option<f64> {
+    let mut parts = value.trim().split(':').collect::<Vec<_>>();
+    if parts.len() < 2 || parts.len() > 3 {
+        return None;
+    }
+    let seconds_text = parts.pop()?;
+    let minutes = parts.pop()?.parse::<u64>().ok()?;
+    let hours = parts
+        .pop()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(0);
+    let seconds = seconds_text.replace(',', ".").parse::<f64>().ok()?;
+    if !seconds.is_finite() || seconds < 0.0 {
+        return None;
+    }
+    Some(hours as f64 * 3600.0 + minutes as f64 * 60.0 + seconds)
+}
+
+fn current_lrc_line_text(lines: &[LrcLine], seconds: f64) -> Option<String> {
+    if !seconds.is_finite() || lines.is_empty() {
+        return None;
+    }
+    let index = lines.partition_point(|line| line.seconds <= seconds.max(0.0));
+    if index == 0 {
+        return None;
+    }
+    lines
+        .get(index - 1)
+        .map(|line| line.text.trim().to_owned())
+        .filter(|text| !text.is_empty())
 }
 
 fn music_cache_key(source: &str, format_id: &str, ext: &str, acodec: &str) -> String {
@@ -7045,6 +7867,27 @@ fn json_str_field(value: &Value, key: &str) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
+}
+
+fn json_number_or_str_field(value: &Value, key: &str) -> Option<String> {
+    let value = value.get(key)?;
+    if let Some(text) = value.as_str() {
+        let text = text.trim();
+        return (!text.is_empty()).then(|| text.to_owned());
+    }
+    if let Some(number) = value.as_u64() {
+        return Some(number.to_string());
+    }
+    if let Some(number) = value.as_i64() {
+        return (number >= 0).then(|| number.to_string());
+    }
+    if let Some(number) = value
+        .as_f64()
+        .filter(|number| number.is_finite() && *number >= 0.0)
+    {
+        return Some(format!("{number:.0}"));
+    }
+    None
 }
 
 fn json_f64_field(value: &Value, key: &str) -> Option<f64> {
@@ -7216,6 +8059,85 @@ mod tests {
             Some("audio")
         );
     }
+
+    #[test]
+    fn music_audio_export_plan_copies_matching_opus_source() {
+        let plan = resolve_music_audio_export_plan(
+            MusicDownloadFormat::Opus,
+            &MusicAudioSourceProfile::from_codec("opus"),
+        );
+        assert_eq!(plan.ffmpeg_args, vec!["-c:a".to_owned(), "copy".to_owned()]);
+    }
+
+    #[test]
+    fn music_audio_export_plan_encodes_when_source_codec_differs() {
+        let plan = resolve_music_audio_export_plan(
+            MusicDownloadFormat::Opus,
+            &MusicAudioSourceProfile::from_codec("aac"),
+        );
+        assert!(plan.ffmpeg_args.iter().any(|arg| arg == "libopus"));
+    }
+
+    #[test]
+    fn music_audio_export_plan_treats_mp4a_as_aac_for_m4a() {
+        let plan = resolve_music_audio_export_plan(
+            MusicDownloadFormat::M4aAac,
+            &MusicAudioSourceProfile::from_codec("mp4a.40.2"),
+        );
+        assert_eq!(plan.ffmpeg_args, vec!["-c:a".to_owned(), "copy".to_owned()]);
+    }
+
+    #[test]
+    fn music_audio_export_plan_uses_source_bitrate_for_opus() {
+        let source = MusicAudioSourceProfile {
+            acodec: "aac".to_owned(),
+            bitrate_kbps: Some(128),
+            sample_rate: Some(48_000),
+            channels: Some(2),
+        };
+        let plan = resolve_music_audio_export_plan(MusicDownloadFormat::Opus, &source);
+        assert_eq!(
+            plan.ffmpeg_args,
+            vec![
+                "-c:a".to_owned(),
+                "libopus".to_owned(),
+                "-b:a".to_owned(),
+                "128k".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn music_audio_export_plan_reduces_mono_or_narrowband_bitrate() {
+        let source = MusicAudioSourceProfile {
+            acodec: "aac".to_owned(),
+            bitrate_kbps: Some(160),
+            sample_rate: Some(22_050),
+            channels: Some(1),
+        };
+        let plan = resolve_music_audio_export_plan(MusicDownloadFormat::Opus, &source);
+        assert_eq!(
+            plan.ffmpeg_args,
+            vec![
+                "-c:a".to_owned(),
+                "libopus".to_owned(),
+                "-b:a".to_owned(),
+                "64k".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn music_online_target_selector_prefers_requested_codec_before_fallback() {
+        assert!(
+            music_online_target_format_selector(MusicDownloadFormat::Opus)
+                .starts_with("bestaudio[acodec^=opus]")
+        );
+        assert!(
+            music_online_target_format_selector(MusicDownloadFormat::M4aAac)
+                .starts_with("bestaudio[ext=m4a]")
+        );
+    }
 }
 
 struct MusicDownloadJob {
@@ -7225,6 +8147,7 @@ struct MusicDownloadJob {
     title: String,
     output_dir: PathBuf,
     target_format: MusicDownloadFormat,
+    source_acodec: String,
     cache_media_path: Option<PathBuf>,
     cover_path: Option<PathBuf>,
     cover_cache_dir: Option<PathBuf>,
@@ -7243,6 +8166,9 @@ fn run_music_download_worker(
         job.cover_path = ensure_music_download_cover_path(&job);
     }
     let has_cover = job.cover_path.as_ref().is_some_and(|path| path.is_file());
+    let online_target_available = job.cache_media_path.as_ref().is_some_and(|path| {
+        !music_cache_source_matches_target(job.target_format, path, &job.source_acodec)
+    }) && online_music_target_source_available(&tool_paths, &job);
     let source_kind = match job.cache_media_path.as_ref() {
         Some(path)
             if music_download_format_matches_cache(job.target_format, path)
@@ -7250,6 +8176,7 @@ fn run_music_download_worker(
         {
             MusicDownloadSourceKind::CacheCopy
         }
+        Some(_) if online_target_available => MusicDownloadSourceKind::YtDlpOnlineTarget,
         Some(_) => MusicDownloadSourceKind::CacheConvert,
         None => MusicDownloadSourceKind::YtDlpDownload,
     };
@@ -7265,13 +8192,15 @@ fn run_music_download_worker(
             &child_handle,
             &cancel_requested,
         ),
-        MusicDownloadSourceKind::YtDlpDownload => download_music_output_with_yt_dlp(
-            &tool_paths,
-            &job,
-            tx.clone(),
-            &child_handle,
-            &cancel_requested,
-        ),
+        MusicDownloadSourceKind::YtDlpOnlineTarget | MusicDownloadSourceKind::YtDlpDownload => {
+            download_music_output_with_yt_dlp(
+                &tool_paths,
+                &job,
+                tx.clone(),
+                &child_handle,
+                &cancel_requested,
+            )
+        }
     };
 
     let _ = tx.send(MusicDownloadEvent::Finished {
@@ -7401,7 +8330,13 @@ fn ensure_music_download_requested_extension(
         .arg("-y")
         .arg("-i")
         .arg(&output_path)
-        .args(ffmpeg_audio_args_for_music(job.target_format))
+        .args(
+            resolve_music_audio_export_plan(
+                job.target_format,
+                &probe_music_audio_source_profile(tool_paths, &output_path, &job.source_acodec),
+            )
+            .ffmpeg_args,
+        )
         .arg(&target_path)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -7560,7 +8495,8 @@ fn convert_music_cache_output(
     if has_cover {
         command.args(["-map", "1:v:0"]);
     }
-    command.args(ffmpeg_audio_args_for_music(job.target_format));
+    let source_profile = probe_music_audio_source_profile(tool_paths, source, &job.source_acodec);
+    command.args(resolve_music_audio_export_plan(job.target_format, &source_profile).ffmpeg_args);
     if has_cover {
         command.args([
             "-c:v",
@@ -7889,7 +8825,9 @@ fn music_download_tool_kind(source_kind: MusicDownloadSourceKind) -> ToolKind {
     match source_kind {
         MusicDownloadSourceKind::CacheCopy => ToolKind::Other("cache".to_owned()),
         MusicDownloadSourceKind::CacheConvert => ToolKind::Ffmpeg,
-        MusicDownloadSourceKind::YtDlpDownload => ToolKind::YtDlp,
+        MusicDownloadSourceKind::YtDlpOnlineTarget | MusicDownloadSourceKind::YtDlpDownload => {
+            ToolKind::YtDlp
+        }
     }
 }
 
@@ -7912,18 +8850,238 @@ fn music_format_supports_embedded_cover(format: MusicDownloadFormat) -> bool {
     )
 }
 
-fn ffmpeg_audio_args_for_music(format: MusicDownloadFormat) -> Vec<String> {
-    match format {
-        MusicDownloadFormat::Mp3 => ["-c:a", "libmp3lame", "-q:a", "0", "", ""],
-        MusicDownloadFormat::M4aAac => ["-c:a", "aac", "-b:a", "320k", "", ""],
-        MusicDownloadFormat::Opus => ["-c:a", "libopus", "-b:a", "160k", "", ""],
-        MusicDownloadFormat::Flac => ["-c:a", "flac", "-compression_level", "8", "", ""],
-        MusicDownloadFormat::Wav => ["-c:a", "pcm_s16le", "-vn", "", "", ""],
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MusicAudioQualityIntent {
+    PreservePerceivedQuality,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct MusicAudioSourceProfile {
+    acodec: String,
+    bitrate_kbps: Option<u32>,
+    sample_rate: Option<u32>,
+    channels: Option<u32>,
+}
+
+impl MusicAudioSourceProfile {
+    fn from_codec(source_acodec: &str) -> Self {
+        Self {
+            acodec: source_acodec.to_owned(),
+            bitrate_kbps: None,
+            sample_rate: None,
+            channels: None,
+        }
     }
-    .into_iter()
-    .filter(|arg| !arg.is_empty())
-    .map(ToOwned::to_owned)
-    .collect()
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MusicAudioExportPlan {
+    ffmpeg_args: Vec<String>,
+}
+
+fn resolve_music_audio_export_plan(
+    format: MusicDownloadFormat,
+    source: &MusicAudioSourceProfile,
+) -> MusicAudioExportPlan {
+    // Audio export follows a conservative source-aware model:
+    // 1. never re-encode when the source codec already matches the target,
+    // 2. prefer the online source selected by yt-dlp when it already exists,
+    // 3. only then encode with a preserve-perceived-quality heuristic.
+    //
+    // The heuristic intentionally avoids exposing bitrate/sample-rate knobs in the UI.
+    // It is based on public codec recommendations and listening-test consensus, not on
+    // a promise of mathematically lossless output for lossy transcodes.
+    if music_source_codec_matches_target_format(format, &source.acodec) {
+        return MusicAudioExportPlan {
+            ffmpeg_args: vec!["-c:a".to_owned(), "copy".to_owned()],
+        };
+    }
+
+    MusicAudioExportPlan {
+        ffmpeg_args: encode_music_audio_args_for_intent(
+            format,
+            MusicAudioQualityIntent::PreservePerceivedQuality,
+            source,
+        ),
+    }
+}
+
+fn encode_music_audio_args_for_intent(
+    format: MusicDownloadFormat,
+    intent: MusicAudioQualityIntent,
+    source: &MusicAudioSourceProfile,
+) -> Vec<String> {
+    match intent {
+        MusicAudioQualityIntent::PreservePerceivedQuality => match format {
+            MusicDownloadFormat::Mp3 => vec![
+                "-c:a".to_owned(),
+                "libmp3lame".to_owned(),
+                "-q:a".to_owned(),
+                mp3_quality_for_source(source).to_string(),
+            ],
+            MusicDownloadFormat::M4aAac => vec![
+                "-c:a".to_owned(),
+                "aac".to_owned(),
+                "-b:a".to_owned(),
+                format!("{}k", lossy_bitrate_for_source(source, 160, 192, 256, 320)),
+            ],
+            MusicDownloadFormat::Opus => vec![
+                "-c:a".to_owned(),
+                "libopus".to_owned(),
+                "-b:a".to_owned(),
+                format!("{}k", lossy_bitrate_for_source(source, 96, 128, 160, 192)),
+            ],
+            MusicDownloadFormat::Flac => vec![
+                "-c:a".to_owned(),
+                "flac".to_owned(),
+                "-compression_level".to_owned(),
+                "8".to_owned(),
+            ],
+            MusicDownloadFormat::Wav => {
+                vec!["-c:a".to_owned(), "pcm_s16le".to_owned(), "-vn".to_owned()]
+            }
+        },
+    }
+}
+
+fn mp3_quality_for_source(source: &MusicAudioSourceProfile) -> u8 {
+    match source.bitrate_kbps {
+        Some(value) if value <= 96 => 5,
+        Some(value) if value <= 160 => 3,
+        Some(value) if value <= 224 => 2,
+        _ => 0,
+    }
+}
+
+fn lossy_bitrate_for_source(
+    source: &MusicAudioSourceProfile,
+    low: u32,
+    mid: u32,
+    high: u32,
+    max: u32,
+) -> u32 {
+    let Some(source_bitrate) = source.bitrate_kbps else {
+        return high;
+    };
+    let mono_or_narrowband = source.channels == Some(1)
+        || source
+            .sample_rate
+            .is_some_and(|sample_rate| sample_rate <= 24_000);
+    let selected = if source_bitrate <= 96 {
+        low
+    } else if source_bitrate <= 160 {
+        mid
+    } else if source_bitrate <= 256 {
+        high
+    } else {
+        max
+    };
+    if mono_or_narrowband {
+        (selected / 2).max(64)
+    } else {
+        selected
+    }
+}
+
+fn probe_music_audio_source_profile(
+    tool_paths: &ToolPaths,
+    input_path: &Path,
+    fallback_acodec: &str,
+) -> MusicAudioSourceProfile {
+    let ffmpeg = resolve_tool_path(&tool_paths.ffmpeg);
+    let ffprobe = ffprobe_companion_path_for_ffmpeg(&ffmpeg);
+    let mut profile = MusicAudioSourceProfile::from_codec(fallback_acodec);
+    let Ok(info) = probe_media_with_ffprobe(&ffprobe, input_path) else {
+        return profile;
+    };
+    let Some(audio) = info.audio else {
+        return profile;
+    };
+    if let Some(codec) = audio.codec.filter(|value| !value.trim().is_empty()) {
+        profile.acodec = codec;
+    }
+    profile.bitrate_kbps = audio
+        .bitrate_bps
+        .map(|value| ((value as f64) / 1000.0).round().max(1.0) as u32);
+    profile.sample_rate = audio.sample_rate;
+    profile.channels = audio.channels;
+    profile
+}
+
+fn music_cache_source_matches_target(
+    format: MusicDownloadFormat,
+    path: &Path,
+    source_acodec: &str,
+) -> bool {
+    music_download_format_matches_cache(format, path)
+        || music_source_codec_matches_target_format(format, source_acodec)
+}
+
+fn online_music_target_source_available(tool_paths: &ToolPaths, job: &MusicDownloadJob) -> bool {
+    let selector = music_online_target_format_selector(job.target_format);
+    let Ok(json) = tool_paths.analyze_music_stream_url_with_selector(
+        &job.source_url,
+        job.use_cookies,
+        selector,
+    ) else {
+        return false;
+    };
+    let Ok(seed) = music_stream_seed_from_json(&json, &job.source_url) else {
+        return false;
+    };
+    music_source_codec_matches_target_format(job.target_format, &seed.acodec)
+}
+
+fn music_online_target_format_selector(format: MusicDownloadFormat) -> &'static str {
+    match format {
+        MusicDownloadFormat::Mp3 => {
+            "bestaudio[ext=mp3]/bestaudio[acodec^=mp3]/bestaudio/best[acodec!=none]"
+        }
+        MusicDownloadFormat::M4aAac => {
+            "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio[acodec^=aac]/bestaudio/best[acodec!=none]"
+        }
+        MusicDownloadFormat::Opus => {
+            "bestaudio[acodec^=opus]/bestaudio[ext=opus]/bestaudio[ext=webm][acodec^=opus]/bestaudio/best[acodec!=none]"
+        }
+        MusicDownloadFormat::Flac => {
+            "bestaudio[ext=flac]/bestaudio[acodec^=flac]/bestaudio/best[acodec!=none]"
+        }
+        MusicDownloadFormat::Wav => {
+            "bestaudio[ext=wav]/bestaudio[acodec^=pcm]/bestaudio/best[acodec!=none]"
+        }
+    }
+}
+
+fn music_source_codec_matches_target_format(
+    format: MusicDownloadFormat,
+    source_acodec: &str,
+) -> bool {
+    let normalized = normalize_music_source_codec(source_acodec);
+    if normalized.is_empty() || normalized == "none" {
+        return false;
+    }
+    match format {
+        MusicDownloadFormat::Mp3 => normalized == "mp3",
+        MusicDownloadFormat::M4aAac => normalized == "aac",
+        MusicDownloadFormat::Opus => normalized == "opus",
+        MusicDownloadFormat::Flac => normalized == "flac",
+        MusicDownloadFormat::Wav => normalized.starts_with("pcm_"),
+    }
+}
+
+fn normalize_music_source_codec(source_acodec: &str) -> String {
+    let codec = source_acodec.trim().to_ascii_lowercase();
+    if codec.starts_with("mp4a") || codec == "aac_latm" {
+        "aac".to_owned()
+    } else if codec.starts_with("opus") {
+        "opus".to_owned()
+    } else if codec.starts_with("mp3") || codec == "libmp3lame" {
+        "mp3".to_owned()
+    } else if codec.starts_with("flac") {
+        "flac".to_owned()
+    } else {
+        codec
+    }
 }
 
 impl MusicDownloadFormat {
@@ -8147,7 +9305,14 @@ fn ensure_safe_app_cache_root(path: &Path) -> std::io::Result<()> {
         if let Ok(home) = std::env::var(var) {
             let home = normalized_path_for_safety(Path::new(&home));
             protected_roots.push(home.clone());
-            for child in ["Desktop", "Downloads", "Documents", "Pictures", "Videos", "Music"] {
+            for child in [
+                "Desktop",
+                "Downloads",
+                "Documents",
+                "Pictures",
+                "Videos",
+                "Music",
+            ] {
                 protected_roots.push(normalized_path_for_safety(&home.join(child)));
             }
         }

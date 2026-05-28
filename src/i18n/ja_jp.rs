@@ -4,9 +4,10 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tab.main" => "メイン",
         "tab.advanced" => "詳細",
         "tab.options" => "設定",
-        "main.url_hint" => "URLを貼り付け",
+        "main.url_hint" => "URL",
         "action.download" => "ダウンロード",
         "action.add" => "＋ 追加",
+        "action.analyze" => "解析",
         "action.stop" => "停止",
         "action.stopping" => "停止中",
         "action.cut" => "切り取り",
@@ -15,6 +16,16 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "action.clear" => "クリア",
         "item.thumbnail" => "サムネイル",
         "item.thumbnail_preview" => "サムネイルプレビュー",
+        "single.title" => "タイトル",
+        "single.description" => "説明",
+        "single.info.channel" => "チャンネル",
+        "single.info.date" => "日付",
+        "single.info.views" => "再生数",
+        "thumbnail.filter.jpeg" => "JPEG 画像",
+        "thumbnail.filter.png" => "PNG 画像",
+        "thumbnail.filter.webp" => "WebP 画像",
+        "thumbnail.filter.original" => "元の画像",
+        "item.download_thumbnail" => "サムネイルをダウンロード",
         "notification.download_finished" => "ダウンロード完了",
         "notification.download_failed" => "ダウンロード失敗",
         "notification.download_finished_detail_prefix" => "完了: ",
@@ -97,12 +108,8 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "item.clear_all" => "すべてクリア",
         "item.add_a_video_url" => "動画URLを追加してください",
         "item.add_an_audio_url" => "音声 URL を追加",
-        "item.after_adding_choose_the_video_format_here" => {
-            "追加後、ここで動画形式を選択できます。"
-        }
-        "item.after_adding_choose_the_audio_format_here" => {
-            "追加後、ここで音声形式を選択できます。"
-        }
+        "item.after_adding_choose_the_video_format_here" => "動画形式を選択",
+        "item.after_adding_choose_the_audio_format_here" => "音声形式を選択",
         "item.loading_thumbnail" => "サムネイル読み込み中",
         "item.file_actions" => "ファイル操作",
         "item.open_file" => "ファイルを開く",
@@ -119,7 +126,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "prepare.language" => "言語",
         "prepare.back" => "戻る",
-        "prepare.choose" => "選択",
         "prepare.auto_detect" => "自動検出",
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
             "必要なツールをインストールします。スキップして後で設定から処理できます。"
@@ -173,7 +179,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.current_language" => "現在の言語",
         "options.back" => "戻る",
         "options.choose" => "選択",
-        "options.auto_detect_tool_from" => "次から自動検出:",
         "options.auto_detect" => "自動検出",
         "options.auto_detect_tool_hint" => {
             "ポータブルツールフォルダーとシステム PATH からインストール済みツールを検出します。"
@@ -207,7 +212,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.show_log_tab" => "記録を表示",
         "options.reinstall" => "再インストール",
         "options.installing" => "インストール中",
-        "options.browse" => "選択",
         "options.install" => "インストール",
         "options.file_not_found" => "ファイルが存在しません: ",
         "options.will_install_to" => "インストール先: ",
@@ -227,7 +231,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "main.controlled_by_config" => "設定ファイルで制御: ",
         "main.controlled_by_config_2" => "設定ファイルで制御",
-        "main.actual_path" => "実際のパス: ",
         "picker.no_chapters_available" => "選択できるチャプターがありません。",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "この項目でダウンロードする範囲を選択します。既定は動画全体です。"
@@ -284,15 +287,10 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "tools.file_time.use_download_time_hint" => "--no-mtime",
         "tools.cache_mode.default" => "既定",
-        "tools.cache_mode.v2_cache" => "yt-dlp-gui",
-        "tools.cache_mode.windows_temp" => "Windows",
         "tools.subtitle_source.none" => "字幕なし",
         "tools.subtitle_source.original" => "元の字幕",
         "tools.subtitle_source.automatic" => "自動字幕",
-        "tools.quality.best" => "最適",
-        "tools.quality.audio_only" => "音声のみ",
         "tools.youtube_playlist.channel_generated" => "YouTube が生成したチャンネルリスト",
-        "tools.youtube_playlist.mix_radio" => "YouTube Mix / Radio",
         "tools.youtube_playlist.music_album" => "YouTube Music のアルバム/コレクション",
         "tools.youtube_playlist.liked_videos" => "高評価した動画",
         "tools.youtube_playlist.favorites_legacy" => "旧お気に入りリスト",
@@ -309,11 +307,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tool_install.stage.installing" => "インストール中",
         "tool_install.stage.completed" => "完了",
         "tool_install.stage.failed" => "失敗",
-        "domain.media.video" => "video",
-        "domain.media.audio" => "audio",
-        "domain.media.muxed" => "muxed",
-        "domain.media.subtitle" => "subtitle",
-        "domain.media.other" => "other",
         "domain.quality.best" => "最適",
         "domain.quality.audio_only" => "音声のみ",
         "prepare.severity.short.required" => "必須",
@@ -339,6 +332,12 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.analyzing_source" => "Analyzing: {source}",
         "state.batch_add_running" => "Batch add is still running.",
         "state.no_url_to_add" => "There is no URL to add.",
+        "state.single_mode_playlist_not_supported" => {
+            "伝統モードではプレイリストURLを扱えません。プレイリストを取り込むには標準モードへ切り替えてください。"
+        }
+        "state.single_mode_wait_for_current_item" => {
+            "現在の伝統モード項目が完了するまで待ってください。"
+        }
         "state.video_url_contains_playlist" => {
             "Detected a video URL that also contains a playlist."
         }
@@ -389,6 +388,7 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.exporting_audio" => "Exporting audio: {title}",
         "state.exporting_subtitles" => "Exporting subtitles: {title}",
         "state.cleared_queue" => "Queue cleared.",
+        "state.thumbnail_saved" => "サムネイルを保存しました: {path}",
         "state.cannot_remove_running_item" => "Running items cannot be removed.",
         "state.removed_item" => "Removed: {title}",
         "state.controlled_by_config" => "Controlled by config",
@@ -436,13 +436,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.playlist_ignored_for_now" => "Playlist is ignored for now: {target}",
         "state.untitled_video" => "Untitled video",
         "state.analysis_complete" => "Analysis complete: {title}",
-        "state.video_extension_error" => "Video export only supports mkv / mp4 / webm / mov / flv.",
-        "state.audio_extension_error" => {
-            "Audio export only supports opus / aac / m4a / mp3 / vorbis / alac / flac / wav."
-        }
-        "state.subtitle_extension_error" => {
-            "Subtitle extension must be srt, vtt, ass, ssa, lrc, ttml, dfxp, json3, srv3, srv2, or srv1."
-        }
         "state.action_aria2_fallback" => "{action} (Aria2 not found; using yt-dlp native download)",
         "state.cache_yt_dlp_default" => "yt-dlp default",
         "playlist.note.mix_radio" => {
@@ -485,19 +478,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.req.move_to_writable" => "Move the app to a writable portable folder.",
         "prepare.req.move_to_writable_example" => {
             "Move the app to a writable portable folder, for example D:\\Portable\\yt-dlp-gui-v2."
-        }
-        "prepare.req.generic_writable_recommendation" => {
-            "If deployment or config saving fails later, move the app to a writable non-synced portable folder."
-        }
-        "prepare.req.use_folder_path" => "Use a folder path instead.",
-        "prepare.req.path_not_folder" => "{path} is not a folder",
-        "prepare.req.config_not_folder" => "Make sure the config path is not a folder.",
-        "prepare.req.config_readonly" => "Config file is read-only",
-        "prepare.req.config_readonly_recommendation" => {
-            "Clear the config file read-only attribute, or move it to a writable portable folder."
-        }
-        "prepare.req.clear_write_test" => {
-            "Retry later, or remove the leftover .yt-dlp-gui-write-test file in the folder."
         }
         "runtime.download_cancelled" => "ダウンロードをキャンセルしました。",
         "runtime.yt_dlp_not_found" => {
@@ -674,11 +654,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
             "YouTube が字幕リクエストを拒否しました（HTTP 429 Too Many Requests）。これは YouTube 自動翻訳 timedtext エンドポイントでよく発生します。cookies.txt はログイン状態を提供できますが、そのエンドポイントの PO Token／レート制限要件を満たせない場合があります。GUI はカスタムダウンローダーへ切り替えず、yt-dlp のネイティブ処理と診断ログを維持します。元のメッセージ：{error}"
         }
         "options.filter_executable" => "実行ファイル",
-        "processing.output_conversion" => "ダウンロード後の出力",
-        "processing.convert_after_download" => "ダウンロード後に変換",
-        "processing.convert_after_download_hint" => {
-            "映像、音声、コンテナ、または字幕を変更する場合のみ実行します。"
-        }
         "processing.video" => "映像",
         "processing.audio" => "音声",
         "processing.container" => "コンテナ",
@@ -696,16 +671,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "processing.subtitle.preserve" => "変更なし",
         "processing.subtitle.embed" => "埋め込み",
         "processing.subtitle.burn" => "焼き込み",
-        "processing.disabled_summary" => "yt-dlp のダウンロード結果をそのまま保持します。",
-        "processing.no_conversion_summary" => "すべて「変更なし」のため、後処理は実行されません。",
-        "processing.output_summary" => "出力概要",
-        "processing.visual_quality" => "画面",
-        "processing.visual_quality_near_source" => "元の見た目にできるだけ近く",
-        "processing.method" => "処理方法",
-        "processing.encoder" => "エンコーダー",
-        "processing.status" => "状態",
-        "processing.command_preview" => "コマンドプレビュー",
-        "log.runtime" => "実行記録",
         "log.empty" => "実行記録はまだありません。",
         "log.clear" => "クリア",
         "log.copy" => "コピー",
@@ -715,52 +680,14 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.audio.flac" => "FLAC",
 
         // English fallback translations added to keep every bundled language key-complete.
-        "tab.processing" => "Processing",
         "tab.log" => "Log",
-        "advance.convert" => "Convert",
-        "advance.apple_tv_hevc_h265" => "Apple TV HEVC / H.265",
-        "options.processing_tab" => "Processing tab",
-        "options.enable_processing_tab" => "Enable processing",
-        "state.apple_tv_hevc_post_processing_title" => "Converting for Apple TV: {title}",
         "state.transcode_post_processing_title" => "Converting with {profile}: {title}",
-        "processing.convert" => "Convert",
-        "processing.tools" => "Tools",
         "processing.transcode" => "Transcode",
-        "processing.transcode_workbench" => "Transcode Intent Workbench",
-        "processing.transcode_intent_graph" => "Transcode intent graph",
-        "processing.intent_graph" => "Intent graph",
-        "processing.what_do_you_want" => "What do you want to do?",
-        "processing.result_card" => "Result",
-        "processing.primary_control" => "Primary control",
-        "processing.choose_graph_branch_hint" => "Choose this branch in the graph.",
-        "processing.current_size_ratio" => "Current",
-        "processing.adjustments" => "Current adjustments",
-        "processing.locks" => "Locked items",
-        "processing.locked" => "Locked",
-        "processing.auto_recompute" => "Auto",
-        "processing.apply" => "Apply",
-        "processing.apply_after_download" => {
-            "Apply the currently supported safe MP4 transcode after download"
-        }
-        "processing.apply_after_download_hint" => {
-            "Only the current executable safe MP4 backend is applied; not every intent setting is connected yet."
-        }
-        "processing.affects_command" => "Affects command",
-        "processing.preview_only_settings" => "Preview only",
-        "processing.disconnected_settings" => "Not connected",
-        "processing.backend_available" => "The current backend can run this safe MP4 plan.",
-        "processing.preview_only" => "This plan currently generates a command preview only.",
-        "processing.apple_tv" => "Apple TV",
-        "processing.apple_tv_hevc_h265" => "Apple TV HEVC / H.265",
         "transcode.intent.reduce_size" => "Smaller file",
         "transcode.intent.quality_first" => "Quality first",
         "transcode.intent.target_size" => "Size target",
         "transcode.intent.fast_transcode" => "Format",
         "transcode.intent.device_compat" => "Compatibility target",
-        "transcode.graph.target_ratio" => "Target ratio",
-        "transcode.graph.quality_target" => "Quality target",
-        "transcode.graph.size_input" => "Size input",
-        "transcode.graph.encode_effort" => "Encode effort",
         "transcode.compat.most_devices" => "Most devices / not sure",
         "transcode.compat.windows" => "Windows PC",
         "transcode.compat.mac" => "Mac",
@@ -798,11 +725,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.effort.normal" => "Normal",
         "transcode.effort.detailed" => "Detailed",
         "transcode.effort.extreme" => "Extreme",
-        "transcode.audio.compatible" => "Compatible",
-        "transcode.audio.preserve_surround" => "Preserve surround",
-        "transcode.encoder.auto" => "Auto",
-        "transcode.encoder.hardware_first" => "Hardware first",
-        "transcode.encoder.software" => "Software",
         "transcode.setting.compatibility" => "Compatibility",
         "transcode.setting.video_codec" => "Video codec",
         "transcode.setting.container" => "Container",
@@ -817,12 +739,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.support.executable" => "Executable",
         "transcode.support.partial" => "Partially supported",
         "transcode.support.preview_only" => "Preview only",
-        "log.not_implemented" => "Runtime log collection has not been implemented yet.",
-        "queue_display.normal" => "通常",
+        "app_mode.origin" => "伝統モード",
+        "app_mode.standard" => "標準モード",
+        "app_mode.audio" => "音声モード",
+        "queue_display.normal" => "標準",
         "queue_display.audio" => "音声",
-        "queue_display.normal.tooltip" => "通常のダウンロード一覧表示",
-        "queue_display.audio.tooltip" => "音声一覧表示と再生",
-        "main.queue_display_mode_hint" => "一覧表示と追加方法を切り替え",
         "music.previous" => "前の曲",
         "music.play" => "再生",
         "music.pause" => "一時停止",

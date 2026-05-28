@@ -36,6 +36,7 @@ pub(super) enum DownloadEvent {
         workflow_id: WorkflowRunId,
         slot: DownloadProgressSlot,
         percent: f32,
+        detail: Option<DownloadProgressDetail>,
     },
     Finished(DownloadResult),
 }
@@ -46,6 +47,17 @@ pub(super) enum DownloadProgressSlot {
     Audio,
     Subtitle,
     Both,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(super) struct DownloadProgressDetail {
+    pub downloaded: Option<String>,
+    pub total: Option<String>,
+    pub speed: Option<String>,
+    pub elapsed: Option<String>,
+    pub frame: Option<String>,
+    pub fps: Option<String>,
+    pub time: Option<String>,
 }
 
 pub(super) fn run_download_worker(
@@ -899,18 +911,21 @@ fn process_download_line(
             workflow_id,
             slot,
             percent: 1.0,
+            detail: None,
         });
     }
 
-    if let Some(percent) = parse_yt_dlp_progress_percent(&line)
-        .or_else(|| parse_default_yt_dlp_progress_percent(&line))
-        .or_else(|| parse_ffmpeg_section_progress_percent(&line, context.section_duration_seconds))
-    {
+    let progress = parse_yt_dlp_progress_detail(&line)
+        .or_else(|| parse_default_yt_dlp_progress_percent(&line).map(|percent| (percent, None)))
+        .or_else(|| parse_ffmpeg_section_progress_detail(&line, context.section_duration_seconds));
+
+    if let Some((percent, detail)) = progress {
         let _ = tx.send(DownloadEvent::Progress {
             item_id,
             workflow_id,
             slot: *current_slot,
             percent,
+            detail,
         });
     }
 }
@@ -947,14 +962,32 @@ fn detect_download_slot(
     None
 }
 
-fn parse_yt_dlp_progress_percent(line: &str) -> Option<f32> {
+fn parse_yt_dlp_progress_detail(line: &str) -> Option<(f32, Option<DownloadProgressDetail>)> {
     if !line.starts_with("[yt-dlp],") && !line.starts_with("[direct-subtitle],") {
         return None;
     }
+
     let mut parts = line.split(',');
     let _prefix = parts.next()?;
-    let percent = parts.next()?.trim().trim_end_matches('%');
-    percent.parse::<f32>().ok()
+    let percent_text = parts.next()?.trim();
+    let eta_text = parts.next().map(str::trim).unwrap_or_default();
+    let downloaded_text = parts.next().map(str::trim).unwrap_or_default();
+    let total_text = parts.next().map(str::trim).unwrap_or_default();
+    let speed_text = parts.next().map(str::trim).unwrap_or_default();
+    let elapsed_text = parts.next().map(str::trim).unwrap_or_default();
+
+    let percent = percent_text.trim_end_matches('%').parse::<f32>().ok()?;
+    let elapsed =
+        normalize_progress_text(elapsed_text).or_else(|| normalize_progress_text(eta_text));
+    let detail = DownloadProgressDetail {
+        downloaded: normalize_progress_bytes(downloaded_text),
+        total: normalize_progress_bytes(total_text),
+        speed: normalize_progress_speed(speed_text),
+        elapsed,
+        ..Default::default()
+    };
+
+    Some((percent, Some(detail)))
 }
 
 fn parse_default_yt_dlp_progress_percent(line: &str) -> Option<f32> {
@@ -968,17 +1001,92 @@ fn parse_default_yt_dlp_progress_percent(line: &str) -> Option<f32> {
         .and_then(|value| value.parse::<f32>().ok())
 }
 
-fn parse_ffmpeg_section_progress_percent(line: &str, duration_seconds: Option<f32>) -> Option<f32> {
+fn parse_ffmpeg_section_progress_detail(
+    line: &str,
+    duration_seconds: Option<f32>,
+) -> Option<(f32, Option<DownloadProgressDetail>)> {
+    let time_text = line
+        .split_whitespace()
+        .find_map(|part| part.strip_prefix("time="))?;
+    let elapsed = parse_progress_timestamp_seconds(time_text)?;
     let duration = duration_seconds?;
     if duration <= 0.0 {
         return None;
     }
 
-    let time_text = line
-        .split_whitespace()
-        .find_map(|part| part.strip_prefix("time="))?;
-    let elapsed = parse_progress_timestamp_seconds(time_text)?;
-    Some(((elapsed / duration) * 100.0).clamp(1.0, 99.0))
+    let detail = DownloadProgressDetail {
+        downloaded: extract_ffmpeg_value(line, "size=").map(str::to_owned),
+        speed: extract_ffmpeg_value(line, "bitrate=").map(str::to_owned),
+        frame: extract_ffmpeg_value(line, "frame=").map(str::to_owned),
+        fps: extract_ffmpeg_value(line, "fps=").map(str::to_owned),
+        time: Some(time_text.to_owned()),
+        ..Default::default()
+    };
+
+    Some((
+        ((elapsed / duration) * 100.0).clamp(1.0, 99.0),
+        Some(detail),
+    ))
+}
+
+fn extract_ffmpeg_value<'a>(line: &'a str, prefix: &str) -> Option<&'a str> {
+    line.split_whitespace()
+        .find_map(|part| part.trim().strip_prefix(prefix))
+        .filter(|value| !value.trim().is_empty() && *value != "N/A")
+}
+
+fn normalize_progress_text(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() || matches!(value, "NA" | "N/A" | "Unknown" | "unknown") {
+        None
+    } else {
+        Some(value.to_owned())
+    }
+}
+
+fn normalize_progress_bytes(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() || matches!(value, "NA" | "N/A") {
+        return None;
+    }
+    let bytes = value.parse::<f64>().ok()?;
+    Some(format_progress_bytes(bytes))
+}
+
+fn normalize_progress_speed(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() || matches!(value, "NA" | "N/A") {
+        return None;
+    }
+    if let Ok(bytes) = value.parse::<f64>() {
+        return Some(format!("{}/s", format_progress_bytes(bytes)));
+    }
+    Some(value.to_owned())
+}
+
+fn format_progress_bytes(bytes: f64) -> String {
+    if !bytes.is_finite() || bytes < 0.0 {
+        return String::new();
+    }
+    const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
+    let mut value = bytes;
+    let mut unit = UNITS[0];
+    for next_unit in UNITS.iter().skip(1) {
+        if value < 1024.0 {
+            break;
+        }
+        value /= 1024.0;
+        unit = next_unit;
+    }
+    if unit == "B" {
+        format!("{} {unit}", value.round() as u64)
+    } else if value >= 100.0 {
+        format!("{value:.0} {unit}")
+    } else if value >= 10.0 {
+        format!("{value:.1} {unit}")
+    } else {
+        format!("{value:.2} {unit}")
+    }
 }
 
 fn parse_section_duration_seconds(download_sections: &str) -> Option<f32> {

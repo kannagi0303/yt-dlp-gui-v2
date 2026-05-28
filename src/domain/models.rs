@@ -1,7 +1,12 @@
 #[derive(Clone)]
 pub struct VideoMetadata {
     pub title: String,
+    pub channel: String,
+    pub channel_url: String,
     pub uploader: String,
+    pub uploader_url: String,
+    pub creator: String,
+    pub creator_url: String,
     pub duration_text: String,
     pub webpage_url: String,
     pub description: String,
@@ -18,7 +23,12 @@ impl VideoMetadata {
     pub fn empty_preview() -> Self {
         Self {
             title: String::new(),
+            channel: String::new(),
+            channel_url: String::new(),
             uploader: String::new(),
+            uploader_url: String::new(),
+            creator: String::new(),
+            creator_url: String::new(),
             duration_text: String::new(),
             webpage_url: String::new(),
             description: String::new(),

@@ -4,7 +4,7 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tab.main" => "Κύρια",
         "tab.advanced" => "Για προχωρημένους",
         "tab.options" => "Επιλογές",
-        "main.url_hint" => "Επικόλληση URL",
+        "main.url_hint" => "URL",
         "action.download" => "Λήψη",
         "action.add" => "＋ Προσθήκη",
         "action.stop" => "Διακοπή",
@@ -97,12 +97,8 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "item.failed" => "Απέτυχε",
         "item.clear_all" => "Clear all",
         "item.add_a_video_url" => "Add a video URL",
-        "item.after_adding_choose_the_video_format_here" => {
-            "After adding, choose the video format here."
-        }
-        "item.after_adding_choose_the_audio_format_here" => {
-            "After adding, choose the audio format here."
-        }
+        "item.after_adding_choose_the_video_format_here" => "Επιλογή μορφής βίντεο",
+        "item.after_adding_choose_the_audio_format_here" => "Επιλογή μορφής ήχου",
         "item.loading_thumbnail" => "Loading thumbnail",
         "item.file_actions" => "File actions",
         "item.open_file" => "Άνοιγμα αρχείου",
@@ -119,7 +115,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "prepare.language" => "Γλώσσα",
         "prepare.back" => "Πίσω",
-        "prepare.choose" => "Επιλογή",
         "prepare.auto_detect" => "Αυτόματη ανίχνευση",
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
             "Install the required tools now, or skip and handle them later in Options."
@@ -191,7 +186,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.window_size" => "Window size",
         "options.reinstall" => "Reinstall",
         "options.installing" => "Installing",
-        "options.browse" => "Browse",
         "options.install" => "Εγκατάσταση",
         "options.file_not_found" => "File not found: ",
         "options.will_install_to" => "Will install to: ",
@@ -211,7 +205,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "main.controlled_by_config" => "Controlled by config: ",
         "main.controlled_by_config_2" => "Controlled by config",
-        "main.actual_path" => "Actual path: ",
         "picker.no_chapters_available" => "No chapters available.",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "Choose the range to download for this item. Default is the full video."
@@ -257,15 +250,10 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "tools.file_time.use_download_time_hint" => "--no-mtime",
         "tools.cache_mode.default" => "Προεπιλογή",
-        "tools.cache_mode.v2_cache" => "yt-dlp-gui",
-        "tools.cache_mode.windows_temp" => "Windows",
         "tools.subtitle_source.none" => "No subtitles",
         "tools.subtitle_source.original" => "Original subtitles",
         "tools.subtitle_source.automatic" => "Automatic subtitles",
-        "tools.quality.best" => "Καλύτερο",
-        "tools.quality.audio_only" => "Μόνο ήχος",
         "tools.youtube_playlist.channel_generated" => "YouTube generated channel playlist",
-        "tools.youtube_playlist.mix_radio" => "YouTube Mix / Radio",
         "tools.youtube_playlist.music_album" => "YouTube Music album/collection",
         "tools.youtube_playlist.liked_videos" => "Liked videos",
         "tools.youtube_playlist.favorites_legacy" => "Legacy favorites playlist",
@@ -282,11 +270,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tool_install.stage.installing" => "Installing",
         "tool_install.stage.completed" => "Completed",
         "tool_install.stage.failed" => "Failed",
-        "domain.media.video" => "video",
-        "domain.media.audio" => "audio",
-        "domain.media.muxed" => "muxed",
-        "domain.media.subtitle" => "subtitle",
-        "domain.media.other" => "other",
         "domain.quality.best" => "Καλύτερο",
         "domain.quality.audio_only" => "Μόνο ήχος",
         "prepare.severity.short.required" => "Required",
@@ -400,13 +383,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.playlist_ignored_for_now" => "Playlist is ignored for now: {target}",
         "state.untitled_video" => "Untitled video",
         "state.analysis_complete" => "Analysis complete: {title}",
-        "state.video_extension_error" => "Video export only supports mkv / mp4 / webm / mov / flv.",
-        "state.audio_extension_error" => {
-            "Audio export only supports opus / aac / m4a / mp3 / vorbis / alac / flac / wav."
-        }
-        "state.subtitle_extension_error" => {
-            "Subtitle extension must be srt, vtt, ass, ssa, lrc, ttml, dfxp, json3, srv3, srv2, or srv1."
-        }
         "state.action_aria2_fallback" => "{action} (Aria2 not found; using yt-dlp native download)",
         "state.cache_yt_dlp_default" => "yt-dlp default",
         "playlist.note.mix_radio" => {
@@ -449,19 +425,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.req.move_to_writable" => "Move the app to a writable portable folder.",
         "prepare.req.move_to_writable_example" => {
             "Move the app to a writable portable folder, for example D:\\Portable\\yt-dlp-gui-v2."
-        }
-        "prepare.req.generic_writable_recommendation" => {
-            "If deployment or config saving fails later, move the app to a writable non-synced portable folder."
-        }
-        "prepare.req.use_folder_path" => "Use a folder path instead.",
-        "prepare.req.path_not_folder" => "{path} is not a folder",
-        "prepare.req.config_not_folder" => "Make sure the config path is not a folder.",
-        "prepare.req.config_readonly" => "Config file is read-only",
-        "prepare.req.config_readonly_recommendation" => {
-            "Clear the config file read-only attribute, or move it to a writable portable folder."
-        }
-        "prepare.req.clear_write_test" => {
-            "Retry later, or remove the leftover .yt-dlp-gui-write-test file in the folder."
         }
         "runtime.download_cancelled" => "Download cancelled.",
         "runtime.yt_dlp_not_found" => {
@@ -627,16 +590,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.filter_executable" => "Executable",
 
         // English fallback translations added to keep every bundled language key-complete.
-        "tab.processing" => "Processing",
         "tab.log" => "Log",
-        "advance.convert" => "Convert",
-        "advance.apple_tv_hevc_h265" => "Apple TV HEVC / H.265",
         "advance.download_conversion" => "Convert after download",
         "advance.enable" => "Enable",
         "advance.settings" => "Settings",
         "options.tabs" => "Tabs",
-        "options.processing_tab" => "Processing tab",
-        "options.enable_processing_tab" => "Enable processing",
         "options.log_tab" => "Log tab",
         "options.show_log_tab" => "Show log",
         "options.theme" => "Theme",
@@ -652,46 +610,13 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "config.theme_color.green" => "Green",
         "config.theme_color.orange" => "Orange",
         "config.theme_color.slate" => "Slate",
-        "state.apple_tv_hevc_post_processing_title" => "Converting for Apple TV: {title}",
         "state.transcode_post_processing_title" => "Converting with {profile}: {title}",
-        "processing.convert" => "Convert",
-        "processing.tools" => "Tools",
         "processing.transcode" => "Transcode",
-        "processing.transcode_workbench" => "Transcode Intent Workbench",
-        "processing.transcode_intent_graph" => "Transcode intent graph",
-        "processing.intent_graph" => "Intent graph",
-        "processing.what_do_you_want" => "What do you want to do?",
-        "processing.result_card" => "Result",
-        "processing.primary_control" => "Primary control",
-        "processing.choose_graph_branch_hint" => "Choose this branch in the graph.",
-        "processing.current_size_ratio" => "Current",
-        "processing.adjustments" => "Current adjustments",
-        "processing.locks" => "Locked items",
-        "processing.locked" => "Locked",
-        "processing.auto_recompute" => "Auto",
-        "processing.apply" => "Apply",
-        "processing.apply_after_download" => {
-            "Apply the currently supported safe MP4 transcode after download"
-        }
-        "processing.apply_after_download_hint" => {
-            "Only the current executable safe MP4 backend is applied; not every intent setting is connected yet."
-        }
-        "processing.affects_command" => "Affects command",
-        "processing.preview_only_settings" => "Preview only",
-        "processing.disconnected_settings" => "Not connected",
-        "processing.backend_available" => "The current backend can run this safe MP4 plan.",
-        "processing.preview_only" => "This plan currently generates a command preview only.",
-        "processing.apple_tv" => "Apple TV",
-        "processing.apple_tv_hevc_h265" => "Apple TV HEVC / H.265",
         "transcode.intent.reduce_size" => "Smaller file",
         "transcode.intent.quality_first" => "Quality first",
         "transcode.intent.target_size" => "Size target",
         "transcode.intent.fast_transcode" => "Format",
         "transcode.intent.device_compat" => "Compatibility target",
-        "transcode.graph.target_ratio" => "Target ratio",
-        "transcode.graph.quality_target" => "Quality target",
-        "transcode.graph.size_input" => "Size input",
-        "transcode.graph.encode_effort" => "Encode effort",
         "transcode.compat.most_devices" => "Most devices / not sure",
         "transcode.compat.windows" => "Windows PC",
         "transcode.compat.mac" => "Mac",
@@ -729,11 +654,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.effort.normal" => "Normal",
         "transcode.effort.detailed" => "Detailed",
         "transcode.effort.extreme" => "Extreme",
-        "transcode.audio.compatible" => "Compatible",
-        "transcode.audio.preserve_surround" => "Preserve surround",
-        "transcode.encoder.auto" => "Auto",
-        "transcode.encoder.hardware_first" => "Hardware first",
-        "transcode.encoder.software" => "Software",
         "transcode.setting.compatibility" => "Compatibility",
         "transcode.setting.video_codec" => "Video codec",
         "transcode.setting.container" => "Container",
@@ -748,11 +668,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.support.executable" => "Executable",
         "transcode.support.partial" => "Partially supported",
         "transcode.support.preview_only" => "Preview only",
-        "processing.output_conversion" => "Post-download output",
-        "processing.convert_after_download" => "Convert after download",
-        "processing.convert_after_download_hint" => {
-            "Runs when video, audio, container, or subtitles need to change."
-        }
         "processing.video" => "Video",
         "processing.audio" => "Audio",
         "processing.container" => "Container",
@@ -770,17 +685,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "processing.subtitle.preserve" => "Source",
         "processing.subtitle.embed" => "Embed",
         "processing.subtitle.burn" => "Burn in",
-        "processing.disabled_summary" => "The downloaded yt-dlp output will be kept as-is.",
-        "processing.no_conversion_summary" => {
-            "All choices are set to source, so no post-process will run."
-        }
-        "processing.output_summary" => "Output summary",
-        "processing.visual_quality" => "Picture",
-        "processing.visual_quality_near_source" => "Keep visually close to the source",
-        "processing.method" => "Method",
-        "processing.encoder" => "Encoder",
-        "processing.status" => "Status",
-        "processing.command_preview" => "Command preview",
         "log.empty" => "No runtime log yet.",
         "log.clear" => "Clear",
         "log.copy" => "Copy",
@@ -788,14 +692,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.audio.aac" => "AAC",
         "transcode.audio.opus" => "Opus",
         "transcode.audio.flac" => "FLAC",
-        "log.runtime" => "Runtime log",
-        "log.not_implemented" => "Runtime log collection has not been implemented yet.",
         "runtime.subtitle_burn_no_source" => {
             "Subtitle burn-in needs a subtitle file or embedded subtitle. Download subtitles for this item first, or place an .srt/.ass subtitle file beside the video."
         }
         // English fallback translations keep bundled languages key-complete.
         "item.add_an_audio_url" => "Add an audio URL",
-        "options.auto_detect_tool_from" => "Auto-detect from",
         "options.auto_detect_tool_hint" => {
             "Detect installed tools from the portable tools folder and system PATH."
         }
@@ -815,11 +716,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.cache_cleaned_audio" => "Cleared audio cache: {count} entries ({size}).",
         "state.cache_cleaned_all" => "Cleared app cache: {count} entries ({size}).",
         "state.cache_cleanup_failed" => "Cache cleanup failed: {error}",
-        "queue_display.normal" => "Normal",
+        "app_mode.origin" => "Origin Mode",
+        "app_mode.standard" => "Standard Mode",
+        "app_mode.audio" => "Audio Mode",
+        "queue_display.normal" => "Standard",
         "queue_display.audio" => "Audio",
-        "queue_display.normal.tooltip" => "Normal download list",
-        "queue_display.audio.tooltip" => "Audio list and playback",
-        "main.queue_display_mode_hint" => "Switch list display and add behavior",
         "music.previous" => "Previous",
         "music.play" => "Play",
         "music.pause" => "Pause",
@@ -877,6 +778,24 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.no_previous_music" => "No previous track.",
         "state.no_next_music" => "No next track.",
         "state.music_playback_mode_changed" => "Playback mode: {mode}",
+        "action.analyze" => "Ανάλυση",
+        "item.download_thumbnail" => "Λήψη μικρογραφίας",
+        "single.title" => "Τίτλος",
+        "single.description" => "Περιγραφή",
+        "single.info.channel" => "Κανάλι",
+        "single.info.date" => "Ημερομηνία",
+        "single.info.views" => "Προβολές",
+        "thumbnail.filter.jpeg" => "Εικόνα JPEG",
+        "thumbnail.filter.png" => "Εικόνα PNG",
+        "thumbnail.filter.webp" => "Εικόνα WebP",
+        "thumbnail.filter.original" => "Αρχική εικόνα",
+        "state.single_mode_playlist_not_supported" => {
+            "Origin Mode does not support playlist URLs. Switch to Standard Mode to import a playlist."
+        }
+        "state.single_mode_wait_for_current_item" => {
+            "Wait for the current Origin Mode item to finish first."
+        }
+        "state.thumbnail_saved" => "Η μικρογραφία αποθηκεύτηκε: {path}",
         _ => super::en_us::text(key),
     }
 }

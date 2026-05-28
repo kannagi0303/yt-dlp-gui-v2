@@ -41,7 +41,7 @@ fn fetch_thumbnail_image(
     ))
 }
 
-fn fetch_thumbnail_bytes(
+pub(crate) fn fetch_thumbnail_bytes(
     url: &str,
     proxy_url: &str,
     no_check_certificates: bool,
