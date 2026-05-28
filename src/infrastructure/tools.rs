@@ -332,12 +332,21 @@ impl ToolPaths {
     }
 
     pub fn analyze_music_stream_url(&self, url: &str, use_cookies: bool) -> Result<Value, String> {
+        self.analyze_music_stream_url_with_selector(url, use_cookies, MUSIC_STREAM_FORMAT_SELECTOR)
+    }
+
+    pub fn analyze_music_stream_url_with_selector(
+        &self,
+        url: &str,
+        use_cookies: bool,
+        format_selector: &str,
+    ) -> Result<Value, String> {
         let tool_path = self.validate_yt_dlp_available()?;
         self.run_analyze_command(
             &tool_path,
             url,
             use_cookies,
-            Some(MUSIC_STREAM_FORMAT_SELECTOR),
+            Some(format_selector.trim()).filter(|value| !value.is_empty()),
         )
     }
 
@@ -428,7 +437,7 @@ impl ToolPaths {
             .arg(&target_format)
             .arg("--audio-quality")
             .arg("0")
-            .arg("--add-metadata");
+            .arg("--embed-metadata");
 
         if music_audio_download_format_supports_thumbnail(&target_format) {
             command
@@ -440,13 +449,19 @@ impl ToolPaths {
         command
             .arg("--metadata-from-title")
             .arg("%(artist)s - %(title)s")
+            .arg("--parse-metadata")
+            .arg("playlist:%(album)s")
+            .arg("--parse-metadata")
+            .arg("playlist_title:%(album)s")
             .arg("--print")
             .arg(format!("after_move:{FINAL_OUTPUT_PATH_PREFIX}%(filepath)j"))
             .arg("--output")
             .arg(output_template);
 
         if !self.effective_config_owns_format() {
-            command.arg("--format").arg(MUSIC_STREAM_FORMAT_SELECTOR);
+            command
+                .arg("--format")
+                .arg(music_audio_download_format_selector(&target_format));
         }
 
         self.apply_cookie_args(&mut command, use_cookies)?;
@@ -465,6 +480,53 @@ impl ToolPaths {
             output_path: expected_output,
             command_line,
         })
+    }
+
+    pub fn prepare_music_lyrics_cache_command(
+        &self,
+        url: &str,
+        lyrics_dir: &Path,
+        language_code: &str,
+        use_cookies: bool,
+    ) -> Result<Command, String> {
+        let tool_path = self.validate_yt_dlp_available()?;
+        fs::create_dir_all(lyrics_dir)
+            .map_err(|error| format!("Could not create lyrics cache folder: {error}"))?;
+
+        let output_template = lyrics_dir.join("lyrics.%(ext)s").display().to_string();
+        let mut command = Command::new(&tool_path);
+        configure_background_command(&mut command);
+        self.apply_common_yt_dlp_args(&mut command);
+        command
+            .arg("--no-playlist")
+            .arg("--skip-download")
+            .arg("--force-overwrites")
+            .arg("--windows-filenames")
+            .arg("--write-subs")
+            .arg("--sub-langs")
+            .arg(language_code.trim())
+            .arg("--sub-format")
+            .arg("vtt/srt/ttml/srv3/srv2/srv1/best")
+            .arg("--convert-subs")
+            .arg("lrc")
+            .arg("--output")
+            .arg(output_template);
+
+        self.apply_cookie_args(&mut command, use_cookies)?;
+        self.apply_youtube_extractor_args(&mut command);
+        command.arg(url);
+
+        command
+            .env("PYTHONIOENCODING", "utf-8")
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null());
+
+        println!(
+            "[music-lyrics] command: {}",
+            format_command_line(&tool_path, &command)
+        );
+        Ok(command)
     }
 
     pub fn prepare_download(&self, request: &DownloadRequest) -> Result<PreparedDownload, String> {
@@ -1605,6 +1667,26 @@ fn is_known_output_extension(extension: &str) -> bool {
             | "srv2"
             | "srv1"
     )
+}
+
+fn music_audio_download_format_selector(target_format: &str) -> &'static str {
+    match target_format
+        .trim()
+        .trim_start_matches('.')
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "mp3" => "bestaudio[ext=mp3]/bestaudio[acodec^=mp3]/bestaudio/best[acodec!=none]",
+        "m4a" | "aac" => {
+            "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio[acodec^=aac]/bestaudio/best[acodec!=none]"
+        }
+        "opus" => {
+            "bestaudio[acodec^=opus]/bestaudio[ext=opus]/bestaudio[ext=webm][acodec^=opus]/bestaudio/best[acodec!=none]"
+        }
+        "flac" => "bestaudio[ext=flac]/bestaudio[acodec^=flac]/bestaudio/best[acodec!=none]",
+        "wav" => "bestaudio[ext=wav]/bestaudio[acodec^=pcm]/bestaudio/best[acodec!=none]",
+        _ => MUSIC_STREAM_FORMAT_SELECTOR,
+    }
 }
 
 fn music_audio_download_format_supports_thumbnail(format: &str) -> bool {

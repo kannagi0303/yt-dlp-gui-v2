@@ -77,7 +77,9 @@ pub struct AppConfig {
     pub windows_toast_enabled: bool,
     pub music_volume: f32,
     pub music_playback_mode: String,
+    #[serde(skip_serializing)]
     pub queue_display_mode: String,
+    pub app_mode: String,
     pub show_log_tab: bool,
     pub transcode_intent: TranscodeIntentSettings,
     pub language: LanguageSelection,
@@ -837,6 +839,7 @@ impl Default for AppConfig {
             music_volume: 0.80,
             music_playback_mode: "sequential".to_owned(),
             queue_display_mode: "normal".to_owned(),
+            app_mode: "origin".to_owned(),
             show_log_tab: true,
             transcode_intent: TranscodeIntentSettings::default(),
             language: LanguageSelection::Auto,
@@ -856,15 +859,54 @@ impl Default for AppConfig {
     }
 }
 
+fn explicit_app_mode_from_config_content(content: &str) -> Option<String> {
+    let value = serde_yaml::from_str::<serde_yaml::Value>(content).ok()?;
+    let mapping = value.as_mapping()?;
+    for key in ["app_mode", "appMode", "AppMode", "app-mode"] {
+        if let Some(raw) = mapping
+            .get(&serde_yaml::Value::String(key.to_owned()))
+            .and_then(|value| value.as_str())
+        {
+            return Some(normalize_app_mode_value(raw));
+        }
+    }
+    None
+}
+
+fn normalize_app_mode_value(value: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "origin" => "origin".to_owned(),
+        "standard" => "standard".to_owned(),
+        "audio" => "audio".to_owned(),
+        _ => "origin".to_owned(),
+    }
+}
+
+fn queue_display_mode_from_app_mode_value(value: &str) -> String {
+    if value == "audio" {
+        "audio".to_owned()
+    } else {
+        "normal".to_owned()
+    }
+}
+
 impl AppConfig {
     pub fn load_runtime() -> (Self, ToolPaths) {
         let config_path = config_file_path();
-        let mut config = fs::read_to_string(&config_path)
-            .ok()
-            .and_then(|content| serde_yaml::from_str::<Self>(&content).ok())
+        let raw_content = fs::read_to_string(&config_path).ok();
+        let explicit_app_mode = raw_content
+            .as_deref()
+            .and_then(explicit_app_mode_from_config_content);
+        let mut config = raw_content
+            .as_deref()
+            .and_then(|content| serde_yaml::from_str::<Self>(content).ok())
             .unwrap_or_default();
         config.config_path = Some(config_path);
         config.normalize();
+        if let Some(app_mode) = explicit_app_mode {
+            config.app_mode = app_mode;
+        }
+        config.queue_display_mode = queue_display_mode_from_app_mode_value(&config.app_mode);
         let tool_paths = config.tool_paths();
         let _ = config.save();
         (config, tool_paths)
@@ -999,11 +1041,8 @@ impl AppConfig {
             "repeat_one" | "single" | "one" => "repeat_one".to_owned(),
             _ => "sequential".to_owned(),
         };
-        self.queue_display_mode = match self.queue_display_mode.trim().to_ascii_lowercase().as_str()
-        {
-            "audio" | "music" | "music_compact" => "audio".to_owned(),
-            _ => "normal".to_owned(),
-        };
+        self.app_mode = normalize_app_mode_value(&self.app_mode);
+        self.queue_display_mode = queue_display_mode_from_app_mode_value(&self.app_mode);
         self.transcode_intent = self.transcode_intent.clone().normalized();
 
         if let Some(position) = self.window_position {
@@ -1027,6 +1066,48 @@ impl AppConfig {
             self.write_thumbnail = false;
             self.embed_thumbnail = false;
             self.write_subtitles = false;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AppConfig, normalize_app_mode_value, queue_display_mode_from_app_mode_value};
+
+    #[test]
+    fn app_config_defaults_to_origin_app_mode() {
+        assert_eq!(AppConfig::default().app_mode, "origin");
+    }
+
+    #[test]
+    fn app_mode_normalization_rejects_legacy_aliases() {
+        assert_eq!(normalize_app_mode_value("origin"), "origin");
+        assert_eq!(normalize_app_mode_value("standard"), "standard");
+        assert_eq!(normalize_app_mode_value("audio"), "audio");
+
+        assert_eq!(normalize_app_mode_value("single"), "origin");
+        assert_eq!(normalize_app_mode_value("normal"), "origin");
+        assert_eq!(normalize_app_mode_value("garbage"), "origin");
+    }
+
+    #[test]
+    fn queue_display_mode_is_derived_from_app_mode() {
+        assert_eq!(queue_display_mode_from_app_mode_value("audio"), "audio");
+        assert_eq!(queue_display_mode_from_app_mode_value("origin"), "normal");
+        assert_eq!(queue_display_mode_from_app_mode_value("standard"), "normal");
+    }
+
+    #[test]
+    fn serialized_config_writes_app_mode_without_queue_display_mode() {
+        for app_mode in ["origin", "standard", "audio"] {
+            let mut config = AppConfig::default();
+            config.app_mode = app_mode.to_owned();
+            config.queue_display_mode = queue_display_mode_from_app_mode_value(app_mode);
+
+            let yaml = serde_yaml::to_string(&config).expect("serialize config");
+
+            assert!(yaml.contains(&format!("app_mode: {app_mode}")));
+            assert!(!yaml.contains("queue_display_mode"));
         }
     }
 }

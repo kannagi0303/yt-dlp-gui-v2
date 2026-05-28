@@ -1,13 +1,15 @@
 use std::path::PathBuf;
 
 use eframe::egui::{self, Color32, RichText, ScrollArea, Ui};
-use egui_extras::{Size, StripBuilder};
+use egui_taffy::Tui;
 
 use crate::app::state::{
     AppState, MusicDownloadFormat, OptionsDetailPage, YoutubePlaylistPromptKind,
 };
 use crate::app::widgets::icon::icon_image;
-use crate::app::widgets::url_input::{DisplayPathInput, accent_green_for_ui, accent_red_for_ui};
+use crate::app::widgets::url_input::{
+    AppTextBox, AppTextBoxSyntax, accent_green_for_ui, accent_red_for_ui,
+};
 use crate::i18n::LanguageSelection;
 use crate::infrastructure::{
     DependencyTool, OutputFileActionMode, ThemeAccentColor, ThemeMode, YoutubeVideoPlaylistMode,
@@ -17,9 +19,9 @@ use crate::infrastructure::{
 use crate::app::widgets::icon::AppIcon;
 
 use super::common::{
-    form_row_label, icon_button_text_size, icon_text_button, measure_label_width,
-    natural_icon_button_width, settings_scroll_content, settings_section,
-    text_trailing_icon_button,
+    icon_button_text_size, icon_text_button, measure_label_width, natural_icon_button_width,
+    settings_scroll_content, settings_section, settings_taffy_form_row,
+    settings_taffy_scroll_content, settings_taffy_section, text_trailing_icon_button,
 };
 
 pub(super) fn render_options_tab(ui: &mut Ui, state: &mut AppState) {
@@ -34,18 +36,16 @@ fn render_options_root_page(ui: &mut Ui, state: &mut AppState) {
         .id_salt("options-tab-scroll")
         .auto_shrink([false, false])
         .show(ui, |ui| {
-            settings_scroll_content(ui, |ui| {
-                let label_width = options_label_width(ui, state);
-                ui.vertical(|ui| {
-                    render_language_group(ui, state, label_width);
-                    render_tool_paths_group(ui, state, label_width);
-                    render_behavior_group(ui, state, label_width);
-                    render_tabs_group(ui, state, label_width);
-                    render_playlist_group(ui, state, label_width);
-                    render_file_action_group(ui, state, label_width);
-                    render_cache_group(ui, state, label_width);
-                    render_window_group(ui, state, label_width);
-                });
+            let metrics = OptionsLayoutMetrics::new(ui, state);
+            settings_taffy_scroll_content(ui, "options-root-settings-taffy", |tui| {
+                render_language_group(tui, state, metrics.label_width);
+                render_tool_paths_group(tui, state, &metrics);
+                render_behavior_group(tui, state, metrics.label_width);
+                render_tabs_group(tui, state, metrics.label_width);
+                render_playlist_group(tui, state, metrics.label_width);
+                render_file_action_group(tui, state, metrics.label_width);
+                render_cache_group(tui, state, metrics.label_width);
+                render_window_group(tui, state, metrics.label_width);
             });
         });
 }
@@ -326,9 +326,9 @@ fn prompt_action_button(
     .min_size(egui::vec2(width, height))
 }
 
-fn render_behavior_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, state.tr("options.behavior"), |ui| {
-        form_row_label(ui, label_width, state.tr("options.add_action"), |ui| {
+fn render_behavior_group(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_section(tui, state.tr("options.behavior"), |tui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.add_action"), |ui| {
             let mut enabled = state.config.direct_download_on_add;
             if ui
                 .checkbox(&mut enabled, state.tr("options.download_directly"))
@@ -337,8 +337,8 @@ fn render_behavior_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                 state.set_direct_download_on_add(enabled);
             }
         });
-        form_row_label(
-            ui,
+        settings_taffy_form_row(
+            tui,
             label_width,
             state.tr("options.clipboard_change"),
             |ui| {
@@ -354,9 +354,9 @@ fn render_behavior_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
     });
 }
 
-fn render_tabs_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, state.tr("options.tabs"), |ui| {
-        form_row_label(ui, label_width, state.tr("options.log_tab"), |ui| {
+fn render_tabs_group(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_section(tui, state.tr("options.tabs"), |tui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.log_tab"), |ui| {
             let mut enabled = state.config.show_log_tab;
             if ui
                 .checkbox(&mut enabled, state.tr("options.show_log_tab"))
@@ -368,9 +368,9 @@ fn render_tabs_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
     });
 }
 
-fn render_playlist_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, state.tr("options.playlist_2"), |ui| {
-        form_row_label(ui, label_width, state.tr("options.with_playlist"), |ui| {
+fn render_playlist_group(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_section(tui, state.tr("options.playlist_2"), |tui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.with_playlist"), |ui| {
             egui::ComboBox::from_id_salt("youtube-video-playlist-mode")
                 .selected_text(match state.config.youtube_video_playlist_mode {
                     YoutubeVideoPlaylistMode::Ask => state.tr("options.ask"),
@@ -401,8 +401,8 @@ fn render_playlist_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                     }
                 });
         });
-        form_row_label(
-            ui,
+        settings_taffy_form_row(
+            tui,
             label_width,
             state.tr("options.high_risk_prompt"),
             |ui| {
@@ -412,7 +412,7 @@ fn render_playlist_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                 }
             },
         );
-        form_row_label(ui, label_width, state.tr("options.playlist_count"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.playlist_count"), |ui| {
             let mut enabled = state.config.batch_limit_enabled;
             if ui
                 .checkbox(&mut enabled, state.tr("options.limit"))
@@ -436,9 +436,9 @@ fn render_playlist_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
     });
 }
 
-fn render_language_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, state.tr("options.language"), |ui| {
-        form_row_label(ui, label_width, state.tr("options.language"), |ui| {
+fn render_language_group(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_section(tui, state.tr("options.language"), |tui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.language"), |ui| {
             let label = language_choice_label(state, state.language_selection());
             if ui
                 .add(text_trailing_icon_button(ui, &label, AppIcon::MenuRight))
@@ -501,27 +501,25 @@ fn language_choice_label(state: &AppState, language: LanguageSelection) -> Strin
     }
 }
 
-fn render_tool_paths_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, state.tr("options.tool_paths"), |ui| {
-        ui.vertical(|ui| {
-            render_tool_auto_detect_row(ui, state, label_width);
-            ui.add_space(4.0);
-            tool_path_row(ui, label_width, state, DependencyTool::YtDlp);
-            tool_path_row(ui, label_width, state, DependencyTool::Deno);
-            tool_path_row(ui, label_width, state, DependencyTool::Ffmpeg);
-            tool_path_row(ui, label_width, state, DependencyTool::Aria2c);
-        });
+fn render_tool_paths_group(tui: &mut Tui, state: &mut AppState, metrics: &OptionsLayoutMetrics) {
+    settings_taffy_section(tui, state.tr("options.tool_paths"), |tui| {
+        render_tool_auto_detect_row(tui, state, metrics);
+        tool_path_row(tui, metrics, state, DependencyTool::YtDlp);
+        tool_path_row(tui, metrics, state, DependencyTool::Deno);
+        tool_path_row(tui, metrics, state, DependencyTool::Ffmpeg);
+        tool_path_row(tui, metrics, state, DependencyTool::Aria2c);
     });
 }
 
-fn render_tool_auto_detect_row(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    form_row_label(ui, label_width, "", |ui| {
+fn render_tool_auto_detect_row(
+    tui: &mut Tui,
+    state: &mut AppState,
+    metrics: &OptionsLayoutMetrics,
+) {
+    settings_taffy_form_row(tui, metrics.label_width, "", |ui| {
         let row_height = ui.spacing().interact_size.y;
         let response = ui.add_sized(
-            [
-                natural_icon_button_width(ui, state.tr("options.auto_detect")),
-                row_height,
-            ],
+            [metrics.auto_detect_width, row_height],
             icon_text_button(ui, AppIcon::Magnify, state.tr("options.auto_detect")),
         );
         if response.clicked() {
@@ -531,9 +529,9 @@ fn render_tool_auto_detect_row(ui: &mut Ui, state: &mut AppState, label_width: f
     });
 }
 
-fn render_file_action_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, state.tr("options.file_actions"), |ui| {
-        form_row_label(ui, label_width, state.tr("options.action_button"), |ui| {
+fn render_file_action_group(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_section(tui, state.tr("options.file_actions"), |tui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.action_button"), |ui| {
             egui::ComboBox::from_id_salt("output-file-action-mode")
                 .selected_text(state.tr(state.config.output_file_action_mode.label()))
                 .show_ui(ui, |ui| {
@@ -553,9 +551,9 @@ fn render_file_action_group(ui: &mut Ui, state: &mut AppState, label_width: f32)
     });
 }
 
-fn render_cache_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, state.tr("options.cache"), |ui| {
-        form_row_label(ui, label_width, state.tr("options.cache_location"), |ui| {
+fn render_cache_group(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_section(tui, state.tr("options.cache"), |tui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.cache_location"), |ui| {
             egui::ComboBox::from_id_salt("cache-location-mode")
                 .selected_text(state.tr(state.tool_paths.cache_mode.label()))
                 .show_ui(ui, |ui| {
@@ -573,11 +571,11 @@ fn render_cache_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
 
         state.refresh_cache_management_summary_if_stale();
 
-        form_row_label(ui, label_width, state.tr("options.cache_usage"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.cache_usage"), |ui| {
             ui.label(state.cache_management_usage_display());
         });
 
-        form_row_label(ui, label_width, state.tr("options.cache_cleanup"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.cache_cleanup"), |ui| {
             ui.horizontal_wrapped(|ui| {
                 if ui.button(state.tr("options.cache_refresh")).clicked() {
                     state.refresh_cache_management_summary();
@@ -596,9 +594,9 @@ fn render_cache_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
     });
 }
 
-fn render_window_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, state.tr("options.appearance_window"), |ui| {
-        form_row_label(ui, label_width, state.tr("options.notifications"), |ui| {
+fn render_window_group(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_section(tui, state.tr("options.appearance_window"), |tui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.notifications"), |ui| {
             let mut enabled = state.config.windows_toast_enabled;
             if ui
                 .checkbox(&mut enabled, state.tr("options.enable"))
@@ -607,7 +605,7 @@ fn render_window_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                 state.set_windows_toast_enabled(enabled);
             }
         });
-        form_row_label(ui, label_width, state.tr("options.theme"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.theme"), |ui| {
             egui::ComboBox::from_id_salt("theme-mode")
                 .selected_text(state.tr(state.config.theme_mode.label()))
                 .show_ui(ui, |ui| {
@@ -624,7 +622,7 @@ fn render_window_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                     }
                 });
         });
-        form_row_label(ui, label_width, state.tr("options.theme_color"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.theme_color"), |ui| {
             egui::ComboBox::from_id_salt("theme-accent-color")
                 .selected_text(state.tr(state.config.theme_accent_color.label()))
                 .show_ui(ui, |ui| {
@@ -641,7 +639,7 @@ fn render_window_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                     }
                 });
         });
-        form_row_label(ui, label_width, state.tr("options.ui_scale"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.ui_scale"), |ui| {
             let mut pending = state.pending_ui_scale_percent();
             if ui
                 .add(
@@ -667,7 +665,7 @@ fn render_window_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                 state.config.ui_scale_percent
             ));
         });
-        form_row_label(ui, label_width, state.tr("options.always_on_top"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("options.always_on_top"), |ui| {
             let mut enabled = state.config.keep_window_on_top;
             if ui
                 .checkbox(&mut enabled, state.tr("options.enable"))
@@ -676,16 +674,21 @@ fn render_window_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                 state.set_keep_window_on_top(enabled);
             }
         });
-        form_row_label(ui, label_width, state.tr("options.window_position"), |ui| {
-            let mut enabled = state.config.remember_window_position;
-            if ui
-                .checkbox(&mut enabled, state.tr("options.remember"))
-                .changed()
-            {
-                state.set_remember_window_position(enabled);
-            }
-        });
-        form_row_label(ui, label_width, state.tr("options.window_size"), |ui| {
+        settings_taffy_form_row(
+            tui,
+            label_width,
+            state.tr("options.window_position"),
+            |ui| {
+                let mut enabled = state.config.remember_window_position;
+                if ui
+                    .checkbox(&mut enabled, state.tr("options.remember"))
+                    .changed()
+                {
+                    state.set_remember_window_position(enabled);
+                }
+            },
+        );
+        settings_taffy_form_row(tui, label_width, state.tr("options.window_size"), |ui| {
             let mut enabled = state.config.remember_window_size;
             if ui
                 .checkbox(&mut enabled, state.tr("options.remember"))
@@ -695,6 +698,26 @@ fn render_window_group(ui: &mut Ui, state: &mut AppState, label_width: f32) {
             }
         });
     });
+}
+
+struct OptionsLayoutMetrics {
+    label_width: f32,
+    auto_detect_width: f32,
+    install_button_width: f32,
+    pick_button_width: f32,
+}
+
+impl OptionsLayoutMetrics {
+    fn new(ui: &Ui, state: &AppState) -> Self {
+        Self {
+            label_width: options_label_width(ui, state),
+            auto_detect_width: natural_icon_button_width(ui, state.tr("options.auto_detect")),
+            install_button_width: natural_icon_button_width(ui, state.tr("options.reinstall")).max(
+                natural_icon_button_width(ui, state.tr("options.installing")),
+            ),
+            pick_button_width: natural_icon_button_width(ui, state.tr("advance.browse")),
+        }
+    }
 }
 
 fn options_label_width(ui: &Ui, state: &AppState) -> f32 {
@@ -728,13 +751,12 @@ fn options_label_width(ui: &Ui, state: &AppState) -> f32 {
     )
 }
 
-fn tool_path_row(ui: &mut Ui, label_width: f32, state: &mut AppState, tool: DependencyTool) {
-    let row_height = ui.spacing().interact_size.y;
-    let install_button_width = natural_icon_button_width(ui, state.tr("options.reinstall")).max(
-        natural_icon_button_width(ui, state.tr("options.installing")),
-    );
-    let pick_button_width = natural_icon_button_width(ui, state.tr("advance.browse"));
-    let row_width = ui.available_width();
+fn tool_path_row(
+    tui: &mut Tui,
+    metrics: &OptionsLayoutMetrics,
+    state: &mut AppState,
+    tool: DependencyTool,
+) {
     let label = tool.label();
     let expected_file_name = tool.executable_name();
     let current_value = state.dependency_tool_path(tool).to_owned();
@@ -752,100 +774,87 @@ fn tool_path_row(ui: &mut Ui, label_width: f32, state: &mut AppState, tool: Depe
     };
     let status = state.dependency_tool_status_text(tool);
 
-    ui.allocate_ui(egui::vec2(row_width, row_height), |ui| {
-        StripBuilder::new(ui)
-            .size(Size::exact(label_width))
-            .size(Size::remainder().at_least(120.0))
-            .size(Size::exact(install_button_width))
-            .size(Size::exact(pick_button_width))
-            .horizontal(|mut strip| {
-                strip.cell(|ui| {
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(ui.available_width(), row_height),
-                        egui::Layout::right_to_left(egui::Align::Center),
-                        |ui| {
-                            ui.label(label);
-                        },
-                    );
-                });
-                strip.cell(|ui| {
-                    let mut value = current_value.clone();
-                    let response = ui.add_sized(
-                        [ui.available_width(), row_height],
-                        DisplayPathInput::new(&mut value).error(missing_file),
-                    );
-                    if missing_file {
-                        response.on_hover_text(format!(
-                            "{}{}",
-                            state.tr("options.file_not_found"),
-                            current_value
-                        ));
-                    } else if !trimmed.is_empty() {
-                        response.on_hover_text(current_value.clone());
+    settings_taffy_form_row(tui, metrics.label_width, label, |ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+
+            let row_height = ui.spacing().interact_size.y;
+            let buttons_width = metrics.install_button_width + metrics.pick_button_width;
+            let gap_width = ui.spacing().item_spacing.x * 2.0;
+            let path_width = (ui.available_width() - buttons_width - gap_width).max(120.0);
+
+            let mut value = current_value.clone();
+            let response = AppTextBox::new(&mut value)
+                .language(state.language())
+                .syntax(AppTextBoxSyntax::Path)
+                .error(missing_file)
+                .desired_width(path_width)
+                .editable(false)
+                .selectable(false)
+                .ui(ui);
+            if missing_file {
+                response.on_hover_text(format!(
+                    "{}{}",
+                    state.tr("options.file_not_found"),
+                    current_value
+                ));
+            } else if !trimmed.is_empty() {
+                response.on_hover_text(current_value.clone());
+            }
+
+            let response = ui.add_enabled(
+                !install_running,
+                icon_text_button(ui, AppIcon::Download, button_label)
+                    .min_size(egui::vec2(metrics.install_button_width, row_height)),
+            );
+            if response.clicked() {
+                state.install_dependency_tool(tool);
+            }
+            let localized_status = state.localize_message(&status);
+            if is_active {
+                response.on_hover_text(format!(
+                    "{}\n{}{}",
+                    localized_status,
+                    state.tr("options.will_install_to"),
+                    tool.default_portable_path()
+                ));
+            } else if install_running {
+                response
+                    .on_hover_text(state.tr("options.another_tool_is_being_installed_please_wait"));
+            } else {
+                response.on_hover_text(format!(
+                    "{}\n{}{}",
+                    localized_status,
+                    state.tr("options.install_to"),
+                    tool.default_portable_path()
+                ));
+            }
+
+            if ui
+                .add_sized(
+                    [metrics.pick_button_width, row_height],
+                    icon_text_button(ui, AppIcon::FolderSettings, state.tr("advance.browse")),
+                )
+                .clicked()
+            {
+                let mut dialog = rfd::FileDialog::new()
+                    .add_filter(state.tr("options.filter_executable"), &["exe"])
+                    .set_title(format!(
+                        "{} {label} {}",
+                        state.tr("options.choose"),
+                        state.tr("options.executable")
+                    ));
+                if !trimmed.is_empty() {
+                    let current_path = PathBuf::from(&trimmed);
+                    if let Some(parent) = current_path.parent().filter(|path| path.is_dir()) {
+                        dialog = dialog.set_directory(parent);
                     }
-                });
-                strip.cell(|ui| {
-                    let response = ui.add_enabled(
-                        !install_running,
-                        icon_text_button(ui, AppIcon::Download, button_label)
-                            .min_size(egui::vec2(ui.available_width(), row_height)),
-                    );
-                    if response.clicked() {
-                        state.install_dependency_tool(tool);
-                    }
-                    let localized_status = state.localize_message(&status);
-                    if is_active {
-                        response.on_hover_text(format!(
-                            "{}\n{}{}",
-                            localized_status,
-                            state.tr("options.will_install_to"),
-                            tool.default_portable_path()
-                        ));
-                    } else if install_running {
-                        response.on_hover_text(
-                            state.tr("options.another_tool_is_being_installed_please_wait"),
-                        );
-                    } else {
-                        response.on_hover_text(format!(
-                            "{}\n{}{}",
-                            localized_status,
-                            state.tr("options.install_to"),
-                            tool.default_portable_path()
-                        ));
-                    }
-                });
-                strip.cell(|ui| {
-                    if ui
-                        .add_sized(
-                            [ui.available_width(), row_height],
-                            icon_text_button(
-                                ui,
-                                AppIcon::FolderSettings,
-                                state.tr("advance.browse"),
-                            ),
-                        )
-                        .clicked()
-                    {
-                        let mut dialog = rfd::FileDialog::new()
-                            .add_filter(state.tr("options.filter_executable"), &["exe"])
-                            .set_title(format!(
-                                "{} {label} {}",
-                                state.tr("options.choose"),
-                                state.tr("options.executable")
-                            ));
-                        if !trimmed.is_empty() {
-                            let current_path = PathBuf::from(&trimmed);
-                            if let Some(parent) = current_path.parent().filter(|path| path.is_dir())
-                            {
-                                dialog = dialog.set_directory(parent);
-                            }
-                        }
-                        if let Some(path) = dialog.set_file_name(expected_file_name).pick_file() {
-                            set_dependency_tool_path(state, tool, path.display().to_string());
-                        }
-                    }
-                });
-            });
+                }
+                if let Some(path) = dialog.set_file_name(expected_file_name).pick_file() {
+                    set_dependency_tool_path(state, tool, path.display().to_string());
+                }
+            }
+        });
     });
 }
 

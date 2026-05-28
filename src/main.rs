@@ -9,7 +9,9 @@ use std::path::PathBuf;
 
 use app::{NgDlpApp, app_icon::app_window_icon};
 use eframe::egui::{self, ViewportBuilder};
-use infrastructure::{AppConfig, ThemeMode, WindowPosition, WindowSize, collect_prepare_report};
+use infrastructure::{
+    AppConfig, ThemeMode, ToolPaths, WindowPosition, WindowSize, collect_prepare_report,
+};
 
 fn main() -> eframe::Result<()> {
     #[cfg(target_os = "windows")]
@@ -17,19 +19,48 @@ fn main() -> eframe::Result<()> {
         eprintln!("[app-identity] Windows app identity unavailable: {error}");
     }
 
-    let window_options = startup_window_options();
+    let startup = StartupRuntime::load();
     let native_options = eframe::NativeOptions {
-        viewport: window_options.viewport_builder(),
-        centered: window_options.centered,
+        viewport: startup.window_options.viewport_builder(),
+        centered: startup.window_options.centered,
         persist_window: false,
         ..Default::default()
     };
+    let config = startup.config;
+    let tool_paths = startup.tool_paths;
 
     eframe::run_native(
         "yt-dlp-gui",
         native_options,
-        Box::new(|cc| Ok(Box::new(NgDlpApp::new(cc)))),
+        Box::new(move |cc| {
+            Ok(Box::new(NgDlpApp::new_with_runtime(
+                cc,
+                config.clone(),
+                tool_paths.clone(),
+            )))
+        }),
     )
+}
+
+struct StartupRuntime {
+    config: AppConfig,
+    tool_paths: ToolPaths,
+    window_options: StartupWindowOptions,
+}
+
+impl StartupRuntime {
+    fn load() -> Self {
+        let config_path = config_file_path();
+        let is_first_launch = !config_path.exists();
+        let (config, tool_paths) = AppConfig::load_runtime();
+        let window_options =
+            startup_window_options_from_config(&config, &tool_paths, is_first_launch);
+        Self {
+            config,
+            tool_paths,
+            window_options,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -65,11 +96,12 @@ impl StartupWindowOptions {
     }
 }
 
-fn startup_window_options() -> StartupWindowOptions {
-    let config_path = config_file_path();
-    let is_first_launch = !config_path.exists();
-    let (config, tool_paths) = AppConfig::load_runtime();
-    let prepare_report = collect_prepare_report(&tool_paths, &config.download_dir);
+fn startup_window_options_from_config(
+    config: &AppConfig,
+    tool_paths: &ToolPaths,
+    is_first_launch: bool,
+) -> StartupWindowOptions {
+    let prepare_report = collect_prepare_report(tool_paths, &config.download_dir);
     let will_show_prepare = !config.prepare_skipped && prepare_report.should_show_tab();
 
     let restore_window_state = !is_first_launch && !will_show_prepare;

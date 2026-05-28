@@ -4,11 +4,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tab.main" => "主页",
         "tab.advanced" => "高级",
         "tab.options" => "选项",
-        "tab.processing" => "处理",
         "tab.log" => "记录",
-        "main.url_hint" => "粘贴网址",
+        "main.url_hint" => "网址",
         "action.download" => "下载",
         "action.add" => "＋ 添加",
+        "action.analyze" => "分析",
         "action.stop" => "停止",
         "action.stopping" => "停止中",
         "action.cut" => "剪切",
@@ -17,6 +17,16 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "action.clear" => "清除",
         "item.thumbnail" => "缩略图",
         "item.thumbnail_preview" => "缩略图预览",
+        "single.title" => "标题",
+        "single.description" => "说明",
+        "single.info.channel" => "频道",
+        "single.info.date" => "日期",
+        "single.info.views" => "观看",
+        "thumbnail.filter.jpeg" => "JPEG 图片",
+        "thumbnail.filter.png" => "PNG 图片",
+        "thumbnail.filter.webp" => "WebP 图片",
+        "thumbnail.filter.original" => "原始图片",
+        "item.download_thumbnail" => "下载缩略图",
         "notification.download_finished" => "下载完成",
         "notification.download_failed" => "下载失败",
         "notification.download_finished_detail_prefix" => "已完成：",
@@ -82,8 +92,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.file_time" => "文件时间",
         "advance.post_processing" => "后处理",
         "advance.thumbnail" => "缩略图",
-        "advance.convert" => "转档",
-        "advance.apple_tv_hevc_h265" => "Apple TV HEVC / H.265",
         "advance.download" => "下载",
         "advance.embed" => "嵌入",
         "advance.subtitles" => "字幕",
@@ -101,12 +109,8 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "item.clear_all" => "全部清除",
         "item.add_a_video_url" => "请新增视频网址",
         "item.add_an_audio_url" => "加入音频 URL",
-        "item.after_adding_choose_the_video_format_here" => {
-            "After adding, choose the video format here."
-        }
-        "item.after_adding_choose_the_audio_format_here" => {
-            "After adding, choose the audio format here."
-        }
+        "item.after_adding_choose_the_video_format_here" => "影片格式選擇",
+        "item.after_adding_choose_the_audio_format_here" => "音频格式选择",
         "item.loading_thumbnail" => "缩略图载入中",
         "item.file_actions" => "文件操作",
         "item.open_file" => "打开文件",
@@ -123,7 +127,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "prepare.language" => "语言",
         "prepare.back" => "返回",
-        "prepare.choose" => "选择",
         "prepare.auto_detect" => "自动检测",
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
             "Install the required tools now, or skip and handle them later in Options."
@@ -163,8 +166,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.clipboard_change" => "剪贴板变更",
         "options.run_immediately" => "立即执行",
         "options.tabs" => "分页",
-        "options.processing_tab" => "处理分页",
-        "options.enable_processing_tab" => "启用后处理",
         "options.log_tab" => "记录分页",
         "options.show_log_tab" => "显示记录",
         "options.playlist_2" => "播放列表",
@@ -182,7 +183,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.current_language" => "当前语言",
         "options.back" => "返回",
         "options.choose" => "选择",
-        "options.auto_detect_tool_from" => "从以下位置自动检测：",
         "options.auto_detect" => "自动检测",
         "options.auto_detect_tool_hint" => "从便携工具文件夹与系统 PATH 检测已安装工具。",
         "options.tool_paths" => "工具路径",
@@ -211,7 +211,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.window_size" => "窗口大小",
         "options.reinstall" => "重新安装",
         "options.installing" => "安装中",
-        "options.browse" => "选择文件",
         "options.install" => "安装",
         "options.file_not_found" => "文件不存在：",
         "options.will_install_to" => "将安装到：",
@@ -231,7 +230,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "main.controlled_by_config" => "Controlled by config: ",
         "main.controlled_by_config_2" => "Controlled by config",
-        "main.actual_path" => "Actual path: ",
         "picker.no_chapters_available" => "No chapters available.",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "Choose the range to download for this item. Default is the full video."
@@ -286,15 +284,10 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "tools.file_time.use_download_time_hint" => "--no-mtime",
         "tools.cache_mode.default" => "默认",
-        "tools.cache_mode.v2_cache" => "yt-dlp-gui",
-        "tools.cache_mode.windows_temp" => "Windows",
         "tools.subtitle_source.none" => "无字幕",
         "tools.subtitle_source.original" => "原始字幕",
         "tools.subtitle_source.automatic" => "自动字幕",
-        "tools.quality.best" => "最佳",
-        "tools.quality.audio_only" => "仅音频",
         "tools.youtube_playlist.channel_generated" => "YouTube 生成的频道列表",
-        "tools.youtube_playlist.mix_radio" => "YouTube Mix / Radio",
         "tools.youtube_playlist.music_album" => "YouTube Music 专辑/合集",
         "tools.youtube_playlist.liked_videos" => "喜欢的视频",
         "tools.youtube_playlist.favorites_legacy" => "旧版收藏列表",
@@ -311,11 +304,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tool_install.stage.installing" => "安裝中",
         "tool_install.stage.completed" => "已完成",
         "tool_install.stage.failed" => "失敗",
-        "domain.media.video" => "video",
-        "domain.media.audio" => "audio",
-        "domain.media.muxed" => "muxed",
-        "domain.media.subtitle" => "subtitle",
-        "domain.media.other" => "other",
         "domain.quality.best" => "最佳",
         "domain.quality.audio_only" => "仅音频",
         "prepare.severity.short.required" => "必须",
@@ -341,6 +329,12 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.analyzing_source" => "Analyzing: {source}",
         "state.batch_add_running" => "Batch add is still running.",
         "state.no_url_to_add" => "There is no URL to add.",
+        "state.single_mode_playlist_not_supported" => {
+            "Origin Mode does not support playlist URLs. Switch to Standard Mode to import a playlist."
+        }
+        "state.single_mode_wait_for_current_item" => {
+            "Wait for the current Origin Mode item to finish first."
+        }
         "state.video_url_contains_playlist" => {
             "Detected a video URL that also contains a playlist."
         }
@@ -382,44 +376,13 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.downloading_title_aria2_fallback" => {
             "Downloading: {title} (Aria2 not found; using yt-dlp native download)"
         }
-        "state.apple_tv_hevc_post_processing_title" => "Apple TV 转档中：{title}",
         "state.transcode_post_processing_title" => "{profile} 转档中：{title}",
-        "processing.convert" => "转档",
-        "processing.tools" => "工具",
         "processing.transcode" => "转档",
-        "processing.transcode_workbench" => "转档意图工作台",
-        "processing.transcode_intent_graph" => "转档意图图",
-        "processing.intent_graph" => "意图图",
-        "processing.what_do_you_want" => "你想做什么？",
-        "processing.result_card" => "结果",
-        "processing.primary_control" => "主要控制",
-        "processing.choose_graph_branch_hint" => "请在意图图中选择这条分支。",
-        "processing.current_size_ratio" => "当前",
-        "processing.adjustments" => "当前调整",
-        "processing.locks" => "固定项",
-        "processing.locked" => "锁定",
-        "processing.auto_recompute" => "自动重算",
-        "processing.apply" => "套用",
-        "processing.apply_after_download" => "下载后套用当前支持的 safe MP4 转档",
-        "processing.apply_after_download_hint" => {
-            "只会套用当前可执行的 safe MP4 后端，不代表所有意图参数都已接上。"
-        }
-        "processing.affects_command" => "影响命令",
-        "processing.preview_only_settings" => "仅影响预览",
-        "processing.disconnected_settings" => "尚未接上",
-        "processing.backend_available" => "当前后端可执行此 safe MP4 方案。",
-        "processing.preview_only" => "此方案当前只生成命令预览，尚未接到实际转档后端。",
-        "processing.apple_tv" => "Apple TV",
-        "processing.apple_tv_hevc_h265" => "Apple TV HEVC / H.265",
         "transcode.intent.reduce_size" => "文件更小",
         "transcode.intent.quality_first" => "画质优先",
         "transcode.intent.target_size" => "容量目标",
         "transcode.intent.fast_transcode" => "格式",
         "transcode.intent.device_compat" => "兼容目标",
-        "transcode.graph.target_ratio" => "目标比例",
-        "transcode.graph.quality_target" => "品质目标",
-        "transcode.graph.size_input" => "大小输入",
-        "transcode.graph.encode_effort" => "精细度",
         "transcode.compat.most_devices" => "大多数设备 / 我不确定",
         "transcode.compat.windows" => "Windows 电脑",
         "transcode.compat.mac" => "Mac",
@@ -457,11 +420,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.effort.normal" => "一般",
         "transcode.effort.detailed" => "细致",
         "transcode.effort.extreme" => "极限",
-        "transcode.audio.compatible" => "兼容",
-        "transcode.audio.preserve_surround" => "保留环绕",
-        "transcode.encoder.auto" => "自动",
-        "transcode.encoder.hardware_first" => "硬件优先",
-        "transcode.encoder.software" => "软件",
         "transcode.setting.compatibility" => "兼容性",
         "transcode.setting.video_codec" => "视频编码",
         "transcode.setting.container" => "容器",
@@ -476,9 +434,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.support.executable" => "可执行",
         "transcode.support.partial" => "部分支持",
         "transcode.support.preview_only" => "仅预览",
-        "processing.output_conversion" => "下载后输出",
-        "processing.convert_after_download" => "下载后转换",
-        "processing.convert_after_download_hint" => "只在需要改视频、音频、容器或字幕时执行。",
         "processing.video" => "视频",
         "processing.audio" => "音频",
         "processing.container" => "容器",
@@ -496,15 +451,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "processing.subtitle.preserve" => "不变",
         "processing.subtitle.embed" => "嵌入",
         "processing.subtitle.burn" => "烧录",
-        "processing.disabled_summary" => "目前会保持 yt-dlp 下载后的输出。",
-        "processing.no_conversion_summary" => "所有项目都是不变，不会执行后处理。",
-        "processing.output_summary" => "输出摘要",
-        "processing.visual_quality" => "画面",
-        "processing.visual_quality_near_source" => "尽量维持原本观感",
-        "processing.method" => "处理方式",
-        "processing.encoder" => "编码器",
-        "processing.status" => "状态",
-        "processing.command_preview" => "命令预览",
         "log.empty" => "目前还没有运行记录。",
         "log.clear" => "清理",
         "log.copy" => "复制",
@@ -512,8 +458,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.audio.aac" => "AAC",
         "transcode.audio.opus" => "Opus",
         "transcode.audio.flac" => "FLAC",
-        "log.runtime" => "运行记录",
-        "log.not_implemented" => "尚未开始收集运行记录。",
         "state.target_export_not_found" => "Target export item was not found.",
         "state.cannot_export_item" => "This item cannot be exported right now.",
         "state.analyze_before_export" => "Analyze the video before exporting.",
@@ -523,6 +467,7 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.exporting_audio" => "Exporting audio: {title}",
         "state.exporting_subtitles" => "Exporting subtitles: {title}",
         "state.cleared_queue" => "Queue cleared.",
+        "state.thumbnail_saved" => "缩略图已保存：{path}",
         "state.cannot_remove_running_item" => "Running items cannot be removed.",
         "state.removed_item" => "Removed: {title}",
         "state.controlled_by_config" => "Controlled by config",
@@ -570,13 +515,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.playlist_ignored_for_now" => "Playlist is ignored for now: {target}",
         "state.untitled_video" => "Untitled video",
         "state.analysis_complete" => "Analysis complete: {title}",
-        "state.video_extension_error" => "Video export only supports mkv / mp4 / webm / mov / flv.",
-        "state.audio_extension_error" => {
-            "Audio export only supports opus / aac / m4a / mp3 / vorbis / alac / flac / wav."
-        }
-        "state.subtitle_extension_error" => {
-            "Subtitle extension must be srt, vtt, ass, ssa, lrc, ttml, dfxp, json3, srv3, srv2, or srv1."
-        }
         "state.action_aria2_fallback" => "{action} (Aria2 not found; using yt-dlp native download)",
         "state.cache_yt_dlp_default" => "yt-dlp default",
         "playlist.note.mix_radio" => {
@@ -619,19 +557,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.req.move_to_writable" => "Move the app to a writable portable folder.",
         "prepare.req.move_to_writable_example" => {
             "Move the app to a writable portable folder, for example D:\\Portable\\yt-dlp-gui-v2."
-        }
-        "prepare.req.generic_writable_recommendation" => {
-            "If deployment or config saving fails later, move the app to a writable non-synced portable folder."
-        }
-        "prepare.req.use_folder_path" => "Use a folder path instead.",
-        "prepare.req.path_not_folder" => "{path} is not a folder",
-        "prepare.req.config_not_folder" => "Make sure the config path is not a folder.",
-        "prepare.req.config_readonly" => "Config file is read-only",
-        "prepare.req.config_readonly_recommendation" => {
-            "Clear the config file read-only attribute, or move it to a writable portable folder."
-        }
-        "prepare.req.clear_write_test" => {
-            "Retry later, or remove the leftover .yt-dlp-gui-write-test file in the folder."
         }
         "runtime.download_cancelled" => "下載已取消。",
         "runtime.yt_dlp_not_found" => {
@@ -762,11 +687,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
             "YouTube 拒绝字幕请求（HTTP 429 Too Many Requests）。这通常发生在 YouTube 自动翻译 timedtext 端点。cookies.txt 可提供登录状态，但不一定能满足该端点的 PO Token／速率限制需求。GUI 会保留原生 yt-dlp 流程与诊断日志，不改用自定义下载器。原始信息：{error}"
         }
         "options.filter_executable" => "可执行文件",
-        "queue_display.normal" => "一般",
+        "app_mode.origin" => "Origin Mode",
+        "app_mode.standard" => "Standard Mode",
+        "app_mode.audio" => "Audio Mode",
+        "queue_display.normal" => "标准",
         "queue_display.audio" => "音频",
-        "queue_display.normal.tooltip" => "一般下载列表显示",
-        "queue_display.audio.tooltip" => "音频列表显示与播放",
-        "main.queue_display_mode_hint" => "切换列表显示与新增方式",
         "music.previous" => "上一首",
         "music.play" => "播放",
         "music.pause" => "暂停",

@@ -11,7 +11,7 @@
 
 ### Screenshots
 
-<img src="./screenshot01.png" width="480" alt="yt-dlp-gui screenshot">
+<img src="./screenshot01.png" width="633" alt="yt-dlp-gui screenshot">
 
 ### Features
 

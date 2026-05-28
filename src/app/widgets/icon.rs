@@ -13,6 +13,7 @@ pub enum AppIcon {
     Eraser,
     FolderMoveOutline,
     FolderSettings,
+    Home,
     Import,
     Information,
     LinkVariant,
@@ -55,6 +56,7 @@ impl AppIcon {
             Self::Eraser => "Eraser",
             Self::FolderMoveOutline => "FolderMoveOutline",
             Self::FolderSettings => "FolderSettings",
+            Self::Home => "Home",
             Self::Import => "Import",
             Self::Information => "Information",
             Self::LinkVariant => "LinkVariant",
@@ -101,6 +103,7 @@ impl AppIcon {
                 include_bytes!("../../../assets/icons/FolderMoveOutline.svg")
             }
             Self::FolderSettings => include_bytes!("../../../assets/icons/FolderSettings.svg"),
+            Self::Home => include_bytes!("../../../assets/icons/Home.svg"),
             Self::Import => include_bytes!("../../../assets/icons/Import.svg"),
             Self::Information => include_bytes!("../../../assets/icons/Information.svg"),
             Self::LinkVariant => include_bytes!("../../../assets/icons/LinkVariant.svg"),

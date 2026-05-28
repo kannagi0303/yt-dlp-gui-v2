@@ -1,6 +1,10 @@
 use eframe::egui::{self, Align, RichText, Sense, TextStyle, TextWrapMode, Ui, WidgetText};
+use egui_taffy::taffy::prelude::{auto, length, percent};
+use egui_taffy::{Tui, TuiBuilderLogic as _, taffy, tui};
 
 use crate::app::widgets::icon::{AppIcon, icon_image, standard_icon_color};
+
+use super::measure::{WidthRange, text_width};
 
 pub(super) struct UiText;
 pub(super) const ITEM_TITLE_FONT_SIZE: f32 = 14.0;
@@ -43,15 +47,11 @@ impl UiText {
 }
 
 pub(super) fn natural_button_width(ui: &Ui, label: &str) -> f32 {
-    let galley = WidgetText::from(label).into_galley(
-        ui,
-        Some(TextWrapMode::Extend),
-        f32::INFINITY,
-        TextStyle::Button,
-    );
     let padding = ui.spacing().button_padding.x * 2.0;
+    let guard_width = 4.0;
     let min_width = ui.spacing().interact_size.x;
-    (galley.size().x + padding).max(min_width)
+    WidthRange::new(min_width, f32::INFINITY)
+        .clamp(text_width(ui, label, TextStyle::Button) + padding + guard_width)
 }
 
 pub(super) fn icon_button_text_size(ui: &Ui) -> f32 {
@@ -221,6 +221,142 @@ pub(super) fn measure_label_width(ui: &Ui, labels: &[&str]) -> f32 {
         .map(|galley| galley.size().x)
         .fold(0.0, f32::max)
         + ui.spacing().item_spacing.x * 2.0
+}
+
+pub(super) fn settings_taffy_scroll_content(
+    ui: &mut Ui,
+    id_salt: &'static str,
+    add_contents: impl FnOnce(&mut Tui),
+) {
+    scroll_content_with_right_gap(ui, |ui| {
+        let content_width = ui.available_width();
+        tui(ui, ui.id().with(id_salt))
+            .reserve_width(content_width)
+            .style(settings_taffy_root_style())
+            .show(|tui| add_contents(tui));
+    });
+}
+
+pub(super) fn settings_taffy_section(
+    tui: &mut Tui,
+    title: &str,
+    add_contents: impl FnOnce(&mut Tui),
+) {
+    let title = title.to_owned();
+    settings_taffy_spacer(tui, 2.0);
+    tui.style(settings_taffy_auto_row_style()).ui(move |ui| {
+        ui.label(RichText::new(title.as_str()).strong());
+    });
+    tui.style(settings_taffy_auto_row_style()).ui(|ui| {
+        ui.separator();
+    });
+    settings_taffy_spacer(tui, 2.0);
+    tui.style(settings_taffy_section_body_style())
+        .add(add_contents);
+    settings_taffy_spacer(tui, 8.0);
+}
+
+pub(super) fn settings_taffy_form_row(
+    tui: &mut Tui,
+    label_width: f32,
+    label: &str,
+    add_contents: impl FnOnce(&mut Ui),
+) {
+    let label = label.to_owned();
+    tui.style(settings_taffy_auto_row_style()).ui(move |ui| {
+        form_row_label(ui, label_width, label.as_str(), |ui| {
+            ui.set_width(ui.available_width());
+            add_contents(ui);
+        });
+    });
+}
+
+fn settings_taffy_root_style() -> taffy::Style {
+    taffy::Style {
+        display: taffy::Display::Flex,
+        flex_direction: taffy::FlexDirection::Column,
+        align_items: Some(taffy::AlignItems::Stretch),
+        size: taffy::Size {
+            width: percent(1.0),
+            height: auto(),
+        },
+        min_size: taffy::Size {
+            width: percent(1.0),
+            height: length(0.0),
+        },
+        max_size: taffy::Size {
+            width: percent(1.0),
+            height: auto(),
+        },
+        gap: length(0.0),
+        padding: length(0.0),
+        margin: length(0.0),
+        ..Default::default()
+    }
+}
+
+fn settings_taffy_section_body_style() -> taffy::Style {
+    taffy::Style {
+        display: taffy::Display::Flex,
+        flex_direction: taffy::FlexDirection::Column,
+        align_items: Some(taffy::AlignItems::Stretch),
+        size: taffy::Size {
+            width: percent(1.0),
+            height: auto(),
+        },
+        min_size: taffy::Size {
+            width: length(0.0),
+            height: length(0.0),
+        },
+        gap: length(0.0),
+        padding: length(0.0),
+        margin: length(0.0),
+        ..Default::default()
+    }
+}
+
+fn settings_taffy_auto_row_style() -> taffy::Style {
+    taffy::Style {
+        display: taffy::Display::Block,
+        size: taffy::Size {
+            width: percent(1.0),
+            height: auto(),
+        },
+        min_size: taffy::Size {
+            width: length(0.0),
+            height: length(0.0),
+        },
+        padding: length(0.0),
+        margin: length(0.0),
+        ..Default::default()
+    }
+}
+
+fn settings_taffy_spacer(tui: &mut Tui, height: f32) {
+    if height <= 0.0 {
+        return;
+    }
+    tui.style(taffy::Style {
+        display: taffy::Display::Block,
+        size: taffy::Size {
+            width: percent(1.0),
+            height: length(height),
+        },
+        min_size: taffy::Size {
+            width: length(0.0),
+            height: length(height),
+        },
+        max_size: taffy::Size {
+            width: percent(1.0),
+            height: length(height),
+        },
+        flex_grow: 0.0,
+        flex_shrink: 0.0,
+        padding: length(0.0),
+        margin: length(0.0),
+        ..Default::default()
+    })
+    .ui(|_| {});
 }
 
 pub(super) fn settings_section(ui: &mut Ui, title: &str, add_contents: impl FnOnce(&mut Ui)) {

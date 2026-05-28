@@ -1,6 +1,8 @@
 pub(crate) mod app_icon;
+mod app_mode;
 mod batch_add_worker;
 mod compatibility_profiles;
+mod custom_chrome;
 mod download_worker;
 mod format_picker_state;
 mod media_probe;
@@ -30,8 +32,10 @@ use eframe::{
 };
 use egui_extras::install_image_loaders;
 
-use self::{native_titlebar::NativeTitlebarAccentResult, state::AppState};
-use crate::infrastructure::{ThemeAccentColor, ThemeMode};
+use self::{
+    custom_chrome::CustomChromeResult, native_titlebar::NativeTitlebarAccentResult, state::AppState,
+};
+use crate::infrastructure::{AppConfig, ThemeAccentColor, ThemeMode, ToolPaths};
 
 const WINDOW_ICON_FADE_DURATION: Duration = Duration::from_millis(180);
 
@@ -40,6 +44,7 @@ pub struct NgDlpApp {
     applied_keep_window_on_top: Option<bool>,
     applied_theme_mode: Option<ThemeMode>,
     applied_theme_accent: Option<(ThemeAccentColor, bool)>,
+    applied_custom_chrome: bool,
     applied_native_titlebar_accent: Option<(ThemeAccentColor, bool)>,
     applied_window_icon_theme: Option<egui::Theme>,
     window_icon_transition: Option<WindowIconTransition>,
@@ -55,9 +60,21 @@ struct WindowIconTransition {
 
 impl NgDlpApp {
     pub fn new(cc: &CreationContext<'_>) -> Self {
+        let (config, tool_paths) = AppConfig::load_runtime();
+        Self::new_with_runtime(cc, config, tool_paths)
+    }
+
+    pub fn new_with_runtime(
+        cc: &CreationContext<'_>,
+        config: AppConfig,
+        tool_paths: ToolPaths,
+    ) -> Self {
         configure_fonts(&cc.egui_ctx);
         install_image_loaders(&cc.egui_ctx);
-        let state = AppState::new();
+        cc.egui_ctx.options_mut(|options| {
+            options.max_passes = std::num::NonZeroUsize::new(2).unwrap();
+        });
+        let state = AppState::from_runtime(config, tool_paths);
         let initial_ui_scale_percent = state.config.ui_scale_percent;
         cc.egui_ctx
             .set_zoom_factor(ui_scale_factor(initial_ui_scale_percent));
@@ -67,6 +84,7 @@ impl NgDlpApp {
             applied_keep_window_on_top: None,
             applied_theme_mode: None,
             applied_theme_accent: None,
+            applied_custom_chrome: false,
             applied_native_titlebar_accent: None,
             applied_window_icon_theme: None,
             window_icon_transition: None,
@@ -156,6 +174,20 @@ impl NgDlpApp {
         ctx.set_global_style(style);
         self.applied_theme_accent = Some(key);
         self.applied_native_titlebar_accent = None;
+    }
+
+    fn apply_custom_chrome(&mut self) {
+        if self.applied_custom_chrome {
+            return;
+        }
+
+        match custom_chrome::install() {
+            CustomChromeResult::Applied | CustomChromeResult::Unsupported => {
+                self.applied_custom_chrome = true;
+                self.applied_native_titlebar_accent = None;
+            }
+            CustomChromeResult::NotReady => {}
+        }
     }
 
     fn apply_native_titlebar_accent(&mut self, ctx: &egui::Context) {
@@ -305,6 +337,7 @@ impl eframe::App for NgDlpApp {
         self.apply_window_options(ctx);
         self.apply_theme_mode(ctx);
         self.apply_theme_accent(ctx);
+        self.apply_custom_chrome();
         self.apply_native_titlebar_accent(ctx);
         self.apply_window_icon_theme(ctx);
         self.apply_ui_scale(ctx);

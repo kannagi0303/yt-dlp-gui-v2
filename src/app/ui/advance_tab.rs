@@ -1,13 +1,15 @@
-use eframe::egui::{self, Align, Layout, RichText, ScrollArea, TextEdit, Ui};
+use eframe::egui::{self, Align, Layout, RichText, ScrollArea, Ui};
+use egui_taffy::Tui;
 
 use crate::app::state::{AdvanceDetailPage, AppState};
 use crate::infrastructure::FileTimeMode;
 
 use crate::app::widgets::icon::AppIcon;
+use crate::app::widgets::url_input::{AppTextBox, AppTextBoxSyntax};
 
 use super::common::{
-    form_row_label, measure_label_width, settings_scroll_content, settings_section,
-    text_trailing_icon_button,
+    measure_label_width, settings_scroll_content, settings_taffy_form_row,
+    settings_taffy_scroll_content, settings_taffy_section, text_trailing_icon_button,
 };
 
 const ADVANCE_TEXT_WIDTH: f32 = 280.0;
@@ -25,15 +27,13 @@ pub(super) fn render_advance_tab(ui: &mut Ui, state: &mut AppState) {
         .id_salt("advance-tab-scroll")
         .auto_shrink([false, false])
         .show(ui, |ui| {
-            settings_scroll_content(ui, |ui| {
-                let label_width = advance_label_width(ui, state);
-                ui.vertical(|ui| {
-                    render_config_source_section(ui, state, label_width);
-                    render_network_section(ui, state, label_width);
-                    render_post_processing_section(ui, state, label_width);
-                    render_download_processing_section(ui, state, label_width);
-                    render_aria2_section(ui, state, label_width);
-                });
+            let label_width = advance_label_width(ui, state);
+            settings_taffy_scroll_content(ui, "advance-root-settings-taffy", |tui| {
+                render_config_source_section(tui, state, label_width);
+                render_network_section(tui, state, label_width);
+                render_post_processing_section(tui, state, label_width);
+                render_download_processing_section(tui, state, label_width);
+                render_aria2_section(tui, state, label_width);
             });
         });
 }
@@ -65,9 +65,9 @@ fn render_download_conversion_detail_page(ui: &mut Ui, state: &mut AppState) {
         });
 }
 
-fn render_config_source_section(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, state.tr("advance.source"), |ui| {
-        form_row_label(ui, label_width, state.tr("advance.config"), |ui| {
+fn render_config_source_section(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_section(tui, state.tr("advance.source"), |tui| {
+        settings_taffy_form_row(tui, label_width, state.tr("advance.config"), |ui| {
             let config_files = state.available_yt_dlp_config_files();
             let selected_label = if state.tool_paths.yt_dlp_config.trim().is_empty() {
                 state.tr("advance.none").to_owned()
@@ -108,9 +108,9 @@ fn render_config_source_section(ui: &mut Ui, state: &mut AppState, label_width: 
     });
 }
 
-fn render_network_section(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, state.tr("advance.network_access"), |ui| {
-        form_row_label(ui, label_width, state.tr("advance.proxy"), |ui| {
+fn render_network_section(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_section(tui, state.tr("advance.network_access"), |tui| {
+        settings_taffy_form_row(tui, label_width, state.tr("advance.proxy"), |ui| {
             let mut proxy_enabled = state.config.proxy_enabled;
             if ui
                 .checkbox(&mut proxy_enabled, state.tr("advance.enable_proxy"))
@@ -120,18 +120,19 @@ fn render_network_section(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                 state.set_proxy_enabled(proxy_enabled);
             }
             let mut proxy_url = state.tool_paths.proxy_url.clone();
-            let response = ui
-                .add_sized(
-                    [ADVANCE_TEXT_WIDTH, ui.spacing().interact_size.y],
-                    TextEdit::singleline(&mut proxy_url).hint_text("protocol://ip:port"),
-                )
+            let response = AppTextBox::new(&mut proxy_url)
+                .hint_text("protocol://ip:port")
+                .language(state.language())
+                .syntax(AppTextBoxSyntax::Url)
+                .desired_width(ADVANCE_TEXT_WIDTH)
+                .ui(ui)
                 .on_hover_text(state.localize_message(&proxy_preview(state)));
             if response.changed() {
                 state.set_proxy_url(proxy_url);
             }
         });
 
-        form_row_label(ui, label_width, state.tr("advance.certificate"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("advance.certificate"), |ui| {
             let mut no_check_certificates = state.tool_paths.no_check_certificates;
             if ui
                 .checkbox(
@@ -145,7 +146,7 @@ fn render_network_section(ui: &mut Ui, state: &mut AppState, label_width: f32) {
             }
         });
 
-        form_row_label(ui, label_width, state.tr("advance.use_cookies"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("advance.use_cookies"), |ui| {
             let mut use_cookies = state.item_defaults.use_cookies;
             if ui
                 .checkbox(&mut use_cookies, state.tr("advance.enable_cookies"))
@@ -155,7 +156,7 @@ fn render_network_section(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                 state.set_use_browser_cookies(use_cookies);
             }
         });
-        form_row_label(ui, label_width, state.tr("advance.cookie_source"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("advance.cookie_source"), |ui| {
             let cookie_sources = state.available_browser_cookie_sources();
             let selected_label = cookie_sources
                 .iter()
@@ -182,26 +183,30 @@ fn render_network_section(ui: &mut Ui, state: &mut AppState, label_width: f32) {
                 .on_hover_text(state.localize_message(&cookie_preview(state)));
         });
         if state.cookie_source_uses_file() {
-            render_cookie_file_row(ui, state, label_width);
+            render_cookie_file_row(tui, state, label_width);
         } else {
-            render_browser_cookie_profile_row(ui, state, label_width);
+            render_browser_cookie_profile_row(tui, state, label_width);
         }
     });
 }
 
-fn render_cookie_file_row(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    form_row_label(ui, label_width, state.tr("advance.cookie_file"), |ui| {
+fn render_cookie_file_row(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_form_row(tui, label_width, state.tr("advance.cookie_file"), |ui| {
         let mut cookie_file_display = if state.tool_paths.browser_cookie_file.trim().is_empty() {
             state.tr("advance.no_cookies_txt_selected").to_owned()
         } else {
             state.tool_paths.browser_cookie_file.clone()
         };
         ui.horizontal(|ui| {
-            ui.add_enabled(
-                false,
-                TextEdit::singleline(&mut cookie_file_display).desired_width(ADVANCE_TEXT_WIDTH),
-            )
-            .on_hover_text(state.localize_message(&cookie_preview(state)));
+            AppTextBox::new(&mut cookie_file_display)
+                .language(state.language())
+                .syntax(AppTextBoxSyntax::Path)
+                .desired_width(ADVANCE_TEXT_WIDTH)
+                .editable(false)
+                .selectable(false)
+                .enabled(false)
+                .ui(ui)
+                .on_hover_text(state.localize_message(&cookie_preview(state)));
             if ui.button(state.tr("advance.browse")).clicked() {
                 let mut dialog = rfd::FileDialog::new()
                     .add_filter(state.tr("advance.filter_netscape_cookies_txt"), &["txt"])
@@ -225,8 +230,8 @@ fn render_cookie_file_row(ui: &mut Ui, state: &mut AppState, label_width: f32) {
     });
 }
 
-fn render_browser_cookie_profile_row(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    form_row_label(ui, label_width, state.tr("advance.browser"), |ui| {
+fn render_browser_cookie_profile_row(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_form_row(tui, label_width, state.tr("advance.browser"), |ui| {
         let cookie_profiles = state.available_browser_cookie_profiles();
         let selected_profile_label = if state.tool_paths.browser_cookie_profile.trim().is_empty() {
             state.tr("advance.default").to_owned()
@@ -269,10 +274,10 @@ fn render_browser_cookie_profile_row(ui: &mut Ui, state: &mut AppState, label_wi
     });
 }
 
-fn render_aria2_section(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, "Aria2", |ui| {
-        form_row_label(
-            ui,
+fn render_aria2_section(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_section(tui, "Aria2", |tui| {
+        settings_taffy_form_row(
+            tui,
             label_width,
             state.tr("advance.external_downloader"),
             |ui| {
@@ -292,10 +297,10 @@ fn render_aria2_section(ui: &mut Ui, state: &mut AppState, label_width: f32) {
     });
 }
 
-fn render_download_processing_section(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, state.tr("advance.download_control"), |ui| {
-        form_row_label(
-            ui,
+fn render_download_processing_section(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_section(tui, state.tr("advance.download_control"), |tui| {
+        settings_taffy_form_row(
+            tui,
             label_width,
             state.tr("advance.concurrent_fragments"),
             |ui| {
@@ -318,21 +323,21 @@ fn render_download_processing_section(ui: &mut Ui, state: &mut AppState, label_w
                     .on_hover_text(state.localize_message(&concurrent_fragments_preview(state)));
             },
         );
-        form_row_label(ui, label_width, state.tr("advance.rate_limit"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("advance.rate_limit"), |ui| {
             let mut limit_rate = state.tool_paths.limit_rate.clone();
-            if ui
-                .add_sized(
-                    [ADVANCE_TEXT_WIDTH, ui.spacing().interact_size.y],
-                    TextEdit::singleline(&mut limit_rate)
-                        .hint_text(state.tr("advance.e_g_2m_800k_leave_empty_for_unlimited")),
-                )
+            if AppTextBox::new(&mut limit_rate)
+                .hint_text(state.tr("advance.e_g_2m_800k_leave_empty_for_unlimited"))
+                .language(state.language())
+                .syntax(AppTextBoxSyntax::Plain)
+                .desired_width(ADVANCE_TEXT_WIDTH)
+                .ui(ui)
                 .on_hover_text(state.localize_message(&limit_rate_preview(state)))
                 .changed()
             {
                 state.set_limit_rate(limit_rate);
             }
         });
-        form_row_label(ui, label_width, state.tr("advance.chapters"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("advance.chapters"), |ui| {
             let mut compatibility_mode = state.tool_paths.chapter_compatibility_mode;
             if ui
                 .checkbox(
@@ -345,7 +350,7 @@ fn render_download_processing_section(ui: &mut Ui, state: &mut AppState, label_w
                 state.set_chapter_compatibility_mode(compatibility_mode);
             }
         });
-        form_row_label(ui, label_width, state.tr("advance.file_time"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("advance.file_time"), |ui| {
             let selected = state.tool_paths.file_time_mode;
             egui::ComboBox::from_id_salt("file-time-mode")
                 .selected_text(state.tr(selected.label()))
@@ -369,9 +374,9 @@ fn render_download_processing_section(ui: &mut Ui, state: &mut AppState, label_w
     });
 }
 
-fn render_post_processing_section(ui: &mut Ui, state: &mut AppState, label_width: f32) {
-    settings_section(ui, state.tr("advance.post_processing"), |ui| {
-        form_row_label(ui, label_width, state.tr("advance.thumbnail"), |ui| {
+fn render_post_processing_section(tui: &mut Tui, state: &mut AppState, label_width: f32) {
+    settings_taffy_section(tui, state.tr("advance.post_processing"), |tui| {
+        settings_taffy_form_row(tui, label_width, state.tr("advance.thumbnail"), |ui| {
             ui.horizontal(|ui| {
                 let mut write_thumbnail = state.item_defaults.write_thumbnail;
                 if ui
@@ -395,7 +400,7 @@ fn render_post_processing_section(ui: &mut Ui, state: &mut AppState, label_width
                 }
             });
         });
-        form_row_label(ui, label_width, state.tr("advance.subtitles"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("advance.subtitles"), |ui| {
             ui.horizontal(|ui| {
                 let mut write_subtitles = state.item_defaults.write_subtitles;
                 if ui
@@ -419,7 +424,7 @@ fn render_post_processing_section(ui: &mut Ui, state: &mut AppState, label_width
                 }
             });
         });
-        form_row_label(ui, label_width, state.tr("advance.chapters"), |ui| {
+        settings_taffy_form_row(tui, label_width, state.tr("advance.chapters"), |ui| {
             ui.horizontal(|ui| {
                 let mut write_chapters = state.item_defaults.write_chapters;
                 if ui
@@ -443,8 +448,8 @@ fn render_post_processing_section(ui: &mut Ui, state: &mut AppState, label_width
                 }
             });
         });
-        form_row_label(
-            ui,
+        settings_taffy_form_row(
+            tui,
             label_width,
             state.tr("advance.download_conversion"),
             |ui| {

@@ -4,11 +4,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tab.main" => "主頁",
         "tab.advanced" => "進階",
         "tab.options" => "選項",
-        "tab.processing" => "處理",
         "tab.log" => "紀錄",
-        "main.url_hint" => "貼上網址",
+        "main.url_hint" => "網址",
         "action.download" => "下載",
         "action.add" => "＋ 新增",
+        "action.analyze" => "分析",
         "action.stop" => "停止",
         "action.stopping" => "停止中",
         "action.cut" => "剪下",
@@ -17,6 +17,16 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "action.clear" => "清除",
         "item.thumbnail" => "縮圖",
         "item.thumbnail_preview" => "縮圖預覽",
+        "single.title" => "標題",
+        "single.description" => "說明",
+        "single.info.channel" => "頻道",
+        "single.info.date" => "日期",
+        "single.info.views" => "再生數",
+        "thumbnail.filter.jpeg" => "JPEG 圖片",
+        "thumbnail.filter.png" => "PNG 圖片",
+        "thumbnail.filter.webp" => "WebP 圖片",
+        "thumbnail.filter.original" => "原始圖片",
+        "item.download_thumbnail" => "下載縮圖",
         "notification.download_finished" => "下載完成",
         "notification.download_failed" => "下載失敗",
         "notification.download_finished_detail_prefix" => "已完成：",
@@ -80,8 +90,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.file_time" => "檔案時間",
         "advance.post_processing" => "後處理",
         "advance.thumbnail" => "縮圖",
-        "advance.convert" => "轉檔",
-        "advance.apple_tv_hevc_h265" => "Apple TV HEVC / H.265",
         "advance.download" => "下載",
         "advance.embed" => "嵌入",
         "advance.subtitles" => "字幕",
@@ -99,8 +107,8 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "item.clear_all" => "清除全部",
         "item.add_a_video_url" => "請新增影片網址",
         "item.add_an_audio_url" => "加入音訊 URL",
-        "item.after_adding_choose_the_video_format_here" => "新增後可在這裡選擇影片格式。",
-        "item.after_adding_choose_the_audio_format_here" => "新增後可在這裡選擇音訊格式。",
+        "item.after_adding_choose_the_video_format_here" => "影片格式選擇",
+        "item.after_adding_choose_the_audio_format_here" => "音訊格式選擇",
         "item.loading_thumbnail" => "縮圖載入中",
         "item.file_actions" => "檔案操作",
         "item.open_file" => "開啟檔案",
@@ -113,7 +121,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "item.file_actions_are_available_after_download_co" => "下載完成後可使用檔案操作",
         "prepare.language" => "語言",
         "prepare.back" => "返回",
-        "prepare.choose" => "選擇",
         "prepare.auto_detect" => "自動偵測",
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
             "安裝需要的工具，也可以略過後到選項處理。"
@@ -149,8 +156,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.clipboard_change" => "剪貼簿變更",
         "options.run_immediately" => "立刻執行",
         "options.tabs" => "分頁",
-        "options.processing_tab" => "處理分頁",
-        "options.enable_processing_tab" => "啟用後處理",
         "options.log_tab" => "紀錄分頁",
         "options.show_log_tab" => "顯示紀錄",
         "options.playlist_2" => "播放清單",
@@ -168,7 +173,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.current_language" => "目前語言",
         "options.back" => "返回",
         "options.choose" => "選擇",
-        "options.auto_detect_tool_from" => "從以下位置自動偵測：",
         "options.auto_detect" => "自動偵測",
         "options.auto_detect_tool_hint" => "從可攜工具資料夾與系統 PATH 偵測已安裝工具。",
         "options.tool_paths" => "工具路徑",
@@ -197,7 +201,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.window_size" => "視窗大小",
         "options.reinstall" => "重新安裝",
         "options.installing" => "安裝中",
-        "options.browse" => "選檔",
         "options.install" => "安裝",
         "options.file_not_found" => "檔案不存在：",
         "options.will_install_to" => "將安裝到：",
@@ -217,7 +220,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "main.controlled_by_config" => "由設定檔控制：",
         "main.controlled_by_config_2" => "由設定檔控制",
-        "main.actual_path" => "實際路徑：",
         "picker.no_chapters_available" => "沒有可選擇的章節。",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "選擇這個項目要下載的範圍。預設為完整影片。"
@@ -266,15 +268,10 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "tools.file_time.use_download_time_hint" => "--no-mtime",
         "tools.cache_mode.default" => "預設",
-        "tools.cache_mode.v2_cache" => "yt-dlp-gui",
-        "tools.cache_mode.windows_temp" => "Windows",
         "tools.subtitle_source.none" => "無字幕",
         "tools.subtitle_source.original" => "原始字幕",
         "tools.subtitle_source.automatic" => "自動字幕",
-        "tools.quality.best" => "最佳",
-        "tools.quality.audio_only" => "僅音訊",
         "tools.youtube_playlist.channel_generated" => "YouTube 產生的頻道清單",
-        "tools.youtube_playlist.mix_radio" => "YouTube Mix / Radio",
         "tools.youtube_playlist.music_album" => "YouTube Music 專輯/合輯",
         "tools.youtube_playlist.liked_videos" => "喜歡的影片",
         "tools.youtube_playlist.favorites_legacy" => "舊版收藏清單",
@@ -291,11 +288,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tool_install.stage.installing" => "安裝中",
         "tool_install.stage.completed" => "已完成",
         "tool_install.stage.failed" => "失敗",
-        "domain.media.video" => "video",
-        "domain.media.audio" => "audio",
-        "domain.media.muxed" => "muxed",
-        "domain.media.subtitle" => "subtitle",
-        "domain.media.other" => "other",
         "domain.quality.best" => "最佳",
         "domain.quality.audio_only" => "僅音訊",
         "prepare.severity.short.required" => "必須",
@@ -321,6 +313,10 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.analyzing_source" => "Analyzing: {source}",
         "state.batch_add_running" => "Batch add is still running.",
         "state.no_url_to_add" => "There is no URL to add.",
+        "state.single_mode_playlist_not_supported" => {
+            "經典模式不支援播放清單網址。請切換到標準模式匯入播放清單。"
+        }
+        "state.single_mode_wait_for_current_item" => "請先等待目前的經典模式項目完成。",
         "state.video_url_contains_playlist" => {
             "Detected a video URL that also contains a playlist."
         }
@@ -362,44 +358,13 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.downloading_title_aria2_fallback" => {
             "Downloading: {title} (Aria2 not found; using yt-dlp native download)"
         }
-        "state.apple_tv_hevc_post_processing_title" => "Apple TV 轉檔中：{title}",
         "state.transcode_post_processing_title" => "{profile} 轉檔中：{title}",
-        "processing.convert" => "轉檔",
-        "processing.tools" => "工具",
         "processing.transcode" => "轉檔",
-        "processing.transcode_workbench" => "轉檔意圖工作台",
-        "processing.transcode_intent_graph" => "轉檔意圖圖",
-        "processing.intent_graph" => "意圖圖",
-        "processing.what_do_you_want" => "你想做什麼？",
-        "processing.result_card" => "結果",
-        "processing.primary_control" => "主要控制",
-        "processing.choose_graph_branch_hint" => "請在意圖圖中選擇這條分支。",
-        "processing.current_size_ratio" => "目前",
-        "processing.adjustments" => "目前調整",
-        "processing.locks" => "固定項",
-        "processing.locked" => "鎖定",
-        "processing.auto_recompute" => "自動重算",
-        "processing.apply" => "套用",
-        "processing.apply_after_download" => "下載後套用目前支援的 safe MP4 轉檔",
-        "processing.apply_after_download_hint" => {
-            "只會套用目前可執行的 safe MP4 後端，不代表所有意圖參數都已接上。"
-        }
-        "processing.affects_command" => "影響命令",
-        "processing.preview_only_settings" => "僅影響預覽",
-        "processing.disconnected_settings" => "尚未接上",
-        "processing.backend_available" => "目前後端可執行此 safe MP4 方案。",
-        "processing.preview_only" => "此方案目前只產生命令預覽，尚未接到實際轉檔後端。",
-        "processing.apple_tv" => "Apple TV",
-        "processing.apple_tv_hevc_h265" => "Apple TV HEVC / H.265",
         "transcode.intent.reduce_size" => "檔案更小",
         "transcode.intent.quality_first" => "畫質優先",
         "transcode.intent.target_size" => "容量目標",
         "transcode.intent.fast_transcode" => "格式",
         "transcode.intent.device_compat" => "相容目標",
-        "transcode.graph.target_ratio" => "目標比例",
-        "transcode.graph.quality_target" => "品質目標",
-        "transcode.graph.size_input" => "大小輸入",
-        "transcode.graph.encode_effort" => "精細度",
         "transcode.compat.most_devices" => "大多數設備 / 我不確定",
         "transcode.compat.windows" => "Windows 電腦",
         "transcode.compat.mac" => "Mac",
@@ -437,11 +402,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.effort.normal" => "一般",
         "transcode.effort.detailed" => "細緻",
         "transcode.effort.extreme" => "極限",
-        "transcode.audio.compatible" => "相容",
-        "transcode.audio.preserve_surround" => "保留環繞",
-        "transcode.encoder.auto" => "自動",
-        "transcode.encoder.hardware_first" => "硬體優先",
-        "transcode.encoder.software" => "軟體",
         "transcode.setting.compatibility" => "相容性",
         "transcode.setting.video_codec" => "視訊編碼",
         "transcode.setting.container" => "容器",
@@ -456,9 +416,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.support.executable" => "可執行",
         "transcode.support.partial" => "部分支援",
         "transcode.support.preview_only" => "僅預覽",
-        "processing.output_conversion" => "下載後輸出",
-        "processing.convert_after_download" => "下載後轉換",
-        "processing.convert_after_download_hint" => "只在需要改影片、音訊、容器或字幕時執行。",
         "processing.video" => "影片",
         "processing.audio" => "音訊",
         "processing.container" => "容器",
@@ -476,15 +433,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "processing.subtitle.preserve" => "不變",
         "processing.subtitle.embed" => "嵌入",
         "processing.subtitle.burn" => "燒錄",
-        "processing.disabled_summary" => "目前會保持 yt-dlp 下載後的輸出。",
-        "processing.no_conversion_summary" => "所有項目都是不變，不會執行後處理。",
-        "processing.output_summary" => "輸出摘要",
-        "processing.visual_quality" => "畫面",
-        "processing.visual_quality_near_source" => "盡量維持原本觀感",
-        "processing.method" => "處理方式",
-        "processing.encoder" => "編碼器",
-        "processing.status" => "狀態",
-        "processing.command_preview" => "命令預覽",
         "log.empty" => "目前還沒有執行紀錄。",
         "log.clear" => "清理",
         "log.copy" => "複製",
@@ -492,8 +440,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "transcode.audio.aac" => "AAC",
         "transcode.audio.opus" => "Opus",
         "transcode.audio.flac" => "FLAC",
-        "log.runtime" => "執行紀錄",
-        "log.not_implemented" => "尚未開始收集執行紀錄。",
         "state.target_export_not_found" => "Target export item was not found.",
         "state.cannot_export_item" => "This item cannot be exported right now.",
         "state.analyze_before_export" => "Analyze the video before exporting.",
@@ -503,6 +449,7 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.exporting_audio" => "Exporting audio: {title}",
         "state.exporting_subtitles" => "Exporting subtitles: {title}",
         "state.cleared_queue" => "Queue cleared.",
+        "state.thumbnail_saved" => "縮圖已儲存：{path}",
         "state.cannot_remove_running_item" => "Running items cannot be removed.",
         "state.removed_item" => "Removed: {title}",
         "state.controlled_by_config" => "Controlled by config",
@@ -550,13 +497,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "state.playlist_ignored_for_now" => "Playlist is ignored for now: {target}",
         "state.untitled_video" => "Untitled video",
         "state.analysis_complete" => "Analysis complete: {title}",
-        "state.video_extension_error" => "Video export only supports mkv / mp4 / webm / mov / flv.",
-        "state.audio_extension_error" => {
-            "Audio export only supports opus / aac / m4a / mp3 / vorbis / alac / flac / wav."
-        }
-        "state.subtitle_extension_error" => {
-            "Subtitle extension must be srt, vtt, ass, ssa, lrc, ttml, dfxp, json3, srv3, srv2, or srv1."
-        }
         "state.action_aria2_fallback" => "{action} (Aria2 not found; using yt-dlp native download)",
         "state.cache_yt_dlp_default" => "yt-dlp default",
         "playlist.note.mix_radio" => {
@@ -599,19 +539,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.req.move_to_writable" => "Move the app to a writable portable folder.",
         "prepare.req.move_to_writable_example" => {
             "Move the app to a writable portable folder, for example D:\\Portable\\yt-dlp-gui-v2."
-        }
-        "prepare.req.generic_writable_recommendation" => {
-            "If deployment or config saving fails later, move the app to a writable non-synced portable folder."
-        }
-        "prepare.req.use_folder_path" => "Use a folder path instead.",
-        "prepare.req.path_not_folder" => "{path} is not a folder",
-        "prepare.req.config_not_folder" => "Make sure the config path is not a folder.",
-        "prepare.req.config_readonly" => "Config file is read-only",
-        "prepare.req.config_readonly_recommendation" => {
-            "Clear the config file read-only attribute, or move it to a writable portable folder."
-        }
-        "prepare.req.clear_write_test" => {
-            "Retry later, or remove the leftover .yt-dlp-gui-write-test file in the folder."
         }
         "runtime.download_cancelled" => "下載已取消。",
         "runtime.yt_dlp_not_found" => {
@@ -742,11 +669,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
             "YouTube 拒絕字幕請求（HTTP 429 Too Many Requests）。這通常發生在 YouTube 自動翻譯 timedtext 端點。cookies.txt 可提供登入狀態，但不一定能滿足該端點的 PO Token／速率限制需求。GUI 會保留原生 yt-dlp 流程與診斷記錄，不改用自訂下載器。原始訊息：{error}"
         }
         "options.filter_executable" => "可執行檔",
-        "queue_display.normal" => "一般",
+        "app_mode.origin" => "經典模式",
+        "app_mode.standard" => "標準模式",
+        "app_mode.audio" => "音訊模式",
+        "queue_display.normal" => "標準",
         "queue_display.audio" => "音訊",
-        "queue_display.normal.tooltip" => "一般下載清單顯示",
-        "queue_display.audio.tooltip" => "音訊清單顯示與播放",
-        "main.queue_display_mode_hint" => "切換清單顯示與新增方式",
         "music.previous" => "上一首",
         "music.play" => "播放",
         "music.pause" => "暫停",
