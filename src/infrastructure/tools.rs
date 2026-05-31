@@ -67,11 +67,11 @@ impl Default for FileTimeMode {
 }
 
 impl FileTimeMode {
-    pub fn label(self) -> &'static str {
+    pub fn label_key(self) -> &'static str {
         match self {
-            Self::None => "tools.file_time.none",
-            Self::UseUploadDate => "tools.file_time.use_upload_date",
-            Self::UseDownloadTime => "tools.file_time.use_download_time",
+            Self::None => "advance.file_time.none",
+            Self::UseUploadDate => "advance.file_time.upload_date",
+            Self::UseDownloadTime => "advance.file_time.download_time",
         }
     }
 }
@@ -86,7 +86,7 @@ pub enum CacheLocationMode {
 impl CacheLocationMode {
     pub fn label(self) -> &'static str {
         match self {
-            Self::YtDlpDefault => "tools.cache_mode.default",
+            Self::YtDlpDefault => "Default",
             Self::V2Cache => "yt-dlp-gui",
             Self::WindowsTemp => "Windows",
         }
@@ -129,6 +129,25 @@ pub struct PreparedDownload {
     pub command: Command,
     pub output_path: PathBuf,
     pub command_line: String,
+}
+
+pub struct AnalyzeOutput {
+    pub json: Value,
+    pub command_line: String,
+}
+
+pub struct AnalyzeError {
+    pub message: String,
+    pub command_line: Option<String>,
+}
+
+impl AnalyzeError {
+    fn new(message: impl Into<String>, command_line: Option<String>) -> Self {
+        Self {
+            message: message.into(),
+            command_line,
+        }
+    }
 }
 
 struct OutputPlan {
@@ -247,7 +266,7 @@ impl ToolPaths {
         let mut items = Vec::new();
         items.push(BrowserCookieSourceOption {
             value: COOKIE_SOURCE_FILE,
-            label: "advance.cookie_source_file",
+            label: "Use file (cookies.txt)",
         });
         for option in browser_cookie_source_candidates() {
             if browser_cookie_source_exists(option.value) {
@@ -321,8 +340,19 @@ impl ToolPaths {
         Ok(command)
     }
 
-    pub fn analyze_url(&self, url: &str, use_cookies: bool) -> Result<Value, String> {
-        let tool_path = self.validate_yt_dlp_available()?;
+    pub fn analyze_url(&self, url: &str, use_cookies: bool) -> Result<AnalyzeOutput, String> {
+        self.analyze_url_detailed(url, use_cookies)
+            .map_err(|error| error.message)
+    }
+
+    pub fn analyze_url_detailed(
+        &self,
+        url: &str,
+        use_cookies: bool,
+    ) -> Result<AnalyzeOutput, AnalyzeError> {
+        let tool_path = self
+            .validate_yt_dlp_available()
+            .map_err(|error| AnalyzeError::new(error, None))?;
 
         if self.effective_config_owns_format() {
             return self.run_analyze_command(&tool_path, url, use_cookies, None);
@@ -331,8 +361,24 @@ impl ToolPaths {
         self.run_analyze_command(&tool_path, url, use_cookies, Some(DEFAULT_FORMAT_SELECTOR))
     }
 
-    pub fn analyze_music_stream_url(&self, url: &str, use_cookies: bool) -> Result<Value, String> {
+    pub fn analyze_music_stream_url(
+        &self,
+        url: &str,
+        use_cookies: bool,
+    ) -> Result<AnalyzeOutput, String> {
         self.analyze_music_stream_url_with_selector(url, use_cookies, MUSIC_STREAM_FORMAT_SELECTOR)
+    }
+
+    pub fn analyze_music_stream_url_detailed(
+        &self,
+        url: &str,
+        use_cookies: bool,
+    ) -> Result<AnalyzeOutput, AnalyzeError> {
+        self.analyze_music_stream_url_with_selector_detailed(
+            url,
+            use_cookies,
+            MUSIC_STREAM_FORMAT_SELECTOR,
+        )
     }
 
     pub fn analyze_music_stream_url_with_selector(
@@ -340,8 +386,20 @@ impl ToolPaths {
         url: &str,
         use_cookies: bool,
         format_selector: &str,
-    ) -> Result<Value, String> {
-        let tool_path = self.validate_yt_dlp_available()?;
+    ) -> Result<AnalyzeOutput, String> {
+        self.analyze_music_stream_url_with_selector_detailed(url, use_cookies, format_selector)
+            .map_err(|error| error.message)
+    }
+
+    pub fn analyze_music_stream_url_with_selector_detailed(
+        &self,
+        url: &str,
+        use_cookies: bool,
+        format_selector: &str,
+    ) -> Result<AnalyzeOutput, AnalyzeError> {
+        let tool_path = self
+            .validate_yt_dlp_available()
+            .map_err(|error| AnalyzeError::new(error, None))?;
         self.run_analyze_command(
             &tool_path,
             url,
@@ -405,19 +463,25 @@ impl ToolPaths {
         &self,
         url: &str,
         output_dir: &Path,
-        audio_format: &str,
+        audio_format: Option<&str>,
+        format_selector: &str,
+        embed_cover: bool,
+        write_tags: bool,
         use_cookies: bool,
     ) -> Result<PreparedDownload, String> {
         let tool_path = self.validate_yt_dlp_available()?;
         fs::create_dir_all(output_dir)
             .map_err(|error| format!("Could not create music download folder: {error}"))?;
 
-        let target_format = normalized_extension(audio_format).unwrap_or_else(|| "mp3".to_owned());
+        let target_format = audio_format.and_then(normalized_extension);
         let output_template = output_dir
             .join("%(artist)s - %(title)s.%(ext)s")
             .display()
             .to_string();
-        let expected_output = output_dir.join(format!("%(artist)s - %(title)s.{target_format}"));
+        let expected_output = target_format
+            .as_ref()
+            .map(|format| output_dir.join(format!("%(artist)s - %(title)s.{format}")))
+            .unwrap_or_else(|| output_dir.join("%(artist)s - %(title)s.%(ext)s"));
 
         let mut command = Command::new(&tool_path);
         configure_background_command(&mut command);
@@ -431,15 +495,32 @@ impl ToolPaths {
             .arg("--newline")
             .arg("--progress-template")
             .arg("[yt-dlp],%(progress._percent_str)s,%(progress._eta_str)s,%(progress.downloaded_bytes)s,%(progress.total_bytes)s,%(progress.speed)s,%(progress.eta)s")
-            .arg("--no-simulate")
-            .arg("--extract-audio")
-            .arg("--audio-format")
-            .arg(&target_format)
-            .arg("--audio-quality")
-            .arg("0")
-            .arg("--embed-metadata");
+            .arg("--no-simulate");
 
-        if music_audio_download_format_supports_thumbnail(&target_format) {
+        if let Some(target_format) = target_format.as_ref() {
+            command
+                .arg("--extract-audio")
+                .arg("--audio-format")
+                .arg(target_format)
+                .arg("--audio-quality")
+                .arg("0");
+        }
+
+        if write_tags {
+            command
+                .arg("--embed-metadata")
+                .arg("--metadata-from-title")
+                .arg("%(artist)s - %(title)s");
+            for parse_metadata_arg in music_album_parse_metadata_args() {
+                command.arg("--parse-metadata").arg(parse_metadata_arg);
+            }
+        }
+
+        if embed_cover
+            && target_format
+                .as_deref()
+                .is_some_and(music_audio_download_format_supports_thumbnail)
+        {
             command
                 .arg("--embed-thumbnail")
                 .arg("--convert-thumbnails")
@@ -447,21 +528,21 @@ impl ToolPaths {
         }
 
         command
-            .arg("--metadata-from-title")
-            .arg("%(artist)s - %(title)s")
-            .arg("--parse-metadata")
-            .arg("playlist:%(album)s")
-            .arg("--parse-metadata")
-            .arg("playlist_title:%(album)s")
             .arg("--print")
             .arg(format!("after_move:{FINAL_OUTPUT_PATH_PREFIX}%(filepath)j"))
             .arg("--output")
             .arg(output_template);
 
         if !self.effective_config_owns_format() {
-            command
-                .arg("--format")
-                .arg(music_audio_download_format_selector(&target_format));
+            let selector = if format_selector.trim().is_empty() {
+                target_format
+                    .as_deref()
+                    .map(music_audio_download_format_selector)
+                    .unwrap_or(MUSIC_STREAM_FORMAT_SELECTOR)
+            } else {
+                format_selector
+            };
+            command.arg("--format").arg(selector);
         }
 
         self.apply_cookie_args(&mut command, use_cookies)?;
@@ -909,7 +990,7 @@ impl ToolPaths {
         url: &str,
         use_cookies: bool,
         format_selector: Option<&str>,
-    ) -> Result<Value, String> {
+    ) -> Result<AnalyzeOutput, AnalyzeError> {
         let mut command = Command::new(tool_path);
         configure_background_command(&mut command);
         self.apply_common_yt_dlp_args(&mut command);
@@ -922,18 +1003,20 @@ impl ToolPaths {
             command.arg("-f").arg(selector);
         }
 
-        self.apply_cookie_args(&mut command, use_cookies)?;
+        self.apply_cookie_args(&mut command, use_cookies)
+            .map_err(|error| AnalyzeError::new(error, None))?;
         self.apply_youtube_extractor_args(&mut command);
         command.arg(url);
 
-        println!(
-            "[analyze] command: {}",
-            format_command_line(tool_path, &command)
-        );
+        let command_line = format_command_line(tool_path, &command);
+        println!("[analyze] command: {command_line}");
 
-        let output = command
-            .output()
-            .map_err(|error| format!("Could not start yt-dlp: {error}"))?;
+        let output = command.output().map_err(|error| {
+            AnalyzeError::new(
+                format!("Could not start yt-dlp: {error}"),
+                Some(command_line.clone()),
+            )
+        })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
@@ -946,11 +1029,19 @@ impl ToolPaths {
                 format!("exit code {:?}", output.status.code())
             };
             let detail = humanize_yt_dlp_error(&detail);
-            return Err(format!("yt-dlp analysis failed: {detail}"));
+            return Err(AnalyzeError::new(
+                format!("yt-dlp analysis failed: {detail}"),
+                Some(command_line),
+            ));
         }
 
-        serde_json::from_slice::<Value>(&output.stdout)
-            .map_err(|error| format!("Could not parse yt-dlp JSON: {error}"))
+        let json = serde_json::from_slice::<Value>(&output.stdout).map_err(|error| {
+            AnalyzeError::new(
+                format!("Could not parse yt-dlp JSON: {error}"),
+                Some(command_line.clone()),
+            )
+        })?;
+        Ok(AnalyzeOutput { json, command_line })
     }
 }
 
@@ -1296,11 +1387,31 @@ pub enum YoutubePlaylistKind {
 impl YoutubePlaylistKind {
     pub fn label(self) -> &'static str {
         match self {
-            Self::ChannelPopularOrGenerated => "tools.youtube_playlist.channel_generated",
+            Self::ChannelPopularOrGenerated => "YouTube generated channel playlist",
             Self::YoutubeMixRadio => "YouTube Mix / Radio",
-            Self::YoutubeMusicAlbum => "tools.youtube_playlist.music_album",
-            Self::LikedVideos => "tools.youtube_playlist.liked_videos",
-            Self::FavoritesLegacy => "tools.youtube_playlist.favorites_legacy",
+            Self::YoutubeMusicAlbum => "YouTube Music album/collection",
+            Self::LikedVideos => "Liked videos",
+            Self::FavoritesLegacy => "Legacy favorites playlist",
+        }
+    }
+
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Self::ChannelPopularOrGenerated => "options.playlist_risk.kind.channel_generated",
+            Self::YoutubeMixRadio => "options.playlist_risk.kind.youtube_mix_radio",
+            Self::YoutubeMusicAlbum => "options.playlist_risk.kind.youtube_music_album",
+            Self::LikedVideos => "options.playlist_risk.kind.liked_videos",
+            Self::FavoritesLegacy => "options.playlist_risk.kind.favorites_legacy",
+        }
+    }
+
+    pub fn note_key(self) -> &'static str {
+        match self {
+            Self::ChannelPopularOrGenerated => "options.playlist_risk.note.channel_generated",
+            Self::YoutubeMixRadio => "options.playlist_risk.note.youtube_mix_radio",
+            Self::YoutubeMusicAlbum => "options.playlist_risk.note.youtube_music_album",
+            Self::LikedVideos => "options.playlist_risk.note.liked_videos",
+            Self::FavoritesLegacy => "options.playlist_risk.note.favorites_legacy",
         }
     }
 }
@@ -1322,32 +1433,32 @@ pub fn classify_youtube_playlist(url: &str) -> Option<YoutubePlaylistRisk> {
     let risk = if uppercase.starts_with("RDCLAK5UY") || uppercase.starts_with("RDCMUC") {
         YoutubePlaylistRisk {
             kind: YoutubePlaylistKind::YoutubeMixRadio,
-            note: "playlist.note.mix_radio",
+            note: "This Mix / Radio playlist may contain many items and can change over time.",
         }
     } else if uppercase.starts_with("UULP") || uppercase.starts_with("UUSH") {
         YoutubePlaylistRisk {
             kind: YoutubePlaylistKind::ChannelPopularOrGenerated,
-            note: "playlist.note.channel_generated",
+            note: "Treat this YouTube-generated channel playlist conservatively.",
         }
     } else if uppercase.starts_with("RD") {
         YoutubePlaylistRisk {
             kind: YoutubePlaylistKind::YoutubeMixRadio,
-            note: "playlist.note.mix_radio",
+            note: "This Mix / Radio playlist may contain many items and can change over time.",
         }
     } else if uppercase == "LL" {
         YoutubePlaylistRisk {
             kind: YoutubePlaylistKind::LikedVideos,
-            note: "playlist.note.liked_videos",
+            note: "Liked videos usually require login or cookies.",
         }
     } else if uppercase.starts_with("FL") {
         YoutubePlaylistRisk {
             kind: YoutubePlaylistKind::FavoritesLegacy,
-            note: "playlist.note.favorites_legacy",
+            note: "This is a legacy favorites playlist style and may not be stable now.",
         }
     } else if uppercase.starts_with("OLAK5UY") {
         YoutubePlaylistRisk {
             kind: YoutubePlaylistKind::YoutubeMusicAlbum,
-            note: "playlist.note.music_album",
+            note: "This is usually a YouTube Music album or collection.",
         }
     } else {
         return None;
@@ -1696,6 +1807,13 @@ fn music_audio_download_format_supports_thumbnail(format: &str) -> bool {
     )
 }
 
+fn music_album_parse_metadata_args() -> [&'static str; 2] {
+    [
+        "%(playlist|)s:%(meta_album)s",
+        "%(playlist_title|)s:%(meta_album)s",
+    ]
+}
+
 fn normalized_extension(extension: &str) -> Option<String> {
     let trimmed = extension
         .trim()
@@ -1705,6 +1823,22 @@ fn normalized_extension(extension: &str) -> Option<String> {
         None
     } else {
         Some(trimmed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn music_album_parse_metadata_args_use_current_yt_dlp_from_to_syntax() {
+        assert_eq!(
+            music_album_parse_metadata_args(),
+            [
+                "%(playlist|)s:%(meta_album)s",
+                "%(playlist_title|)s:%(meta_album)s",
+            ]
+        );
     }
 }
 

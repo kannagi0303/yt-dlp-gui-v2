@@ -37,6 +37,7 @@ pub struct ResolvedMusicStream {
     pub direct_url: String,
     pub headers: Vec<(String, String)>,
     pub title: String,
+    pub album_title: String,
     pub thumbnail_url: String,
     pub duration_seconds: Option<f64>,
     pub ext: String,
@@ -51,6 +52,14 @@ pub struct ResolvedMusicStream {
 
 #[derive(Debug)]
 pub enum MusicPlaybackEvent {
+    ToolCommandFinished {
+        item_id: u64,
+        session_id: u64,
+        tool: String,
+        action: String,
+        command_line: String,
+        success: bool,
+    },
     Started {
         item_id: u64,
         session_id: u64,
@@ -67,6 +76,20 @@ pub enum MusicPlaybackEvent {
         item_id: u64,
         session_id: u64,
         error: String,
+    },
+    PrefetchToolCommandFinished {
+        item_id: u64,
+        session_id: u64,
+        tool: String,
+        action: String,
+        command_line: String,
+        success: bool,
+    },
+    PrefetchFinished {
+        item_id: u64,
+        session_id: u64,
+        success: bool,
+        error: Option<String>,
     },
 }
 
@@ -150,6 +173,19 @@ impl MusicPlaybackControl {
             .is_finite()
             .then_some(duration)
             .filter(|value| *value > 0.0)
+    }
+}
+
+#[derive(Clone)]
+pub struct MusicPrefetchControl {
+    pub item_id: u64,
+    pub session_id: u64,
+    cancel_requested: Arc<AtomicBool>,
+}
+
+impl MusicPrefetchControl {
+    pub fn cancel(&self) {
+        self.cancel_requested.store(true, Ordering::Relaxed);
     }
 }
 
@@ -319,6 +355,8 @@ struct MusicCachePaths {
 struct MusicCacheManifest {
     source_url: String,
     title: String,
+    #[serde(default)]
+    album_title: String,
     duration_seconds: Option<f64>,
     ext: String,
     format_id: String,
@@ -381,6 +419,88 @@ pub fn spawn_music_stream_playback(
     control
 }
 
+pub fn spawn_music_stream_prefetch(
+    mut stream: ResolvedMusicStream,
+    event_tx: Sender<MusicPlaybackEvent>,
+) -> MusicPrefetchControl {
+    let cancel_requested = Arc::new(AtomicBool::new(false));
+    let control = MusicPrefetchControl {
+        item_id: stream.item_id,
+        session_id: stream.session_id,
+        cancel_requested: cancel_requested.clone(),
+    };
+    thread::spawn(move || {
+        let item_id = stream.item_id;
+        let session_id = stream.session_id;
+        let result = run_music_stream_prefetch(&mut stream, event_tx.clone(), cancel_requested);
+        let (success, error) = match result {
+            Ok(()) => (true, None),
+            Err(error) => (false, Some(error)),
+        };
+        let _ = event_tx.send(MusicPlaybackEvent::PrefetchFinished {
+            item_id,
+            session_id,
+            success,
+            error,
+        });
+    });
+    control
+}
+
+fn run_music_stream_prefetch(
+    stream: &mut ResolvedMusicStream,
+    event_tx: Sender<MusicPlaybackEvent>,
+    cancel_requested: Arc<AtomicBool>,
+) -> Result<(), String> {
+    let paths = music_cache_paths(stream)?;
+    fs::create_dir_all(&paths.dir)
+        .map_err(|error| format!("Could not create music stream cache: {error}"))?;
+    if existing_cache_manifest_is_not_fresh(&paths) {
+        let _ = fs::remove_file(&paths.media);
+        let _ = fs::remove_file(&paths.cover);
+        let _ = fs::remove_file(&paths.manifest);
+    }
+    cache_cover_image_if_needed(stream, &paths);
+
+    let existing_bytes = fs::metadata(&paths.media)
+        .map(|meta| meta.len())
+        .unwrap_or(0);
+    if cached_media_is_complete(&paths, stream, existing_bytes) {
+        return Ok(());
+    }
+
+    let cache_state = Arc::new(CacheTransferState::default());
+    if let Some(expected) = stream.expected_bytes.filter(|value| *value > 0) {
+        cache_state.set_expected_bytes(Some(expected));
+    }
+    cache_state.seed_ranges(manifest_ranges_for_existing_cache(&paths, existing_bytes));
+
+    if let Some(command) = stream.cache_command.take() {
+        let command_line = format_process_command_line(&command);
+        let manifest_info = MusicCacheManifestInfo::from_stream(stream);
+        let result = run_yt_dlp_cache_downloader(
+            command,
+            paths,
+            cache_state,
+            manifest_info,
+            Some(cancel_requested.clone()),
+        );
+        let success = result.is_ok();
+        let _ = event_tx.send(MusicPlaybackEvent::PrefetchToolCommandFinished {
+            item_id: stream.item_id,
+            session_id: stream.session_id,
+            tool: "yt-dlp".to_owned(),
+            action: "prefetch cache".to_owned(),
+            command_line,
+            success,
+        });
+        return result;
+    }
+
+    let fallback_stream = MusicHttpCacheDownloadInfo::from_stream(stream);
+    run_http_cache_downloader(fallback_stream, paths, cache_state, Some(cancel_requested))
+}
+
 fn music_codec_registry() -> &'static CodecRegistry {
     static CODEC_REGISTRY: OnceLock<CodecRegistry> = OnceLock::new();
     CODEC_REGISTRY.get_or_init(|| {
@@ -424,16 +544,30 @@ fn run_stream_playback(
             stream.item_id, stream.cache_key, existing_bytes
         );
     } else if let Some(command) = stream.cache_command.take() {
+        let command_line = format_process_command_line(&command);
         let downloader_paths = paths.clone();
         let downloader_state = cache_state.clone();
         let manifest_info = MusicCacheManifestInfo::from_stream(&stream);
+        let log_tx = event_tx.clone();
+        let log_item_id = stream.item_id;
+        let log_session_id = stream.session_id;
         thread::spawn(move || {
-            if let Err(error) = run_yt_dlp_cache_downloader(
+            let result = run_yt_dlp_cache_downloader(
                 command,
                 downloader_paths,
                 downloader_state.clone(),
                 manifest_info,
-            ) {
+                None,
+            );
+            let _ = log_tx.send(MusicPlaybackEvent::ToolCommandFinished {
+                item_id: log_item_id,
+                session_id: log_session_id,
+                tool: "yt-dlp".to_owned(),
+                action: "playback cache".to_owned(),
+                command_line,
+                success: result.is_ok(),
+            });
+            if let Err(error) = result {
                 eprintln!("[music-stream] yt-dlp cache download failed: {error}");
                 downloader_state.set_error(error);
             }
@@ -447,6 +581,7 @@ fn run_stream_playback(
                 fallback_stream,
                 downloader_paths,
                 downloader_state.clone(),
+                None,
             ) {
                 eprintln!("[music-stream] fallback cache download failed: {error}");
                 downloader_state.set_error(error);
@@ -733,6 +868,7 @@ struct MusicCacheManifestInfo {
     item_id: u64,
     source_url: String,
     title: String,
+    album_title: String,
     duration_seconds: Option<f64>,
     ext: String,
     format_id: String,
@@ -748,6 +884,7 @@ impl MusicCacheManifestInfo {
             item_id: stream.item_id,
             source_url: stream.source_url.clone(),
             title: stream.title.clone(),
+            album_title: stream.album_title.clone(),
             duration_seconds: stream.duration_seconds,
             ext: stream.ext.clone(),
             format_id: stream.format_id.clone(),
@@ -766,6 +903,7 @@ struct MusicHttpCacheDownloadInfo {
     direct_url: String,
     headers: Vec<(String, String)>,
     title: String,
+    album_title: String,
     duration_seconds: Option<f64>,
     ext: String,
     format_id: String,
@@ -783,6 +921,7 @@ impl MusicHttpCacheDownloadInfo {
             direct_url: stream.direct_url.clone(),
             headers: stream.headers.clone(),
             title: stream.title.clone(),
+            album_title: stream.album_title.clone(),
             duration_seconds: stream.duration_seconds,
             ext: stream.ext.clone(),
             format_id: stream.format_id.clone(),
@@ -798,6 +937,7 @@ impl MusicHttpCacheDownloadInfo {
             item_id: self.item_id,
             source_url: self.source_url.clone(),
             title: self.title.clone(),
+            album_title: self.album_title.clone(),
             duration_seconds: self.duration_seconds,
             ext: self.ext.clone(),
             format_id: self.format_id.clone(),
@@ -860,11 +1000,41 @@ fn cached_media_is_complete(
                 .map_or(false, |expected| expected == media_len))
 }
 
+// i18n-exempt:
+// Music stream/cache commands are technical evidence. Keep executable names, CLI
+// options, URLs, format IDs, codecs, and paths raw for debugging/searchability.
+fn format_process_command_line(command: &Command) -> String {
+    let program = quote_command_arg(&command.get_program().to_string_lossy());
+    let args = command
+        .get_args()
+        .map(|arg| quote_command_arg(&arg.to_string_lossy()))
+        .collect::<Vec<_>>()
+        .join(" ");
+    if args.is_empty() {
+        program
+    } else {
+        format!("{program} {args}")
+    }
+}
+
+fn quote_command_arg(value: &str) -> String {
+    if value.contains([' ', '\t', '"']) {
+        format!("\"{}\"", value.replace('"', "\\\""))
+    } else {
+        value.to_owned()
+    }
+}
+
+fn music_cache_cancel_requested(cancel_requested: Option<&Arc<AtomicBool>>) -> bool {
+    cancel_requested.is_some_and(|flag| flag.load(Ordering::Relaxed))
+}
+
 fn run_yt_dlp_cache_downloader(
     mut command: Command,
     paths: MusicCachePaths,
     cache_state: Arc<CacheTransferState>,
     manifest_info: MusicCacheManifestInfo,
+    cancel_requested: Option<Arc<AtomicBool>>,
 ) -> Result<(), String> {
     fs::create_dir_all(&paths.dir)
         .map_err(|error| format!("Could not create music stream cache: {error}"))?;
@@ -874,6 +1044,11 @@ fn run_yt_dlp_cache_downloader(
         .map_err(|error| format!("Could not start yt-dlp music cache download: {error}"))?;
 
     loop {
+        if music_cache_cancel_requested(cancel_requested.as_ref()) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("Music cache download cancelled.".to_owned());
+        }
         update_cache_progress_from_file(&paths.media, &cache_state, manifest_info.expected_bytes);
         match child
             .try_wait()
@@ -970,6 +1145,7 @@ fn run_http_cache_downloader(
     stream: MusicHttpCacheDownloadInfo,
     paths: MusicCachePaths,
     cache_state: Arc<CacheTransferState>,
+    cancel_requested: Option<Arc<AtomicBool>>,
 ) -> Result<(), String> {
     fs::create_dir_all(&paths.dir)
         .map_err(|error| format!("Could not create music stream cache: {error}"))?;
@@ -977,6 +1153,9 @@ fn run_http_cache_downloader(
 
     let mut retry_count = 0_u32;
     loop {
+        if music_cache_cancel_requested(cancel_requested.as_ref()) {
+            return Err("Music cache download cancelled.".to_owned());
+        }
         if cache_state.is_fully_cached() {
             cache_state.set_complete(true);
             write_cache_manifest(
@@ -1014,7 +1193,13 @@ fn run_http_cache_downloader(
             return Ok(());
         }
 
-        match download_cache_range(&stream, &paths, &cache_state, start_offset) {
+        match download_cache_range(
+            &stream,
+            &paths,
+            &cache_state,
+            start_offset,
+            cancel_requested.as_ref(),
+        ) {
             Ok(DownloadRangeOutcome::CompletedRange) => {
                 retry_count = 0;
                 write_cache_manifest(
@@ -1056,6 +1241,9 @@ fn run_http_cache_downloader(
                     eprintln!(
                         "[music-stream] cache download interrupted; retrying ({retry_count}/8): {error}"
                     );
+                    if music_cache_cancel_requested(cancel_requested.as_ref()) {
+                        return Err("Music cache download cancelled.".to_owned());
+                    }
                     thread::sleep(Duration::from_millis(700));
                     continue;
                 }
@@ -1074,7 +1262,11 @@ fn download_cache_range(
     paths: &MusicCachePaths,
     cache_state: &CacheTransferState,
     start_offset: u64,
+    cancel_requested: Option<&Arc<AtomicBool>>,
 ) -> Result<DownloadRangeOutcome, String> {
+    if music_cache_cancel_requested(cancel_requested) {
+        return Err("Music cache download cancelled.".to_owned());
+    }
     let mut request = ureq::get(&stream.direct_url);
     for (name, value) in &stream.headers {
         if !name.trim().is_empty() && !value.trim().is_empty() {
@@ -1130,6 +1322,9 @@ fn download_cache_range(
     let mut cursor = range_start;
 
     loop {
+        if music_cache_cancel_requested(cancel_requested) {
+            return Err("Music cache download cancelled.".to_owned());
+        }
         let read = reader
             .read(&mut buffer)
             .map_err(|error| format!("Could not read audio stream cache: {error}"))?;
@@ -1178,6 +1373,7 @@ fn write_cache_manifest(
     let manifest = MusicCacheManifest {
         source_url: info.source_url.clone(),
         title: info.title.clone(),
+        album_title: info.album_title.clone(),
         duration_seconds: info.duration_seconds,
         ext: info.ext.clone(),
         format_id: info.format_id.clone(),

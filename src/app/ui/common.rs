@@ -10,8 +10,6 @@ pub(super) struct UiText;
 pub(super) const ITEM_TITLE_FONT_SIZE: f32 = 14.0;
 
 impl UiText {
-    pub(super) const TAB_PREPARE: &'static str = "tab.prepare";
-    pub(super) const TAB_MAIN: &'static str = "tab.main";
     pub(super) const TAB_ADVANCE: &'static str = "tab.advanced";
     pub(super) const TAB_OPTIONS: &'static str = "tab.options";
     pub(super) const TAB_LOG: &'static str = "tab.log";

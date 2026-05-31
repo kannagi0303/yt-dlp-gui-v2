@@ -9,11 +9,11 @@ pub fn send_download_finished_windows_toast(
 
 #[cfg(not(target_os = "windows"))]
 pub fn send_download_finished_windows_toast(
-    language: crate::i18n::Language,
+    _language: crate::i18n::Language,
     _title: &str,
     _output_path: Option<&str>,
 ) -> Result<(), String> {
-    Err(crate::i18n::text(language, "notification.windows_toast_windows_only").to_owned())
+    Err("Windows Toast is only supported on Windows.".to_owned())
 }
 
 #[cfg(target_os = "windows")]
@@ -27,11 +27,11 @@ pub fn send_download_failed_windows_toast(
 
 #[cfg(not(target_os = "windows"))]
 pub fn send_download_failed_windows_toast(
-    language: crate::i18n::Language,
+    _language: crate::i18n::Language,
     _title: &str,
     _error: &str,
 ) -> Result<(), String> {
-    Err(crate::i18n::text(language, "notification.windows_toast_windows_only").to_owned())
+    Err("Windows Toast is only supported on Windows.".to_owned())
 }
 
 #[cfg(target_os = "windows")]
@@ -60,22 +60,16 @@ mod windows_toast {
         let detail = output_path
             .and_then(file_name_from_path)
             .map(|file_name| {
-                format!(
-                    "{}{}",
-                    i18n::text(language, "notification.download_finished_detail_prefix"),
-                    file_name
+                i18n::format_text(
+                    language,
+                    "notification.completed_file",
+                    &[("{file}", file_name.as_str())],
                 )
             })
-            .unwrap_or_else(|| {
-                i18n::text(language, "notification.download_finished_detail").to_owned()
-            });
+            .unwrap_or_else(|| i18n::text(language, "notification.download_completed").to_owned());
+        let toast_title = i18n::text(language, "notification.download_complete");
 
-        show_notification(
-            DOWNLOAD_FINISHED_TAG,
-            i18n::text(language, "notification.download_finished"),
-            title,
-            &detail,
-        )
+        show_notification(DOWNLOAD_FINISHED_TAG, toast_title, title, &detail)
     }
 
     pub fn send_download_failed_windows_toast(
@@ -84,9 +78,10 @@ mod windows_toast {
         error: &str,
     ) -> Result<(), String> {
         let detail = i18n::localize_message(language, error);
+        let toast_title = i18n::text(language, "notification.download_failed");
         show_notification(
             DOWNLOAD_FAILED_TAG,
-            i18n::text(language, "notification.download_failed"),
+            toast_title,
             title,
             &truncate_to_chars(detail.trim(), 180),
         )

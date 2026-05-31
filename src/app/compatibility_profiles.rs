@@ -46,7 +46,7 @@ pub(crate) const COMPATIBILITY_PROFILES: &[CompatibilityProfile] = &[
     CompatibilityProfile {
         target: CompatibilityTarget::AppleTvLegacy,
         scope: CompatibilityScope::AppleTv,
-        label_key: "transcode.compat.apple_tv_legacy",
+        label_key: "Apple TV legacy",
         video: VideoCodecPolicy::H264,
         container: ContainerPolicy::Mp4,
         resolution: ResolutionPolicy::Max1080p,
@@ -58,7 +58,7 @@ pub(crate) const COMPATIBILITY_PROFILES: &[CompatibilityProfile] = &[
     CompatibilityProfile {
         target: CompatibilityTarget::AppleTvModern,
         scope: CompatibilityScope::AppleTv,
-        label_key: "transcode.compat.apple_tv_modern",
+        label_key: "Apple TV modern",
         video: VideoCodecPolicy::Hevc,
         container: ContainerPolicy::Mp4,
         resolution: ResolutionPolicy::AutoBalance,
@@ -70,7 +70,7 @@ pub(crate) const COMPATIBILITY_PROFILES: &[CompatibilityProfile] = &[
     CompatibilityProfile {
         target: CompatibilityTarget::IphoneIpad,
         scope: CompatibilityScope::AppleMobile,
-        label_key: "transcode.compat.iphone_ipad",
+        label_key: "iPhone / iPad",
         video: VideoCodecPolicy::Hevc,
         container: ContainerPolicy::Mp4,
         resolution: ResolutionPolicy::AutoBalance,
@@ -82,7 +82,7 @@ pub(crate) const COMPATIBILITY_PROFILES: &[CompatibilityProfile] = &[
     CompatibilityProfile {
         target: CompatibilityTarget::AndroidTv,
         scope: CompatibilityScope::AndroidTv,
-        label_key: "transcode.compat.android_tv",
+        label_key: "Android TV / Chromecast",
         video: VideoCodecPolicy::Hevc,
         container: ContainerPolicy::Mp4,
         resolution: ResolutionPolicy::AutoBalance,
@@ -94,7 +94,7 @@ pub(crate) const COMPATIBILITY_PROFILES: &[CompatibilityProfile] = &[
     CompatibilityProfile {
         target: CompatibilityTarget::AndroidPhoneTablet,
         scope: CompatibilityScope::AndroidMobile,
-        label_key: "transcode.compat.android_phone_tablet",
+        label_key: "Android phone / tablet",
         video: VideoCodecPolicy::Hevc,
         container: ContainerPolicy::Mp4,
         resolution: ResolutionPolicy::AutoBalance,
@@ -106,7 +106,7 @@ pub(crate) const COMPATIBILITY_PROFILES: &[CompatibilityProfile] = &[
     CompatibilityProfile {
         target: CompatibilityTarget::Windows,
         scope: CompatibilityScope::Computer,
-        label_key: "transcode.compat.windows",
+        label_key: "Windows PC",
         video: VideoCodecPolicy::H264,
         container: ContainerPolicy::Mp4,
         resolution: ResolutionPolicy::KeepOriginal,
@@ -118,7 +118,7 @@ pub(crate) const COMPATIBILITY_PROFILES: &[CompatibilityProfile] = &[
     CompatibilityProfile {
         target: CompatibilityTarget::Mac,
         scope: CompatibilityScope::Computer,
-        label_key: "transcode.compat.mac",
+        label_key: "Mac",
         video: VideoCodecPolicy::Hevc,
         container: ContainerPolicy::Mp4,
         resolution: ResolutionPolicy::KeepOriginal,
@@ -130,7 +130,7 @@ pub(crate) const COMPATIBILITY_PROFILES: &[CompatibilityProfile] = &[
     CompatibilityProfile {
         target: CompatibilityTarget::BrowserMp4,
         scope: CompatibilityScope::Browser,
-        label_key: "transcode.compat.browser_mp4",
+        label_key: "Browser-safe MP4",
         video: VideoCodecPolicy::H264,
         container: ContainerPolicy::Mp4,
         resolution: ResolutionPolicy::Max1080p,
@@ -142,7 +142,7 @@ pub(crate) const COMPATIBILITY_PROFILES: &[CompatibilityProfile] = &[
     CompatibilityProfile {
         target: CompatibilityTarget::OldDevice,
         scope: CompatibilityScope::OldTv,
-        label_key: "transcode.compat.old_device",
+        label_key: "Old TV / USB playback",
         video: VideoCodecPolicy::H264,
         container: ContainerPolicy::Mp4,
         resolution: ResolutionPolicy::Max720p,
@@ -154,7 +154,7 @@ pub(crate) const COMPATIBILITY_PROFILES: &[CompatibilityProfile] = &[
     CompatibilityProfile {
         target: CompatibilityTarget::TvNas,
         scope: CompatibilityScope::OldTv,
-        label_key: "transcode.compat.tv_nas",
+        label_key: "Generic TV / NAS",
         video: VideoCodecPolicy::H264,
         container: ContainerPolicy::Mp4,
         resolution: ResolutionPolicy::Max1080p,

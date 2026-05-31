@@ -15,9 +15,9 @@ pub(super) enum TranscodeSupportLevel {
 impl TranscodeSupportLevel {
     pub(super) fn label(self) -> &'static str {
         match self {
-            Self::Executable => "transcode.support.executable",
-            Self::Partial => "transcode.support.partial",
-            Self::PreviewOnly => "transcode.support.preview_only",
+            Self::Executable => "Executable",
+            Self::Partial => "Partially supported",
+            Self::PreviewOnly => "Preview only",
         }
     }
 }

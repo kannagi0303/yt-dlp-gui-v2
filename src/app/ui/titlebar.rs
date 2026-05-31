@@ -9,7 +9,7 @@ use crate::app::state::{AppMode, AppState, AppTab};
 use crate::app::widgets::icon::{AppIcon, icon_image, standard_icon_color};
 
 use super::common::UiText;
-use super::measure::{measured_text_width, WidthRange};
+use super::measure::{WidthRange, measured_text_width};
 
 const APP_LOGO_BYTES: &[u8] = include_bytes!("../../../assets/logo.ico");
 
@@ -34,11 +34,10 @@ pub(super) fn render_titlebar(ui: &mut Ui, state: &mut AppState) {
     );
 
     let show_home_button = should_show_home_button(state);
-    let right_client_area_width = if show_home_button {
-        HOME_BUTTON_WIDTH + ESCAPE_BUTTON_WIDTH + WINDOW_BUTTON_WIDTH * 3.0
-    } else {
-        ESCAPE_BUTTON_WIDTH + WINDOW_BUTTON_WIDTH * 3.0
-    };
+    let show_escape_menu = should_show_escape_menu(state);
+    let right_client_area_width = WINDOW_BUTTON_WIDTH * 3.0
+        + if show_home_button { HOME_BUTTON_WIDTH } else { 0.0 }
+        + if show_escape_menu { ESCAPE_BUTTON_WIDTH } else { 0.0 };
     custom_chrome::set_titlebar_hit_test_metrics(
         TITLEBAR_HEIGHT,
         right_client_area_width,
@@ -82,8 +81,10 @@ pub(super) fn render_titlebar(ui: &mut Ui, state: &mut AppState) {
                 tui.style(fixed_cell(HOME_BUTTON_WIDTH))
                     .ui(|ui| render_home_button(ui, state));
             }
-            tui.style(fixed_cell(ESCAPE_BUTTON_WIDTH))
-                .ui(|ui| render_escape_menu(ui, state, root_rect));
+            if show_escape_menu {
+                tui.style(fixed_cell(ESCAPE_BUTTON_WIDTH))
+                    .ui(|ui| render_escape_menu(ui, state, root_rect));
+            }
             tui.style(fixed_cell(WINDOW_BUTTON_WIDTH)).ui(|ui| {
                 render_caption_control(
                     ui,
@@ -212,6 +213,10 @@ fn should_show_home_button(state: &AppState) -> bool {
     !state.should_show_prepare_tab() && state.active_tab != AppTab::Main
 }
 
+fn should_show_escape_menu(state: &AppState) -> bool {
+    !state.should_show_prepare_tab()
+}
+
 fn render_home_button(ui: &mut Ui, state: &mut AppState) {
     let response = caption_icon_button(
         ui,
@@ -219,8 +224,7 @@ fn render_home_button(ui: &mut Ui, state: &mut AppState) {
         "Home",
         CaptionButtonKind::Normal,
         HOME_ICON_SIZE,
-    )
-    .on_hover_text(state.tr(UiText::TAB_MAIN));
+    );
 
     if response.clicked() {
         egui::Popup::close_all(ui.ctx());
@@ -263,10 +267,7 @@ fn render_escape_menu(ui: &mut Ui, state: &mut AppState, titlebar_rect: Rect) {
                 ui.separator();
             }
 
-            if state.should_show_prepare_tab() {
-                titlebar_menu_item(ui, state, AppTab::Prepare, UiText::TAB_PREPARE);
-            } else {
-                titlebar_menu_item(ui, state, AppTab::Main, UiText::TAB_MAIN);
+            if !state.should_show_prepare_tab() {
                 titlebar_menu_item(ui, state, AppTab::Advance, UiText::TAB_ADVANCE);
             }
             titlebar_menu_item(ui, state, AppTab::Options, UiText::TAB_OPTIONS);
@@ -280,19 +281,20 @@ fn escape_menu_width(ui: &Ui, state: &AppState) -> f32 {
     let mut labels: Vec<&'static str> = Vec::new();
 
     if !state.should_show_prepare_tab() {
-        labels.extend(AppMode::ALL.iter().map(|mode| state.tr(mode.label_key())));
+        labels.extend(
+            AppMode::ALL
+                .iter()
+                .map(|mode| state.ui_tr(mode.label_key())),
+        );
     }
 
-    if state.should_show_prepare_tab() {
-        labels.push(state.tr(UiText::TAB_PREPARE));
-    } else {
-        labels.push(state.tr(UiText::TAB_MAIN));
-        labels.push(state.tr(UiText::TAB_ADVANCE));
+    if !state.should_show_prepare_tab() {
+        labels.push(state.ui_tr(UiText::TAB_ADVANCE));
     }
 
-    labels.push(state.tr(UiText::TAB_OPTIONS));
+    labels.push(state.ui_tr(UiText::TAB_OPTIONS));
     if state.config.show_log_tab {
-        labels.push(state.tr(UiText::TAB_LOG));
+        labels.push(state.ui_tr(UiText::TAB_LOG));
     }
 
     let horizontal_padding = ui.spacing().button_padding.x * 2.0 + ESCAPE_MENU_WIDTH_GUARD;
@@ -321,7 +323,7 @@ fn titlebar_app_mode_item(ui: &mut Ui, state: &mut AppState, mode: AppMode) {
     let item_width = escape_menu_item_width(ui);
     if ui
         .add(
-            egui::Button::selectable(state.app_mode() == mode, state.tr(mode.label_key()))
+            egui::Button::selectable(state.app_mode() == mode, state.ui_tr(mode.label_key()))
                 .wrap_mode(TextWrapMode::Extend)
                 .min_size(egui::vec2(item_width, ui.spacing().interact_size.y)),
         )
@@ -337,13 +339,17 @@ fn titlebar_menu_item(ui: &mut Ui, state: &mut AppState, tab: AppTab, label_key:
     let item_width = escape_menu_item_width(ui);
     if ui
         .add(
-            egui::Button::selectable(state.active_tab == tab, state.tr(label_key))
+            egui::Button::selectable(state.active_tab == tab, state.ui_tr(label_key))
                 .wrap_mode(TextWrapMode::Extend)
                 .min_size(egui::vec2(item_width, ui.spacing().interact_size.y)),
         )
         .clicked()
     {
-        state.active_tab = tab;
+        if tab == AppTab::Log {
+            state.enter_log_tab();
+        } else {
+            state.active_tab = tab;
+        }
         ui.close();
     }
 }
@@ -364,8 +370,7 @@ fn render_caption_control(
     hover_text: &'static str,
     kind: CaptionButtonKind,
 ) {
-    let response = caption_icon_button(ui, icon, hover_text, kind, WINDOW_BUTTON_ICON_SIZE)
-        .on_hover_text(hover_text);
+    let response = caption_icon_button(ui, icon, hover_text, kind, WINDOW_BUTTON_ICON_SIZE);
     if response.clicked() {
         match icon {
             AppIcon::WindowMinimize => ui

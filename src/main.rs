@@ -1,4 +1,8 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+#![allow(
+    dead_code,
+    reason = "staged Rust rewrite keeps planned UI/domain/integration surfaces compiled before they are fully wired"
+)]
 
 mod app;
 mod domain;

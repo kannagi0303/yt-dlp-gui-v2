@@ -21,7 +21,7 @@ const MUSIC_PANEL_PADDING_X: f32 = 8.0;
 const MUSIC_PANEL_PADDING_Y: f32 = 5.0;
 const MUSIC_PANEL_GAP: f32 = 4.0;
 const MUSIC_LYRICS_FONT_DELTA: f32 = 4.5;
-const MISSING_YT_DLP_TOOLTIP_KEY: &str = "main.tooltip.missing_yt_dlp";
+const MISSING_YT_DLP_CALLOUT_KEY: &str = "main.missing_yt_dlp_callout";
 const MISSING_YT_DLP_CALLOUT_WIDTH: f32 = 320.0;
 const MAIN_INLINE_CONTROL_GAP_SCALE: f32 = 0.5;
 const SINGLE_CONTENT_OUTPUT_GAP_REDUCTION: f32 = 4.0;
@@ -190,9 +190,9 @@ impl UrlRowMetrics {
         let spinner_size = control_height * 0.75;
         let spinner_gap = 4.0;
         let action_width = if primary_url_action_uses_icon(state) {
-            natural_icon_button_width(ui, state.primary_url_action_label())
+            natural_icon_button_width(ui, state.ui_tr(state.primary_url_action_label_key()))
         } else {
-            natural_button_width(ui, state.primary_url_action_label())
+            natural_button_width(ui, state.ui_tr(state.primary_url_action_label_key()))
         } + if show_spinner {
             spinner_size + spinner_gap
         } else {
@@ -227,11 +227,13 @@ struct OutputRowMetrics {
 impl OutputRowMetrics {
     fn new(ui: &Ui, state: &AppState, _base_control_height: f32) -> Self {
         let row_height = app_textbox_single_line_height(ui);
+        let target_text = state.ui_tr(UiText::TARGET_DIR);
+        let download_text = state.ui_tr(UiText::DOWNLOAD);
 
         Self {
             row_height,
-            target_button_width: natural_icon_button_width(ui, state.tr(UiText::TARGET_DIR)),
-            download_width: natural_icon_button_width(ui, state.tr(UiText::DOWNLOAD)),
+            target_button_width: natural_icon_button_width(ui, target_text),
+            download_width: natural_icon_button_width(ui, download_text),
             gap: main_inline_control_gap(ui),
         }
     }
@@ -311,7 +313,7 @@ fn main_url_fixed_cell_style(width: f32) -> taffy::Style {
 }
 
 fn row_url_input(tui: &mut Tui, state: &mut AppState, metrics: &UrlRowMetrics) {
-    let url_hint = state.tr(UiText::URL_HINT).to_owned();
+    let url_hint = state.ui_tr(UiText::URL_HINT).to_owned();
     let language = state.language();
     tui.style(main_url_flex_cell_style()).ui(|ui| {
         let response = AppTextBox::new(&mut state.url_input)
@@ -328,9 +330,6 @@ fn row_url_input(tui: &mut Tui, state: &mut AppState, metrics: &UrlRowMetrics) {
         let submit_requested = metrics.is_single_mode
             && response.has_focus()
             && ui.input(|input| input.key_pressed(egui::Key::Enter));
-        if !state.url_input.trim().is_empty() {
-            response.on_hover_text(state.url_input.as_str());
-        }
         if submit_requested && !metrics.url_input_locked {
             state.run_primary_url_action();
         }
@@ -342,8 +341,6 @@ fn row_url_input(tui: &mut Tui, state: &mut AppState, metrics: &UrlRowMetrics) {
                 [ui.available_width(), metrics.control_height],
                 clipboard_monitor_button(ui, state),
             );
-            let hover_text = clipboard_monitor_hover_text(state);
-            response.clone().on_hover_text(hover_text);
             if response.clicked() {
                 state.set_monitor_clipboard(!state.clipboard_monitor_enabled());
             }
@@ -435,7 +432,7 @@ fn render_single_analysis_spinner_button(
     );
 
     let icon_size = icon_button_text_size(ui);
-    let label = state.primary_url_action_label();
+    let label = state.ui_tr(state.primary_url_action_label_key());
     let galley = WidgetText::from(RichText::new(label).size(icon_size)).into_galley(
         ui,
         Some(egui::TextWrapMode::Extend),
@@ -482,18 +479,6 @@ fn clipboard_monitor_button(ui: &Ui, state: &AppState) -> egui::Button<'static> 
     button
 }
 
-fn clipboard_monitor_hover_text(state: &AppState) -> &'static str {
-    if state.clipboard_monitor_enabled() {
-        if state.config.clipboard_auto_add {
-            state.tr("main.clipboard_monitor_on_the_next_youtube_url_ch")
-        } else {
-            state.tr("main.clipboard_monitor_on_the_next_youtube_url_ch_2")
-        }
-    } else {
-        state.tr("main.clipboard_monitor_off_turning_it_on_only_mem")
-    }
-}
-
 fn row_music_player_panel(
     ui: &mut Ui,
     state: &mut AppState,
@@ -501,11 +486,14 @@ fn row_music_player_panel(
     lyrics_row_height: f32,
     player_row_height: f32,
 ) {
-    let panel_height = ui.available_height();
-    let (panel_rect, _) = ui.allocate_exact_size(
-        egui::vec2(ui.available_width(), panel_height),
-        egui::Sense::hover(),
-    );
+    // The audio player may be shown immediately after restoring the audio-mode
+    // playlist on startup. During those early/narrow layout frames, egui can
+    // report very small available sizes. Keep every manually allocated rect
+    // non-negative so restored audio state cannot panic the app.
+    let panel_width = ui.available_width().max(1.0);
+    let panel_height = ui.available_height().max(1.0);
+    let (panel_rect, _) =
+        ui.allocate_exact_size(egui::vec2(panel_width, panel_height), egui::Sense::hover());
 
     ui.painter().rect(
         panel_rect,
@@ -515,21 +503,30 @@ fn row_music_player_panel(
         egui::StrokeKind::Outside,
     );
 
-    let content_rect = panel_rect.shrink2(egui::vec2(MUSIC_PANEL_PADDING_X, MUSIC_PANEL_PADDING_Y));
+    let content_width = (panel_rect.width() - MUSIC_PANEL_PADDING_X * 2.0).max(1.0);
+    let content_height = (panel_rect.height() - MUSIC_PANEL_PADDING_Y * 2.0).max(1.0);
+    let content_rect = egui::Rect::from_min_size(
+        egui::pos2(
+            panel_rect.left() + MUSIC_PANEL_PADDING_X,
+            panel_rect.top() + MUSIC_PANEL_PADDING_Y,
+        ),
+        egui::vec2(content_width, content_height),
+    );
     let mut player_top = content_rect.top();
 
     if let Some(line) = lyrics_line {
         let lyrics_rect = egui::Rect::from_min_size(
             content_rect.min,
-            egui::vec2(content_rect.width(), lyrics_row_height),
+            egui::vec2(content_rect.width().max(1.0), lyrics_row_height.max(1.0)),
         );
         render_music_lyrics_at(ui, lyrics_rect, line);
         player_top = lyrics_rect.bottom() + MUSIC_PANEL_GAP;
     }
 
+    let player_height = player_row_height.max(1.0);
     let player_rect = egui::Rect::from_min_size(
         egui::pos2(content_rect.left(), player_top),
-        egui::vec2(content_rect.width(), player_row_height),
+        egui::vec2(content_rect.width().max(1.0), player_height),
     );
     ui.scope_builder(egui::UiBuilder::new().max_rect(player_rect), |ui| {
         row_music_player(ui, state);
@@ -583,18 +580,17 @@ fn music_player_panel_fill(ui: &Ui) -> Color32 {
 }
 
 fn row_music_player(ui: &mut Ui, state: &mut AppState) {
-    let row_height = ui.spacing().interact_size.y;
+    let row_height = ui.spacing().interact_size.y.max(1.0);
     let spacing = ui.spacing().item_spacing.x.max(8.0);
     let button_width = row_height;
     let time_width = 108.0;
     let volume_width = 128.0;
     let mut volume = state.music_volume();
 
-    ui.set_width(ui.available_width());
-    let (row_rect, _) = ui.allocate_exact_size(
-        egui::vec2(ui.available_width(), row_height),
-        egui::Sense::hover(),
-    );
+    let row_width = ui.available_width().max(1.0);
+    ui.set_width(row_width);
+    let (row_rect, _) =
+        ui.allocate_exact_size(egui::vec2(row_width, row_height), egui::Sense::hover());
 
     let previous_rect = egui::Rect::from_min_size(
         egui::pos2(row_rect.left(), row_rect.top()),
@@ -640,25 +636,18 @@ fn row_music_player(ui: &mut Ui, state: &mut AppState) {
         egui::pos2(seek_right.max(seek_left), row_rect.bottom()),
     );
 
-    if music_icon_button_at(
-        ui,
-        previous_rect,
-        AppIcon::SkipPrevious,
-        state.tr("music.previous"),
-    )
-    .clicked()
-    {
+    if music_icon_button_at(ui, previous_rect, AppIcon::SkipPrevious, "music-previous").clicked() {
         state.previous_music_item();
     }
-    let (icon, label) = if state.music_player_is_playing() {
-        (AppIcon::Pause, state.tr("music.pause"))
+    let icon = if state.music_player_is_playing() {
+        AppIcon::Pause
     } else {
-        (AppIcon::Play, state.tr("music.play"))
+        AppIcon::Play
     };
-    if music_icon_button_at(ui, play_rect, icon, label).clicked() {
+    if music_icon_button_at(ui, play_rect, icon, "music-play-toggle").clicked() {
         state.toggle_music_playback();
     }
-    if music_icon_button_at(ui, next_rect, AppIcon::SkipNext, state.tr("music.next")).clicked() {
+    if music_icon_button_at(ui, next_rect, AppIcon::SkipNext, "music-next").clicked() {
         state.next_music_item();
     }
 
@@ -673,7 +662,7 @@ fn row_music_player(ui: &mut Ui, state: &mut AppState) {
     render_music_time_at(ui, time_rect, &state.music_playback_time_text());
 
     let icon = music_playback_mode_icon(state.music_playback_mode_kind());
-    if music_icon_button_at(ui, mode_rect, icon, state.music_playback_mode_tooltip()).clicked() {
+    if music_icon_button_at(ui, mode_rect, icon, "music-playback-mode").clicked() {
         state.cycle_music_playback_mode();
     }
 
@@ -684,19 +673,28 @@ fn row_music_player(ui: &mut Ui, state: &mut AppState) {
     );
     music_round_icon_at(ui, volume_icon_rect, AppIcon::VolumeHigh);
     let slider_left = volume_icon_rect.right() + ui.spacing().icon_spacing;
+    let volume_slider_right = volume_rect.right().max(slider_left);
     let volume_slider_rect = egui::Rect::from_min_max(
         egui::pos2(slider_left, volume_rect.top()),
-        egui::pos2(volume_rect.right(), volume_rect.bottom()),
+        egui::pos2(volume_slider_right, volume_rect.bottom()),
     );
-    let slider = egui::Slider::new(&mut volume, 0.0..=1.0).show_value(false);
-    let volume_response = ui
-        .scope_builder(egui::UiBuilder::new().max_rect(volume_slider_rect), |ui| {
-            ui.spacing_mut().slider_width = volume_slider_rect.width().max(1.0);
-            ui.add_sized(volume_slider_rect.size(), slider)
-        })
-        .inner;
-    if volume_response.changed() {
-        state.set_music_volume(volume);
+    if volume_slider_rect.width() > 1.0 && volume_slider_rect.height() > 1.0 {
+        let slider = egui::Slider::new(&mut volume, 0.0..=1.0).show_value(false);
+        let volume_response = ui
+            .scope_builder(egui::UiBuilder::new().max_rect(volume_slider_rect), |ui| {
+                ui.spacing_mut().slider_width = volume_slider_rect.width().max(1.0);
+                ui.add_sized(
+                    egui::vec2(
+                        volume_slider_rect.width().max(1.0),
+                        volume_slider_rect.height().max(1.0),
+                    ),
+                    slider,
+                )
+            })
+            .inner;
+        if volume_response.changed() {
+            state.set_music_volume(volume);
+        }
     }
 }
 
@@ -726,12 +724,10 @@ fn music_icon_button_at(
     ui: &mut Ui,
     rect: egui::Rect,
     icon: AppIcon,
-    tooltip: &str,
+    id_salt: &str,
 ) -> egui::Response {
-    let id = ui.make_persistent_id(("music-icon-button", tooltip));
-    let response = ui
-        .interact(rect, id, egui::Sense::click())
-        .on_hover_text(tooltip);
+    let id = ui.make_persistent_id(("music-icon-button", id_salt));
+    let response = ui.interact(rect, id, egui::Sense::click());
     let visuals = ui.style().interact(&response);
     let radius = (rect.width().min(rect.height()) * 0.5 - 1.0).max(1.0);
     ui.painter()
@@ -794,13 +790,6 @@ fn render_music_seek_bar_at(ui: &mut Ui, state: &mut AppState, rect: egui::Rect)
             .clamp(0.0, 1.0);
         state.finish_music_seek_drag(final_ratio);
     }
-
-    let hover = if state.music_playback_cache_progress_ratio() < 0.999 {
-        state.tr("music.seek_cached_range_hint")
-    } else {
-        state.tr("music.seek_hint")
-    };
-    response.on_hover_text(hover);
 }
 
 fn row_output_and_download(tui: &mut Tui, state: &mut AppState, metrics: &OutputRowMetrics) {
@@ -809,21 +798,17 @@ fn row_output_and_download(tui: &mut Tui, state: &mut AppState, metrics: &Output
     let target_button_width = metrics.target_button_width;
     let mut output_dir_display = state.output_dir_display();
     let output_locked_by_config = state.output_dir_locked_by_config();
-    let output_config_source = state.output_dir_config_source_display();
     let has_pending_downloads = state.has_pending_download_items();
 
     tui.style(main_output_row_style(row_height, metrics.gap))
         .add(|tui| {
             tui.style(main_url_fixed_cell_style(target_button_width))
                 .ui(|ui| {
+                    let target_text = state.ui_tr(UiText::TARGET_DIR);
                     let response = ui.add_enabled(
                         !output_locked_by_config,
-                        icon_text_button(
-                            ui,
-                            AppIcon::FolderMoveOutline,
-                            state.tr(UiText::TARGET_DIR),
-                        )
-                        .min_size(egui::vec2(ui.available_width(), row_height)),
+                        icon_text_button(ui, AppIcon::FolderMoveOutline, target_text)
+                            .min_size(egui::vec2(ui.available_width(), row_height)),
                     );
                     if response.clicked() {
                         let mut dialog = rfd::FileDialog::new();
@@ -835,18 +820,6 @@ fn row_output_and_download(tui: &mut Tui, state: &mut AppState, metrics: &Output
                         if let Some(folder) = dialog.pick_folder() {
                             state.set_output_dir(folder.display().to_string());
                         }
-                    }
-                    if output_locked_by_config {
-                        response.on_hover_text(
-                            output_config_source
-                                .as_deref()
-                                .map(|path| {
-                                    format!("{}{}", state.tr("main.controlled_by_config_2"), path)
-                                })
-                                .unwrap_or_else(|| {
-                                    state.tr("main.controlled_by_config").to_owned()
-                                }),
-                        );
                     }
                 });
 
@@ -961,7 +934,7 @@ fn show_missing_yt_dlp_callout(
                 .show(ui, |ui| {
                     ui.set_max_width(MISSING_YT_DLP_CALLOUT_WIDTH);
                     ui.label(
-                        RichText::new(state.tr(MISSING_YT_DLP_TOOLTIP_KEY))
+                        RichText::new(state.ui_tr(MISSING_YT_DLP_CALLOUT_KEY))
                             .color(missing_tool_button_text_color(ui)),
                     );
                 });
@@ -971,14 +944,23 @@ fn show_missing_yt_dlp_callout(
 fn primary_url_action_icon(state: &AppState) -> AppIcon {
     if state.app_mode() == AppMode::Origin {
         AppIcon::Magnify
-    } else {
+    } else if state.config.direct_download_on_add && !state.queue_display_mode_is_audio() {
         AppIcon::Download
+    } else {
+        AppIcon::Import
     }
 }
 
 fn primary_url_action_uses_icon(state: &AppState) -> bool {
+    if state.is_adding_batch {
+        return state.app_mode() == AppMode::Origin
+            || (state.config.direct_download_on_add && !state.queue_display_mode_is_audio());
+    }
+
     state.app_mode() == AppMode::Origin
-        || (state.config.direct_download_on_add && !state.queue_display_mode_is_audio())
+        || state.queue_display_mode_is_audio()
+        || state.config.direct_download_on_add
+        || state.app_mode() == AppMode::Standard
 }
 
 fn missing_tool_icon_text_button(ui: &Ui, icon: AppIcon, label: &str) -> egui::Button<'static> {
@@ -1003,24 +985,24 @@ fn primary_url_action_button_for_state(
             missing_tool_icon_text_button(
                 ui,
                 primary_url_action_icon(state),
-                state.primary_url_action_label(),
+                state.ui_tr(state.primary_url_action_label_key()),
             )
         } else {
             icon_text_button(
                 ui,
                 primary_url_action_icon(state),
-                state.primary_url_action_label(),
+                state.ui_tr(state.primary_url_action_label_key()),
             )
         }
     } else if muted {
         egui::Button::new(
-            RichText::new(state.primary_url_action_label())
+            RichText::new(state.ui_tr(state.primary_url_action_label_key()))
                 .color(missing_tool_button_text_color(ui)),
         )
         .fill(missing_tool_button_fill(ui))
         .stroke(missing_tool_button_stroke())
     } else {
-        egui::Button::new(state.primary_url_action_label())
+        egui::Button::new(state.ui_tr(state.primary_url_action_label_key()))
     }
 }
 
@@ -1029,9 +1011,10 @@ fn primary_url_action_button(ui: &Ui, state: &AppState) -> egui::Button<'static>
 }
 
 fn download_button_for_state(ui: &Ui, state: &AppState, muted: bool) -> egui::Button<'static> {
+    let download_text = state.ui_tr(UiText::DOWNLOAD);
     if muted {
-        missing_tool_icon_text_button(ui, AppIcon::Download, state.tr(UiText::DOWNLOAD))
+        missing_tool_icon_text_button(ui, AppIcon::Download, download_text)
     } else {
-        icon_text_button(ui, AppIcon::Download, state.tr(UiText::DOWNLOAD))
+        icon_text_button(ui, AppIcon::Download, download_text)
     }
 }

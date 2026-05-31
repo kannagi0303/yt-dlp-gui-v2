@@ -11,6 +11,7 @@ use crate::infrastructure::playlist_entry_url;
 pub(super) struct PlaylistEntrySeed {
     pub source_url: String,
     pub title: String,
+    pub album_title: String,
     pub thumbnail_url: String,
     pub thumbnail_hint: String,
     pub duration_text: String,
@@ -770,11 +771,12 @@ pub(super) fn playlist_entry_seed_from_json(
         .filter(|value| !value.is_empty())
         .unwrap_or(inferred_title.as_str())
         .to_owned();
+    let album_title = music_album_title_from_json(entry);
     let thumbnail_url = select_best_thumbnail_url(entry).unwrap_or_default();
     let thumbnail_hint = if thumbnail_url.is_empty() {
         "item.thumbnail".to_owned()
     } else {
-        "item.thumbnail_preview".to_owned()
+        "Thumbnail preview".to_owned()
     };
     let duration_text = entry
         .get("duration_string")
@@ -791,10 +793,27 @@ pub(super) fn playlist_entry_seed_from_json(
     Some(PlaylistEntrySeed {
         source_url,
         title,
+        album_title,
         thumbnail_url,
         thumbnail_hint,
         duration_text,
     })
+}
+
+fn music_album_title_from_json(entry: &Value) -> String {
+    trimmed_json_str_field(entry, "album")
+        .or_else(|| trimmed_json_str_field(entry, "playlist_title"))
+        .or_else(|| trimmed_json_str_field(entry, "playlist"))
+        .unwrap_or_default()
+}
+
+fn trimmed_json_str_field(entry: &Value, key: &str) -> Option<String> {
+    entry
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 fn format_duration_badge(total_seconds: u64) -> String {

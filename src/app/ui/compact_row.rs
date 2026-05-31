@@ -39,17 +39,17 @@ pub(super) struct CompactRowSpec<'a> {
     pub is_playing: bool,
     pub play_enabled: bool,
     pub remove_enabled: bool,
-    pub play_label: &'a str,
-    pub remove_label: &'a str,
 }
 
 pub(super) struct CompactRowOutput {
+    pub response: Response,
     pub play_clicked: bool,
     pub remove_clicked: bool,
 }
 
 pub(super) fn render_music_compact_row(ui: &mut Ui, spec: CompactRowSpec<'_>) -> CompactRowOutput {
-    let desired_size = egui::vec2(ui.available_width(), COMPACT_ROW_HEIGHT);
+    let row_width = ui.available_width().max(1.0);
+    let desired_size = egui::vec2(row_width, COMPACT_ROW_HEIGHT);
     let (rect, response) = ui.allocate_exact_size(desired_size, Sense::hover());
     let row_rect = rect.shrink2(egui::vec2(COMPACT_ROW_SIDE_INSET, 0.0));
     let fill = compact_row_fill(ui, spec.visual_state);
@@ -100,7 +100,6 @@ pub(super) fn render_music_compact_row(ui: &mut Ui, spec: CompactRowSpec<'_>) ->
         &play_response,
         spec.play_enabled && (response.hovered() || spec.is_current),
         spec.is_playing,
-        spec.play_label,
     );
 
     if spec.is_current {
@@ -136,7 +135,6 @@ pub(super) fn render_music_compact_row(ui: &mut Ui, spec: CompactRowSpec<'_>) ->
             action_rect,
             &action_response,
             response.hovered() || action_response.hovered(),
-            spec.remove_label,
         );
     }
 
@@ -158,9 +156,10 @@ pub(super) fn render_music_compact_row(ui: &mut Ui, spec: CompactRowSpec<'_>) ->
         spec.visual_state,
     );
 
-    response.on_hover_text(spec.title);
+    let response = response;
 
     CompactRowOutput {
+        response,
         play_clicked: spec.play_enabled && play_response.clicked(),
         remove_clicked: spec.remove_enabled && action_response.clicked(),
     }
@@ -266,7 +265,6 @@ fn render_cover_play_overlay(
     response: &Response,
     visible: bool,
     is_playing: bool,
-    label: &str,
 ) {
     if !visible && !response.hovered() {
         return;
@@ -287,7 +285,6 @@ fn render_cover_play_overlay(
     let icon_size = radius * 1.15;
     let icon_rect = egui::Rect::from_center_size(center, egui::vec2(icon_size, icon_size));
     icon_image(icon, icon_size, standard_icon_color(ui)).paint_at(ui, icon_rect);
-    response.clone().on_hover_text(label);
 }
 
 fn render_title(
@@ -343,13 +340,7 @@ fn normal_item_delete_right_inset(ui: &Ui) -> f32 {
     egui::Frame::group(ui.style()).inner_margin.right as f32
 }
 
-fn render_remove_action(
-    ui: &Ui,
-    rect: egui::Rect,
-    response: &Response,
-    item_hovered: bool,
-    label: &str,
-) {
+fn render_remove_action(ui: &Ui, rect: egui::Rect, response: &Response, item_hovered: bool) {
     let visuals = ui.style().interact(response);
     let icon_color = if response.hovered() || item_hovered {
         accent_red_for_ui(ui)
@@ -368,6 +359,4 @@ fn render_remove_action(
     let icon_size = 14.0;
     let icon_rect = egui::Rect::from_center_size(rect.center(), egui::vec2(icon_size, icon_size));
     icon_image(AppIcon::WindowClose, icon_size, icon_color).paint_at(ui, icon_rect);
-
-    response.clone().on_hover_text(label);
 }

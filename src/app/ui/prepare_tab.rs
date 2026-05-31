@@ -68,9 +68,10 @@ fn render_prepare_root_page(ui: &mut Ui, state: &mut AppState) {
 }
 
 fn render_language_selector(ui: &mut Ui, state: &mut AppState) {
+    let language_text = state.ui_tr("prepare.language");
     ui.horizontal(|ui| {
         ui.label(
-            RichText::new(state.tr("prepare.language"))
+            RichText::new(language_text)
                 .size(SMALL_SIZE)
                 .color(detail_color(ui)),
         );
@@ -91,13 +92,12 @@ fn render_language_detail_page(ui: &mut Ui, state: &mut AppState) {
         .show(ui, |ui| {
             scroll_content_with_right_gap(ui, |ui| {
                 ui.horizontal(|ui| {
-                    if ui
-                        .button(format!("← {}", state.tr("prepare.back")))
-                        .clicked()
-                    {
+                    let back_text = state.ui_tr("prepare.back");
+                    let language_text = state.ui_tr("prepare.language");
+                    if ui.button(format!("← {back_text}")).clicked() {
                         state.close_prepare_detail_page();
                     }
-                    ui.label(RichText::new(state.tr("prepare.language")).strong());
+                    ui.label(RichText::new(language_text).strong());
                 });
                 ui.add_space(10.0);
                 for language in LanguageSelection::PICKER_ORDER {
@@ -124,18 +124,22 @@ fn render_language_choice_row(ui: &mut Ui, state: &mut AppState, language: Langu
 
 fn language_choice_label(state: &AppState, language: LanguageSelection) -> String {
     match language {
-        LanguageSelection::Auto => format!(
-            "{} ({})",
-            state.tr("prepare.auto_detect"),
-            language.resolve().native_name()
-        ),
+        LanguageSelection::Auto => {
+            let auto_detect_text = state.ui_tr("prepare.auto_detect");
+            format!(
+                "{} ({})",
+                auto_detect_text,
+                language.resolve().native_name()
+            )
+        }
         _ => language.native_name().to_owned(),
     }
 }
 
 fn render_header(ui: &mut Ui, state: &AppState) {
+    let header_text = state.ui_tr("prepare.install_the_required_tools_now_or_skip_and_h");
     ui.label(
-        RichText::new(state.tr("prepare.install_the_required_tools_now_or_skip_and_h"))
+        RichText::new(header_text)
             .size(TITLE_SIZE)
             .color(detail_color(ui)),
     );
@@ -166,23 +170,24 @@ fn tool_row_metrics(ui: &Ui, state: &AppState) -> ToolRowMetrics {
     let row_height = standard_action_height(ui);
     let icon_width = row_height * 0.65;
     let name_width = measure_label_width(ui, &["yt-dlp", "Deno", "FFmpeg"]);
-    let severity_width = measure_label_width(
-        ui,
-        &[
-            state.tr("prepare.required"),
-            state.tr("prepare.recommended"),
-            state.tr("prepare.optional"),
-        ],
-    );
+    let required_text = state.ui_tr("prepare.required");
+    let recommended_text = state.ui_tr("prepare.recommended");
+    let optional_text = state.ui_tr("prepare.optional");
+    let severity_width = measure_label_width(ui, &[required_text, recommended_text, optional_text]);
     let action_width = standard_action_width(ui, state);
+    let missing_text = state.ui_tr("prepare.missing");
+    let install_later_text = state.ui_tr("prepare.install_later");
+    let downloading_text = state.ui_tr("prepare.downloading_100");
+    let extracting_text = state.ui_tr("prepare.extracting_100");
+    let install_failed_text = state.ui_tr("prepare.install_failed");
     let status_width = measure_label_width(
         ui,
         &[
-            state.tr("prepare.missing"),
-            state.tr("prepare.install_later"),
-            state.tr("prepare.downloading_100"),
-            state.tr("prepare.extracting_100"),
-            state.tr("prepare.install_failed"),
+            missing_text,
+            install_later_text,
+            downloading_text,
+            extracting_text,
+            install_failed_text,
         ],
     );
     let gap = spacing.item_spacing.x;
@@ -212,12 +217,17 @@ fn standard_action_height(ui: &Ui) -> f32 {
 }
 
 fn standard_action_width(ui: &Ui, state: &AppState) -> f32 {
+    let install_all_text = state.ui_tr("prepare.install_all");
+    let reinstall_text = state.ui_tr("prepare.reinstall");
+    let installing_text = state.ui_tr("prepare.installing");
+    let skip_text = state.ui_tr("prepare.skip");
+    let install_text = state.ui_tr("prepare.install");
     [
-        state.tr("prepare.install_all"),
-        state.tr("prepare.reinstall"),
-        state.tr("prepare.installing"),
-        state.tr("prepare.skip"),
-        state.tr("prepare.install"),
+        install_all_text,
+        reinstall_text,
+        installing_text,
+        skip_text,
+        install_text,
     ]
     .into_iter()
     .map(|label| natural_icon_button_width(ui, label))
@@ -269,20 +279,21 @@ fn render_tool_row(
                     left_label(ui, RichText::new(tool.label()).size(BODY_SIZE).strong());
                 });
                 strip.cell(|ui| {
+                    let severity_text = state.ui_tr(severity_short_label(item.severity));
                     left_label(
                         ui,
-                        RichText::new(state.tr(severity_short_label(item.severity)))
+                        RichText::new(severity_text)
                             .size(BODY_SIZE)
                             .color(severity_color(ui, item.severity)),
                     );
                 });
                 strip.cell(|ui| {
                     let button_label = if is_installing {
-                        state.tr("prepare.installing")
+                        state.ui_tr("prepare.installing")
                     } else if installed {
-                        state.tr("prepare.reinstall")
+                        state.ui_tr("prepare.reinstall")
                     } else {
-                        state.tr("prepare.install")
+                        state.ui_tr("prepare.install")
                     };
                     let button_icon = if is_installing {
                         AppIcon::Loading
@@ -297,13 +308,7 @@ fn render_tool_row(
                     if response.clicked() {
                         state.install_dependency_tool(tool);
                     }
-                    if let Some(reason) = install_block_reason.as_deref() {
-                        response.on_hover_text(state.localize_message(reason));
-                    } else if any_installing && !is_installing {
-                        response.on_hover_text(
-                            state.tr("prepare.another_tool_is_already_being_installed"),
-                        );
-                    }
+                    drop(response);
                 });
                 strip.cell(|ui| {
                     left_label(
@@ -357,11 +362,8 @@ fn render_environment_issues(ui: &mut Ui, state: &AppState) {
     }
 
     ui.add_space(12.0);
-    ui.label(
-        RichText::new(state.tr("prepare.needs_attention"))
-            .size(17.0)
-            .strong(),
-    );
+    let needs_attention_text = state.ui_tr("prepare.needs_attention");
+    ui.label(RichText::new(needs_attention_text).size(17.0).strong());
     ui.add_space(4.0);
     for item in issues {
         render_issue_row(ui, state, item);
@@ -423,6 +425,8 @@ fn render_bottom_actions(ui: &mut Ui, state: &mut AppState) {
     let row_height = standard_action_height(ui);
     let install_width = standard_action_width(ui, state);
     let skip_width = standard_action_width(ui, state);
+    let install_all_text = state.ui_tr("prepare.install_all");
+    let skip_text = state.ui_tr("prepare.skip");
 
     ui.allocate_ui_with_layout(
         egui::vec2(ui.available_width(), row_height),
@@ -431,19 +435,17 @@ fn render_bottom_actions(ui: &mut Ui, state: &mut AppState) {
             ui.spacing_mut().item_spacing.x = 12.0;
             let install_all = ui.add_enabled(
                 !install_running && can_install_all && install_block_reason.is_none(),
-                icon_text_button(ui, AppIcon::Download, state.tr("prepare.install_all"))
+                icon_text_button(ui, AppIcon::Download, install_all_text)
                     .min_size(egui::vec2(install_width, row_height)),
             );
             if install_all.clicked() {
                 state.install_all_prepare_tools();
             }
-            if let Some(reason) = install_block_reason.as_deref() {
-                install_all.on_hover_text(state.localize_message(reason));
-            }
+            drop(install_all);
 
             let skip = ui.add_enabled(
                 !install_running,
-                icon_text_button(ui, AppIcon::WindowClose, state.tr("prepare.skip"))
+                icon_text_button(ui, AppIcon::WindowClose, skip_text)
                     .min_size(egui::vec2(skip_width, row_height)),
             );
             if skip.clicked() {
@@ -507,7 +509,7 @@ fn tool_status_text(state: &AppState, item: &PrepareRequirement, tool: Dependenc
                 _ if matches!(progress.stage, ToolInstallStage::Failed)
                     && !progress.message.trim().is_empty() =>
                 {
-                    state.tr("prepare.install_failed").to_owned()
+                    state.ui_tr("prepare.install_failed").to_owned()
                 }
                 _ => tool_install_stage_text(state, progress.stage).to_owned(),
             };
@@ -515,24 +517,24 @@ fn tool_status_text(state: &AppState, item: &PrepareRequirement, tool: Dependenc
     }
 
     match item.status {
-        PrepareStatus::Ok => state.tr("prepare.status.ready").to_owned(),
+        PrepareStatus::Ok => state.ui_tr("prepare.status.ready").to_owned(),
         PrepareStatus::Missing if item.severity == PrepareSeverity::Optional => {
-            state.tr("prepare.install_later").to_owned()
+            state.ui_tr("prepare.install_later").to_owned()
         }
-        PrepareStatus::Missing => state.tr("prepare.status.missing").to_owned(),
-        PrepareStatus::Warning => state.tr("prepare.status.warning").to_owned(),
-        PrepareStatus::Failed => state.tr("prepare.status.failed").to_owned(),
+        PrepareStatus::Missing => state.ui_tr("prepare.status.missing").to_owned(),
+        PrepareStatus::Warning => state.ui_tr("prepare.status.warning").to_owned(),
+        PrepareStatus::Failed => state.ui_tr("prepare.status.failed").to_owned(),
     }
 }
 
 fn tool_install_stage_text(state: &AppState, stage: ToolInstallStage) -> &'static str {
     match stage {
-        ToolInstallStage::Preparing => state.tr("tool_install.stage.preparing"),
-        ToolInstallStage::Downloading => state.tr("tool_install.stage.downloading"),
-        ToolInstallStage::Extracting => state.tr("tool_install.stage.extracting"),
-        ToolInstallStage::Installing => state.tr("tool_install.stage.installing"),
-        ToolInstallStage::Completed => state.tr("tool_install.stage.completed"),
-        ToolInstallStage::Failed => state.tr("tool_install.stage.failed"),
+        ToolInstallStage::Preparing => state.ui_tr("tool_install.stage.preparing"),
+        ToolInstallStage::Downloading => state.ui_tr("tool_install.stage.downloading"),
+        ToolInstallStage::Extracting => state.ui_tr("tool_install.stage.extracting"),
+        ToolInstallStage::Installing => state.ui_tr("tool_install.stage.installing"),
+        ToolInstallStage::Completed => state.ui_tr("tool_install.stage.completed"),
+        ToolInstallStage::Failed => state.ui_tr("tool_install.stage.failed"),
     }
 }
 

@@ -139,7 +139,7 @@ impl SubtitleOption {
             (Some(label), Some(code)) => format!("{label} ({code})"),
             (Some(label), None) => label.clone(),
             (None, Some(code)) => code.clone(),
-            (None, None) => "picker.no_translation".to_owned(),
+            (None, None) => "No translation".to_owned(),
         }
     }
 }
@@ -154,9 +154,9 @@ pub enum SubtitleSource {
 impl SubtitleSource {
     pub fn label(self) -> &'static str {
         match self {
-            Self::None => "tools.subtitle_source.none",
-            Self::Original => "tools.subtitle_source.original",
-            Self::Automatic => "tools.subtitle_source.automatic",
+            Self::None => "No subtitles",
+            Self::Original => "Original subtitles",
+            Self::Automatic => "Automatic subtitles",
         }
     }
 
@@ -300,10 +300,10 @@ pub enum CompactMusicState {
 impl QualityPreset {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Best => "domain.quality.best",
+            Self::Best => "Best",
             Self::P1080 => "1080p",
             Self::P720 => "720p",
-            Self::AudioOnly => "domain.quality.audio_only",
+            Self::AudioOnly => "Audio only",
         }
     }
 }
@@ -346,6 +346,7 @@ pub struct QueueItem {
     pub id: QueueItemId,
     pub source_url: String,
     pub title: String,
+    pub music_album_title: String,
     pub thumbnail_hint: String,
     pub thumbnail_url: String,
     pub duration_text: String,
@@ -375,6 +376,7 @@ impl QueueItem {
             id,
             source_url: source_url.into(),
             title: title.into(),
+            music_album_title: String::new(),
             thumbnail_hint: "item.thumbnail".to_owned(),
             thumbnail_url: String::new(),
             duration_text: String::new(),
@@ -425,9 +427,9 @@ impl QueueItem {
             ) && matches!(run.state, WorkflowState::Queued | WorkflowState::Running)
         }) {
             return match run.state {
-                WorkflowState::Queued => "item.status.queued",
-                WorkflowState::Running => "item.status.running",
-                _ => "item.status.queued",
+                WorkflowState::Queued => "Queued",
+                WorkflowState::Running => "Running",
+                _ => "Queued",
             };
         }
 
@@ -438,21 +440,21 @@ impl QueueItem {
             .find(|run| run.kind == WorkflowKind::DownloadMedia)
         {
             match run.state {
-                WorkflowState::Queued => return "item.status.queued",
-                WorkflowState::Running => return "item.status.running",
-                WorkflowState::Finished if self.last_error.is_some() => return "item.status.failed",
-                WorkflowState::Finished => return "item.status.finished",
-                WorkflowState::Failed => return "item.status.failed",
-                WorkflowState::Cancelled => return "item.status.cancelled",
+                WorkflowState::Queued => return "Queued",
+                WorkflowState::Running => return "Running",
+                WorkflowState::Finished if self.last_error.is_some() => return "Failed",
+                WorkflowState::Finished => return "Done",
+                WorkflowState::Failed => return "Failed",
+                WorkflowState::Cancelled => return "Cancelled",
             }
         }
 
         match &self.metadata_state {
-            MetadataState::Idle => "item.status.idle",
-            MetadataState::Queued => "item.status.waiting_analysis",
-            MetadataState::Running => "item.status.analyzing",
-            MetadataState::Ready(_) => "item.status.queued",
-            MetadataState::Failed(_) => "item.status.analysis_failed",
+            MetadataState::Idle => "Not started",
+            MetadataState::Queued => "Waiting for analysis",
+            MetadataState::Running => "Analyzing",
+            MetadataState::Ready(_) => "Queued",
+            MetadataState::Failed(_) => "Analysis failed",
         }
     }
 }

@@ -31,6 +31,14 @@ pub(super) enum PostProcessEvent {
         workflow_id: WorkflowRunId,
         percent: f32,
     },
+    ToolCommandFinished {
+        item_id: QueueItemId,
+        workflow_id: WorkflowRunId,
+        tool: String,
+        action: String,
+        command_line: String,
+        success: bool,
+    },
     Finished(PostProcessResult),
 }
 
@@ -759,6 +767,10 @@ fn ffmpeg_encoder_is_available(encoders: &str, encoder_name: &str) -> bool {
     })
 }
 
+// i18n boundary:
+// Output conversion can report localized app-owned status, but ffmpeg command
+// lines, progress tokens, codec/container names, paths, and stderr details remain
+// raw technical text.
 fn run_ffmpeg_output_conversion(
     ffmpeg: &Path,
     settings: &TranscodeIntentSettings,
@@ -781,18 +793,16 @@ fn run_ffmpeg_output_conversion(
         media_probe,
     );
 
-    println!("[post-process] output encoder: {}", encoder.label());
-    println!(
-        "[post-process] output command: {}",
-        output_conversion_command_line(
-            ffmpeg,
-            settings,
-            encoder,
-            input_path,
-            temp_output,
-            media_probe
-        )
+    let command_line = output_conversion_command_line(
+        ffmpeg,
+        settings,
+        encoder,
+        input_path,
+        temp_output,
+        media_probe,
     );
+    println!("[post-process] output encoder: {}", encoder.label());
+    println!("[post-process] output command: {command_line}");
 
     let mut child = command
         .spawn()
@@ -821,11 +831,29 @@ fn run_ffmpeg_output_conversion(
         .unwrap_or_default();
 
     if cancel_requested.load(Ordering::Relaxed) {
+        let _ = tx.send(PostProcessEvent::ToolCommandFinished {
+            item_id,
+            workflow_id,
+            tool: "ffmpeg".to_owned(),
+            action: "convert".to_owned(),
+            command_line: command_line.clone(),
+            success: false,
+        });
         return Err(POST_PROCESS_CANCELLED_MESSAGE.to_owned());
     }
 
     match status {
-        Some(Ok(status)) if status.success() => Ok(()),
+        Some(Ok(status)) if status.success() => {
+            let _ = tx.send(PostProcessEvent::ToolCommandFinished {
+                item_id,
+                workflow_id,
+                tool: "ffmpeg".to_owned(),
+                action: "convert".to_owned(),
+                command_line,
+                success: true,
+            });
+            Ok(())
+        }
         Some(Ok(status)) => {
             let detail = stderr_lines
                 .iter()
@@ -833,13 +861,41 @@ fn run_ffmpeg_output_conversion(
                 .find(|line| !line.trim().is_empty())
                 .cloned()
                 .unwrap_or_else(|| format!("exit code {:?}", status.code()));
+            let _ = tx.send(PostProcessEvent::ToolCommandFinished {
+                item_id,
+                workflow_id,
+                tool: "ffmpeg".to_owned(),
+                action: "convert".to_owned(),
+                command_line: command_line.clone(),
+                success: false,
+            });
             Err(format!(
                 "FFmpeg output conversion failed with {}: {detail}",
                 encoder.label()
             ))
         }
-        Some(Err(error)) => Err(format!("Could not wait for FFmpeg to finish: {error}")),
-        None => Err("Could not wait for FFmpeg to finish: child process missing".to_owned()),
+        Some(Err(error)) => {
+            let _ = tx.send(PostProcessEvent::ToolCommandFinished {
+                item_id,
+                workflow_id,
+                tool: "ffmpeg".to_owned(),
+                action: "convert".to_owned(),
+                command_line: command_line.clone(),
+                success: false,
+            });
+            Err(format!("Could not wait for FFmpeg to finish: {error}"))
+        }
+        None => {
+            let _ = tx.send(PostProcessEvent::ToolCommandFinished {
+                item_id,
+                workflow_id,
+                tool: "ffmpeg".to_owned(),
+                action: "convert".to_owned(),
+                command_line,
+                success: false,
+            });
+            Err("Could not wait for FFmpeg to finish: child process missing".to_owned())
+        }
     }
 }
 
@@ -1154,6 +1210,9 @@ fn same_path(left: &Path, right: &Path) -> bool {
     }
 }
 
+// i18n-exempt:
+// Preserve raw stdout/stderr lines from external tools. The UI may summarize a
+// failure in the selected language, but raw details must stay copy/search-safe.
 fn read_plain_process_stream(stream: impl std::io::Read, is_stderr: bool) -> Vec<String> {
     let mut lines = Vec::new();
     read_process_stream_lines(stream, |line| {
@@ -1167,6 +1226,9 @@ fn read_plain_process_stream(stream: impl std::io::Read, is_stderr: bool) -> Vec
     lines
 }
 
+// i18n-exempt:
+// ffmpeg progress keys and diagnostic lines are external tool protocol/text. Parse
+// them into app status where needed, but keep the original tokens untranslated.
 fn read_ffmpeg_progress_stream(
     stream: impl std::io::Read,
     item_id: QueueItemId,
@@ -1338,6 +1400,9 @@ fn terminate_child_process_tree(child: &mut Child) {
     let _ = child.kill();
 }
 
+// i18n-exempt:
+// This builds the literal ffmpeg command. Codec names, container extensions, CLI
+// flags, stream selectors, and file paths must remain raw technical tokens.
 fn output_conversion_command_line(
     ffmpeg: &Path,
     settings: &TranscodeIntentSettings,

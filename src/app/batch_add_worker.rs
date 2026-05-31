@@ -14,6 +14,11 @@ use crate::app::metadata::{
 use crate::infrastructure::{ToolPaths, configure_background_command};
 
 pub(super) enum BatchAddEvent {
+    ToolCommandFinished {
+        action_id: u64,
+        command_line: String,
+        success: bool,
+    },
     ItemAdded {
         source: String,
         seed: PlaylistEntrySeed,
@@ -38,6 +43,7 @@ pub(super) fn run_batch_add_worker(
     untitled_task: String,
     imported_template: String,
     prefer_largest_thumbnail: bool,
+    tool_log_action_id: u64,
     tx: Sender<BatchAddEvent>,
     child_handle: Arc<Mutex<Option<Child>>>,
     cancel_requested: Arc<AtomicBool>,
@@ -49,6 +55,7 @@ pub(super) fn run_batch_add_worker(
             return;
         }
     };
+    let command_line = format_process_command_line(&command);
 
     command
         .stdout(Stdio::piped())
@@ -58,6 +65,11 @@ pub(super) fn run_batch_add_worker(
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(error) => {
+            let _ = tx.send(BatchAddEvent::ToolCommandFinished {
+                action_id: tool_log_action_id,
+                command_line: command_line.clone(),
+                success: false,
+            });
             let _ = tx.send(BatchAddEvent::Failed {
                 error: format!("Could not start yt-dlp: {error}"),
             });
@@ -68,6 +80,11 @@ pub(super) fn run_batch_add_worker(
     let stdout = match child.stdout.take() {
         Some(stdout) => stdout,
         None => {
+            let _ = tx.send(BatchAddEvent::ToolCommandFinished {
+                action_id: tool_log_action_id,
+                command_line: command_line.clone(),
+                success: false,
+            });
             let _ = tx.send(BatchAddEvent::Failed {
                 error: "Could not read yt-dlp playlist output.".to_owned(),
             });
@@ -94,6 +111,11 @@ pub(super) fn run_batch_add_worker(
         let bytes_read = match reader.read_line(&mut buffer) {
             Ok(bytes) => bytes,
             Err(error) => {
+                let _ = tx.send(BatchAddEvent::ToolCommandFinished {
+                    action_id: tool_log_action_id,
+                    command_line: command_line.clone(),
+                    success: false,
+                });
                 let _ = tx.send(BatchAddEvent::Failed {
                     error: format!("Could not read yt-dlp playlist output: {error}"),
                 });
@@ -126,7 +148,7 @@ pub(super) fn run_batch_add_worker(
         if prefer_largest_thumbnail {
             if let Some(thumbnail_url) = select_largest_thumbnail_url(&entry) {
                 seed.thumbnail_url = thumbnail_url;
-                seed.thumbnail_hint = "item.thumbnail_preview".to_owned();
+                seed.thumbnail_hint = "Thumbnail preview".to_owned();
             }
         }
 
@@ -166,11 +188,24 @@ pub(super) fn run_batch_add_worker(
                 } else {
                     format!("yt-dlp batch import failed: {detail}")
                 };
+                let _ = tx.send(BatchAddEvent::ToolCommandFinished {
+                    action_id: tool_log_action_id,
+                    command_line: command_line.clone(),
+                    success: false,
+                });
                 let _ = tx.send(BatchAddEvent::Failed { error });
                 return;
             }
         }
     }
+
+    let command_succeeded = !was_cancelled
+        && (stopped_by_limit || status.as_ref().is_some_and(|status| status.success()));
+    let _ = tx.send(BatchAddEvent::ToolCommandFinished {
+        action_id: tool_log_action_id,
+        command_line: command_line.clone(),
+        success: command_succeeded,
+    });
 
     let event = if was_cancelled {
         let _ = source;
@@ -183,6 +218,28 @@ pub(super) fn run_batch_add_worker(
         }
     };
     let _ = tx.send(event);
+}
+
+fn format_process_command_line(command: &std::process::Command) -> String {
+    let program = quote_command_arg(&command.get_program().to_string_lossy());
+    let args = command
+        .get_args()
+        .map(|arg| quote_command_arg(&arg.to_string_lossy()))
+        .collect::<Vec<_>>()
+        .join(" ");
+    if args.is_empty() {
+        program
+    } else {
+        format!("{program} {args}")
+    }
+}
+
+fn quote_command_arg(value: &str) -> String {
+    if value.contains([' ', '\t', '"']) {
+        format!("\"{}\"", value.replace('"', "\\\""))
+    } else {
+        value.to_owned()
+    }
 }
 
 fn clear_batch_add_child(child_handle: &Arc<Mutex<Option<Child>>>) {

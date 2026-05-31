@@ -86,7 +86,7 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
                     }
                     if state.item_title_visual_state(index) == ItemTitleVisualState::Completed {
                         visual_state = CompactRowVisualState::Downloaded;
-                        status_text = state.tr("music.status.completed").to_owned();
+                        status_text = state.ui_tr("music.status.completed").to_owned();
                     } else if state.music_item_has_complete_cache(item_id) {
                         visual_state = CompactRowVisualState::Finished;
                     }
@@ -105,14 +105,11 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
                             is_playing,
                             play_enabled: true,
                             remove_enabled: true,
-                            play_label: if is_playing {
-                                state.tr("music.pause")
-                            } else {
-                                state.tr("music.play")
-                            },
-                            remove_label: state.tr("item.remove"),
                         },
                     );
+                    if state.take_music_scroll_to_item_request(item_id) {
+                        output.response.scroll_to_me(Some(Align::Center));
+                    }
                     if output.play_clicked {
                         state.play_music_item(item_id);
                     }
@@ -210,11 +207,6 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
                                     header_height,
                                     !item_locked || item_cancellable,
                                     item_hovered,
-                                    if item_cancellable {
-                                        state.tr("item.stop_download")
-                                    } else {
-                                        state.tr("item.remove")
-                                    },
                                 ) {
                                     if item_cancellable {
                                         pending_cancel_item_id = Some(item_id);
@@ -226,13 +218,12 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
                                     item_format_summary_row(
                                         tui,
                                         item_label_width,
-                                        state.tr(UiText::VIDEO),
+                                        state.ui_tr(UiText::VIDEO),
                                         &state.localize_message(&video_summary),
                                         video_progress,
                                         show_av_progress,
                                         !item_locked,
                                         state.item_can_export(index, DownloadTargetKind::Video),
-                                        state.tr("item.save_as"),
                                         || state.open_format_picker(index, FormatPickerKind::Video),
                                         || {
                                             pending_export =
@@ -242,13 +233,12 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
                                     item_format_summary_row(
                                         tui,
                                         item_label_width,
-                                        state.tr(UiText::AUDIO),
+                                        state.ui_tr(UiText::AUDIO),
                                         &state.localize_message(&audio_summary),
                                         audio_progress,
                                         show_av_progress,
                                         !audio_locked && !item_locked,
                                         state.item_can_export(index, DownloadTargetKind::Audio),
-                                        state.tr("item.save_as"),
                                         || state.open_format_picker(index, FormatPickerKind::Audio),
                                         || {
                                             pending_export =
@@ -259,7 +249,7 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
                                         item_format_summary_row(
                                             tui,
                                             item_label_width,
-                                            state.tr(UiText::SUBTITLE),
+                                            state.ui_tr(UiText::SUBTITLE),
                                             &state.localize_message(&subtitle_summary),
                                             subtitle_progress,
                                             show_subtitle_progress,
@@ -268,7 +258,6 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
                                                 index,
                                                 DownloadTargetKind::Subtitle,
                                             ),
-                                            state.tr("item.save_as"),
                                             || {
                                                 state.open_format_picker(
                                                     index,
@@ -285,7 +274,7 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
                                         item_download_section_summary_row(
                                             tui,
                                             item_label_width,
-                                            state.tr(UiText::SECTION),
+                                            state.ui_tr(UiText::SECTION),
                                             &state.localize_message(&section_summary),
                                             !item_locked,
                                             || {
@@ -301,7 +290,7 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
                                     item_status_message_row(
                                         tui,
                                         item_label_width,
-                                        state.tr("item.error"),
+                                        state.ui_tr("item.error"),
                                         &state.localize_message(error_text),
                                         error_color,
                                     );
@@ -344,7 +333,7 @@ fn compact_music_visual_state(
     match state {
         CompactMusicState::Resolving => (
             CompactRowVisualState::Resolving,
-            app.tr("music.status.resolving").to_owned(),
+            app.ui_tr("music.status.resolving").to_owned(),
         ),
         CompactMusicState::Buffering => {
             let label = if cache_progress > 0.0 {
@@ -353,7 +342,7 @@ fn compact_music_visual_state(
                     (cache_progress * 100.0).round().clamp(1.0, 99.0) as u32
                 )
             } else {
-                app.tr("music.status.buffering").to_owned()
+                app.ui_tr("music.status.buffering").to_owned()
             };
             (CompactRowVisualState::Resolving, label)
         }
@@ -364,7 +353,7 @@ fn compact_music_visual_state(
                 CompactRowVisualState::Idle
             },
             if duration_text.trim().is_empty() {
-                app.tr("music.status.ready").to_owned()
+                app.ui_tr("music.status.ready").to_owned()
             } else {
                 duration_text.to_owned()
             },
@@ -378,9 +367,9 @@ fn compact_music_visual_state(
                 }
             },
             if cache_progress < 1.0 {
-                app.tr("music.status.caching").to_owned()
+                app.ui_tr("music.status.caching").to_owned()
             } else {
-                app.tr("music.status.playing").to_owned()
+                app.ui_tr("music.status.playing").to_owned()
             },
         ),
         CompactMusicState::Paused => (
@@ -391,11 +380,11 @@ fn compact_music_visual_state(
                     progress: playback_progress,
                 }
             },
-            app.tr("music.status.paused").to_owned(),
+            app.ui_tr("music.status.paused").to_owned(),
         ),
         CompactMusicState::Failed => (
             CompactRowVisualState::Failed,
-            app.tr("music.status.failed").to_owned(),
+            app.ui_tr("music.status.failed").to_owned(),
         ),
     }
 }
@@ -407,13 +396,13 @@ fn render_queue_toolbar(ui: &mut Ui, state: &mut AppState) {
         ui.label(
             RichText::new(format!(
                 "{} {}  {} {}  {} {}  {} {}",
-                state.tr("item.all"),
+                state.ui_tr("item.all"),
                 summary.total,
-                state.tr("item.queued"),
+                state.ui_tr("item.queued"),
                 summary.queued,
-                state.tr("item.done"),
+                state.ui_tr("item.done"),
                 summary.completed,
-                state.tr("item.failed"),
+                state.ui_tr("item.failed"),
                 summary.failed,
             ))
             .strong(),
@@ -421,7 +410,7 @@ fn render_queue_toolbar(ui: &mut Ui, state: &mut AppState) {
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let response = ui.add_enabled(
                 summary.total > 0,
-                super::common::icon_text_button(ui, AppIcon::Eraser, state.tr("item.clear_all")),
+                super::common::icon_text_button(ui, AppIcon::Eraser, state.ui_tr("item.clear_all")),
             );
             if response.clicked() {
                 state.clear_queue();
@@ -431,7 +420,7 @@ fn render_queue_toolbar(ui: &mut Ui, state: &mut AppState) {
 }
 
 fn render_empty_music_compact_item(ui: &mut Ui, state: &AppState) {
-    let title = state.tr("item.add_an_audio_url");
+    let title = state.ui_tr("item.add_an_audio_url");
     let output = render_music_compact_row(
         ui,
         CompactRowSpec {
@@ -439,7 +428,7 @@ fn render_empty_music_compact_item(ui: &mut Ui, state: &AppState) {
             title,
             thumbnail_url: "",
             thumbnail_source: ThumbnailRenderSource::None,
-            status_text: state.tr(UiText::AUDIO),
+            status_text: state.ui_tr(UiText::AUDIO),
             visual_state: CompactRowVisualState::Idle,
             progress: 0.0,
             show_progress: false,
@@ -447,8 +436,6 @@ fn render_empty_music_compact_item(ui: &mut Ui, state: &AppState) {
             is_playing: false,
             play_enabled: false,
             remove_enabled: false,
-            play_label: "",
-            remove_label: "",
         },
     );
     let _ = output;
@@ -464,7 +451,7 @@ fn render_empty_batch_item_card(
     ui.group(|ui| {
         let card_width = ui.available_width();
         let detail_width = (card_width - ITEM_THUMBNAIL_WIDTH - ITEM_CARD_COLUMN_GAP).max(0.0);
-        let header_title = state.tr("item.add_a_video_url");
+        let header_title = state.ui_tr("item.add_a_video_url");
         let header_height = item_header_height(ui, header_title, false, detail_width);
         let visible_body_rows = 3usize;
         let body_target_height = (ITEM_THUMBNAIL_HEIGHT - header_height).max(0.0);
@@ -497,21 +484,18 @@ fn render_empty_batch_item_card(
                     header_height,
                     false,
                     false,
-                    state.tr("item.remove"),
                 );
                 row_empty_format_summary(
                     ui,
                     item_label_width,
-                    state.tr(UiText::VIDEO),
-                    state.tr("item.after_adding_choose_the_video_format_here"),
-                    state.tr("item.save_as"),
+                    state.ui_tr(UiText::VIDEO),
+                    state.ui_tr("item.after_adding_choose_the_video_format_here"),
                 );
                 row_empty_format_summary(
                     ui,
                     item_label_width,
-                    state.tr(UiText::AUDIO),
-                    state.tr("item.after_adding_choose_the_audio_format_here"),
-                    state.tr("item.save_as"),
+                    state.ui_tr(UiText::AUDIO),
+                    state.ui_tr("item.after_adding_choose_the_audio_format_here"),
                 );
                 ui.add_space(body_spacer);
                 row_empty_file_name_placeholder(ui, state, "", item_label_width);
@@ -529,7 +513,6 @@ fn row_item_header(
     row_height: f32,
     delete_enabled: bool,
     item_hovered: bool,
-    action_hover_text: &str,
 ) -> bool {
     let delete_button_width = ui.spacing().interact_size.y;
     let mut delete_clicked = false;
@@ -552,7 +535,6 @@ fn row_item_header(
                         if response.clicked() {
                             delete_clicked = true;
                         }
-                        response.on_hover_text(action_hover_text);
                     });
                 });
             });
@@ -561,13 +543,7 @@ fn row_item_header(
     delete_clicked
 }
 
-fn row_empty_format_summary(
-    ui: &mut Ui,
-    label_width: f32,
-    label: &str,
-    summary: &str,
-    download_hover_text: &str,
-) {
+fn row_empty_format_summary(ui: &mut Ui, label_width: f32, label: &str, summary: &str) {
     let row_height = ITEM_FIELD_ROW_HEIGHT;
     let action_width = row_height;
 
@@ -587,7 +563,7 @@ fn row_empty_format_summary(
                 });
                 strip.cell(|ui| {
                     ui.set_max_width(action_width);
-                    draw_download_icon_button(ui, row_height, false, download_hover_text);
+                    draw_download_icon_button(ui, row_height, false);
                 });
             });
         ui.spacing_mut().item_spacing.x = original_spacing_x;
@@ -608,16 +584,14 @@ fn row_empty_file_name_placeholder(ui: &mut Ui, state: &AppState, value: &str, l
             .size(Size::exact(action_width))
             .horizontal(|mut strip| {
                 strip.cell(|ui| {
-                    cell_label_right(ui, state.tr(UiText::FILE_NAME));
+                    cell_label_right(ui, state.ui_tr(UiText::FILE_NAME));
                 });
                 strip.cell(|ui| {
                     let _ = draw_file_name_display(ui, &placeholder, row_height, 0.0, false);
                 });
                 strip.cell(|ui| {
                     ui.set_max_width(action_width);
-                    draw_output_action_arrow_button(ui, row_height, false).on_hover_text(
-                        state.tr("item.file_actions_are_available_after_download_co"),
-                    );
+                    draw_output_action_arrow_button(ui, row_height, false);
                 });
             });
         ui.spacing_mut().item_spacing.x = original_spacing_x;
@@ -633,7 +607,6 @@ fn item_header_row(
     row_height: f32,
     delete_enabled: bool,
     item_hovered: bool,
-    action_hover_text: &str,
 ) -> bool {
     let delete_button_width = ITEM_FIELD_ROW_HEIGHT;
     let mut delete_clicked = false;
@@ -654,7 +627,6 @@ fn item_header_row(
                         if response.clicked() {
                             delete_clicked = true;
                         }
-                        response.on_hover_text(action_hover_text);
                     });
                 });
         });
@@ -931,7 +903,10 @@ pub(super) fn visible_item_label_width(
 
     let max_width = labels
         .into_iter()
-        .map(|label| text_width(ui, state.tr(label), TextStyle::Body))
+        .map(|label| {
+            let ui_text = state.ui_tr(label);
+            text_width(ui, ui_text, TextStyle::Body)
+        })
         .fold(0.0, f32::max);
 
     max_width
@@ -974,20 +949,17 @@ fn row_item_title(
     }
 }
 
-fn row_item_title_text(ui: &mut Ui, title: &str, hover_url: &str, color: egui::Color32) {
+fn row_item_title_text(ui: &mut Ui, title: &str, _hover_url: &str, color: egui::Color32) {
     ui.vertical(|ui| {
         ui.add_space(TITLE_TEXT_TOP_PADDING);
         let available_width = ui.available_width();
         let job = two_line_title_job(title, available_width, ITEM_TITLE_FONT_SIZE, color);
-        let response = ui.add(
+        ui.add(
             egui::Label::new(job)
                 .wrap_mode(TextWrapMode::Wrap)
                 .selectable(false)
                 .sense(Sense::hover()),
         );
-        if !hover_url.is_empty() {
-            response.on_hover_text(hover_url);
-        }
     });
 }
 
@@ -1036,7 +1008,7 @@ fn row_thumbnail(
     thumbnail_source: ThumbnailRenderSource,
 ) {
     let size = egui::vec2(ITEM_THUMBNAIL_WIDTH, ITEM_THUMBNAIL_HEIGHT);
-    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     let visuals = &ui.style().visuals.widgets.noninteractive;
 
     ui.painter()
@@ -1050,9 +1022,6 @@ fn row_thumbnail(
                 egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
                 egui::Color32::WHITE,
             );
-            if response.hovered() {
-                response.on_hover_text(thumbnail_url);
-            }
             paint_duration_badge(ui, rect, duration_text);
             return;
         }
@@ -1061,9 +1030,6 @@ fn row_thumbnail(
                 .fit_to_exact_size(size)
                 .show_loading_spinner(false);
             image.paint_at(ui, rect);
-            if response.hovered() {
-                response.on_hover_text(thumbnail_url);
-            }
             paint_duration_badge(ui, rect, duration_text);
             return;
         }
@@ -1071,15 +1037,12 @@ fn row_thumbnail(
             paint_thumbnail_placeholder(
                 ui,
                 rect,
-                state.tr("item.loading_thumbnail"),
+                state.ui_tr("item.loading_thumbnail"),
                 visuals.fg_stroke.color,
             );
         }
-        ThumbnailRenderSource::Failed(error) => {
+        ThumbnailRenderSource::Failed(_error) => {
             paint_thumbnail_placeholder(ui, rect, thumbnail_hint, visuals.fg_stroke.color);
-            if response.hovered() {
-                response.on_hover_text(error);
-            }
         }
         ThumbnailRenderSource::None | ThumbnailRenderSource::DirectUrl => {
             paint_thumbnail_placeholder(ui, rect, thumbnail_hint, visuals.fg_stroke.color);
@@ -1170,7 +1133,6 @@ pub(super) fn item_format_summary_row(
     show_progress: bool,
     picker_enabled: bool,
     download_enabled: bool,
-    download_hover_text: &str,
     on_choose: impl FnOnce(),
     on_download: impl FnOnce(),
 ) {
@@ -1200,9 +1162,7 @@ pub(super) fn item_format_summary_row(
             });
             tui.style(item_fixed_cell_style(action_width)).ui(|ui| {
                 ui.set_max_width(action_width);
-                if draw_download_icon_button(ui, row_height, download_enabled, download_hover_text)
-                    .clicked()
-                {
+                if draw_download_icon_button(ui, row_height, download_enabled).clicked() {
                     download_clicked = true;
                 }
             });
@@ -1257,7 +1217,7 @@ fn item_file_name_input_row(
     tui.style(item_format_row_style(row_height, action_width))
         .add(|tui| {
             tui.style(item_fixed_cell_style(label_width)).ui(|ui| {
-                cell_label_right(ui, state.tr(UiText::FILE_NAME));
+                cell_label_right(ui, state.ui_tr(UiText::FILE_NAME));
             });
             tui.style(item_flex_cell_style()).ui(|ui| {
                 if enabled {
@@ -1298,9 +1258,7 @@ fn item_file_name_input_row(
                         );
                     }
                 } else {
-                    draw_output_action_arrow_button(ui, row_height, false).on_hover_text(
-                        state.tr("item.file_actions_are_available_after_download_co"),
-                    );
+                    draw_output_action_arrow_button(ui, row_height, false);
                 }
             });
         });
@@ -1363,7 +1321,6 @@ pub(super) fn row_format_summary(
     show_progress: bool,
     picker_enabled: bool,
     download_enabled: bool,
-    download_hover_text: &str,
     on_choose: impl FnOnce(),
     on_download: impl FnOnce(),
 ) {
@@ -1407,14 +1364,7 @@ pub(super) fn row_format_summary(
                     strip.cell(|ui| {
                         ui.add_space(row_padding_y);
                         ui.set_max_width(action_width);
-                        if draw_download_icon_button(
-                            ui,
-                            row_height,
-                            download_enabled,
-                            download_hover_text,
-                        )
-                        .clicked()
-                        {
+                        if draw_download_icon_button(ui, row_height, download_enabled).clicked() {
                             on_download();
                         }
                     });
@@ -1524,12 +1474,7 @@ fn row_status_message(
     );
 }
 
-fn draw_download_icon_button(
-    ui: &mut Ui,
-    row_height: f32,
-    enabled: bool,
-    hover_text: &str,
-) -> egui::Response {
+fn draw_download_icon_button(ui: &mut Ui, row_height: f32, enabled: bool) -> egui::Response {
     let desired_size = egui::vec2(ui.available_width(), row_height);
     let sense = if enabled {
         Sense::click()
@@ -1555,7 +1500,7 @@ fn draw_download_icon_button(
     let icon_rect = egui::Rect::from_center_size(rect.center(), egui::vec2(icon_size, icon_size));
     icon_image(AppIcon::Download, icon_size, stroke_color).paint_at(ui, icon_rect);
 
-    response.on_hover_text(hover_text)
+    response
 }
 
 fn draw_picker_summary(
@@ -1644,7 +1589,7 @@ fn draw_status_message(
     );
     let text_pos = egui::pos2(rect.min.x + 4.0, rect.center().y - galley.size().y * 0.5);
     ui.painter().galley(text_pos, galley, color);
-    response.on_hover_text(message)
+    response
 }
 
 fn item_surface_bg_color(ui: &Ui) -> egui::Color32 {
@@ -1759,7 +1704,7 @@ fn row_file_name_input(
                         ui.add_space(row_padding_y);
                         let label_inner_width = (ui.available_width() - label_gap).max(0.0);
                         ui.allocate_ui(egui::vec2(label_inner_width, row_height), |ui| {
-                            cell_label_right(ui, state.tr(UiText::FILE_NAME));
+                            cell_label_right(ui, state.ui_tr(UiText::FILE_NAME));
                         });
                     });
                     strip.cell(|ui| {
@@ -1803,9 +1748,7 @@ fn row_file_name_input(
                                 );
                             }
                         } else {
-                            draw_output_action_arrow_button(ui, row_height, false).on_hover_text(
-                                state.tr("item.file_actions_are_available_after_download_co"),
-                            );
+                            draw_output_action_arrow_button(ui, row_height, false);
                         }
                     });
                 });
@@ -1823,14 +1766,16 @@ fn row_output_action_button(
 ) {
     match mode {
         OutputFileActionMode::Menu => {
-            let response = draw_output_action_arrow_button(ui, row_height, true)
-                .on_hover_text(state.tr("item.file_actions"));
+            let response = draw_output_action_arrow_button(ui, row_height, true);
             egui::Popup::menu(&response).show(|ui| {
                 let file_exists = output_file_exists(output_path);
                 let folder_exists = output_parent_folder_exists(output_path);
 
                 if ui
-                    .add_enabled(file_exists, egui::Button::new(state.tr("item.open_file")))
+                    .add_enabled(
+                        file_exists,
+                        egui::Button::new(state.ui_tr("item.open_file")),
+                    )
                     .clicked()
                 {
                     perform_output_action(ui, state, output_path, OutputAction::OpenFile);
@@ -1839,32 +1784,26 @@ fn row_output_action_button(
                 if ui
                     .add_enabled(
                         folder_exists,
-                        egui::Button::new(state.tr("item.open_folder")),
+                        egui::Button::new(state.ui_tr("item.open_folder")),
                     )
                     .clicked()
                 {
                     perform_output_action(ui, state, output_path, OutputAction::OpenFolder);
                     ui.close();
                 }
-                if ui.button(state.tr("item.copy_path")).clicked() {
+                if ui.button(state.ui_tr("item.copy_path")).clicked() {
                     perform_output_action(ui, state, output_path, OutputAction::CopyPath);
                     ui.close();
                 }
             });
         }
         OutputFileActionMode::OpenFolder => {
-            if draw_output_action_arrow_button(ui, row_height, true)
-                .on_hover_text(state.tr("item.open_folder"))
-                .clicked()
-            {
+            if draw_output_action_arrow_button(ui, row_height, true).clicked() {
                 perform_output_action(ui, state, output_path, OutputAction::OpenFolder);
             }
         }
         OutputFileActionMode::OpenFile => {
-            if draw_output_action_arrow_button(ui, row_height, true)
-                .on_hover_text(state.tr("item.open_file"))
-                .clicked()
-            {
+            if draw_output_action_arrow_button(ui, row_height, true).clicked() {
                 perform_output_action(ui, state, output_path, OutputAction::OpenFile);
             }
         }
@@ -1886,7 +1825,7 @@ fn perform_output_action(
 ) {
     match action {
         OutputAction::OpenFile => match open_output_file(output_path) {
-            Ok(()) => state.set_last_action_message(state.tr("item.opened_output_file")),
+            Ok(()) => state.set_last_action_message("Opened output file."),
             Err(file_error) => match open_output_folder(output_path) {
                 Ok(()) => state.set_last_action_message(
                     state.tr("item.file_not_found_opened_the_output_location"),
@@ -1961,7 +1900,7 @@ fn row_file_name_placeholder(ui: &mut Ui, state: &AppState, value: &str, label_w
                         ui.add_space(row_padding_y);
                         let label_inner_width = (ui.available_width() - label_gap).max(0.0);
                         ui.allocate_ui(egui::vec2(label_inner_width, row_height), |ui| {
-                            cell_label_right(ui, state.tr(UiText::FILE_NAME));
+                            cell_label_right(ui, state.ui_tr(UiText::FILE_NAME));
                         });
                     });
                     strip.cell(|ui| {
@@ -1971,9 +1910,7 @@ fn row_file_name_placeholder(ui: &mut Ui, state: &AppState, value: &str, label_w
                     strip.cell(|ui| {
                         ui.add_space(row_padding_y);
                         ui.set_max_width(action_width);
-                        draw_output_action_arrow_button(ui, row_height, false).on_hover_text(
-                            state.tr("item.file_actions_are_available_after_download_co"),
-                        );
+                        draw_output_action_arrow_button(ui, row_height, false);
                     });
                 });
             ui.spacing_mut().item_spacing.x = original_spacing_x;

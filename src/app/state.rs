@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::i18n::{self, Language, LanguageSelection};
@@ -36,7 +37,7 @@ use crate::app::metadata::{
     select_largest_thumbnail_url, video_resolution_area,
 };
 use crate::app::music_stream::{
-    self, MusicPlaybackControl, MusicPlaybackEvent, ResolvedMusicStream,
+    self, MusicPlaybackControl, MusicPlaybackEvent, MusicPrefetchControl, ResolvedMusicStream,
 };
 use crate::app::post_process_worker::{
     POST_PROCESS_CANCELLED_MESSAGE, PostProcessEvent, request_post_process_stop,
@@ -59,13 +60,13 @@ use crate::domain::{
     WorkflowState,
 };
 use crate::infrastructure::{
-    AppConfig, CacheLocationMode, ConfigFileOption, DependencyTool, DownloadRequest,
-    DownloadTargetKind, FINAL_OUTPUT_PATH_PREFIX, FileTimeMode, MediaSession, MediaSessionCommand,
-    MediaSessionPlaybackStatus, MediaSessionTimeline, MediaSessionTrack, OutputFileActionMode,
-    PrepareAction, PrepareReport, PrepareRequirement, PrepareStatus, PreparedDownload,
-    SerializableCacheLocationMode, ThemeAccentColor, ThemeMode, ToolInstallCancelHandle,
-    ToolInstallProgress, ToolInstallStage, ToolPaths, WindowPosition, WindowSize,
-    YoutubePlaylistRisk, YoutubeVideoPlaylistMode, available_yt_dlp_config_files,
+    AnalyzeError, AnalyzeOutput, AppConfig, CacheLocationMode, ConfigFileOption, DependencyTool,
+    DownloadRequest, DownloadTargetKind, FINAL_OUTPUT_PATH_PREFIX, FileTimeMode, MediaSession,
+    MediaSessionCommand, MediaSessionPlaybackStatus, MediaSessionTimeline, MediaSessionTrack,
+    OutputFileActionMode, PrepareAction, PrepareReport, PrepareRequirement, PrepareStatus,
+    PreparedDownload, SerializableCacheLocationMode, ThemeAccentColor, ThemeMode,
+    ToolInstallCancelHandle, ToolInstallProgress, ToolInstallStage, ToolPaths, WindowPosition,
+    WindowSize, YoutubePlaylistRisk, YoutubeVideoPlaylistMode, available_yt_dlp_config_files,
     classify_youtube_playlist, collect_prepare_report, configure_background_command,
     dependency_tool_exists, dependency_tool_is_available, detect_dependency_tool_in_system_path,
     display_output_dir, looks_like_playlist_url, normalize_ui_scale_percent, resolve_output_dir,
@@ -76,6 +77,17 @@ use crate::infrastructure::{
 const MUSIC_STREAM_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60;
 const MUSIC_LYRICS_DISPLAY_LEAD_SECONDS: f64 = 0.2;
 const MUSIC_LYRICS_FADE_SECONDS: f64 = 0.14;
+const MUSIC_PREFETCH_MIN_PLAY_SECONDS: f64 = 10.0;
+const MUSIC_PREFETCH_DEFAULT_LEAD_SECONDS: f64 = 10.0;
+const MUSIC_PREFETCH_MIN_LEAD_SECONDS: f64 = 10.0;
+const MUSIC_PREFETCH_MAX_LEAD_SECONDS: f64 = 45.0;
+const MUSIC_PREFETCH_SPEED_MULTIPLIER: f64 = 2.0;
+const MUSIC_PLAY_HISTORY_LIMIT: usize = 128;
+const MUSIC_ORIGINAL_AUTO_SELECTOR: &str = "bestaudio/best[acodec!=none]";
+const MUSIC_ORIGINAL_MP3_SELECTOR: &str =
+    "bestaudio[ext=mp3]/bestaudio[acodec^=mp3]/bestaudio/best[acodec!=none]";
+const MUSIC_ORIGINAL_AAC_SELECTOR: &str = "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio[acodec^=aac]/bestaudio/best[acodec!=none]";
+const MUSIC_ORIGINAL_OPUS_SELECTOR: &str = "bestaudio[acodec^=opus]/bestaudio[ext=opus]/bestaudio[ext=webm][acodec^=opus]/bestaudio/best[acodec!=none]";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppTab {
@@ -128,19 +140,10 @@ impl MusicPlaybackMode {
 
     fn label_key(self) -> &'static str {
         match self {
-            Self::Sequential => "music.playback_mode.sequential",
-            Self::RepeatAll => "music.playback_mode.repeat_all",
-            Self::Shuffle => "music.playback_mode.shuffle",
-            Self::RepeatOne => "music.playback_mode.repeat_one",
-        }
-    }
-
-    fn tooltip_key(self) -> &'static str {
-        match self {
-            Self::Sequential => "music.playback_mode.sequential.tooltip",
-            Self::RepeatAll => "music.playback_mode.repeat_all.tooltip",
-            Self::Shuffle => "music.playback_mode.shuffle.tooltip",
-            Self::RepeatOne => "music.playback_mode.repeat_one.tooltip",
+            Self::Sequential => "Sequence",
+            Self::RepeatAll => "Repeat",
+            Self::Shuffle => "Shuffle",
+            Self::RepeatOne => "Repeat one",
         }
     }
 
@@ -163,6 +166,7 @@ impl MusicPlaybackMode {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MusicDownloadFormat {
     Mp3,
@@ -173,7 +177,7 @@ pub enum MusicDownloadFormat {
 }
 
 impl MusicDownloadFormat {
-    pub const ALL: [Self; 5] = [Self::Mp3, Self::M4aAac, Self::Opus, Self::Flac, Self::Wav];
+    pub const SIMPLE_OUTPUTS: [Self; 3] = [Self::Mp3, Self::M4aAac, Self::Opus];
 
     pub fn extension(self) -> &'static str {
         match self {
@@ -188,10 +192,107 @@ impl MusicDownloadFormat {
     pub fn label(self) -> &'static str {
         match self {
             Self::Mp3 => "MP3",
-            Self::M4aAac => "M4A (AAC)",
+            Self::M4aAac => "AAC",
             Self::Opus => "Opus",
             Self::Flac => "FLAC",
             Self::Wav => "WAV",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MusicDownloadMode {
+    Original,
+    Unified,
+}
+
+impl MusicDownloadMode {
+    pub const ALL: [Self; 2] = [Self::Original, Self::Unified];
+
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Self::Original => "Original file",
+            Self::Unified => "Unified format",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MusicOriginalPreference {
+    Auto,
+    PreferMp3,
+    PreferAac,
+    PreferOpus,
+}
+
+impl MusicOriginalPreference {
+    pub const ALL: [Self; 4] = [
+        Self::Auto,
+        Self::PreferOpus,
+        Self::PreferAac,
+        Self::PreferMp3,
+    ];
+
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Self::Auto => "Best",
+            Self::PreferMp3 => "MP3",
+            Self::PreferAac => "AAC",
+            Self::PreferOpus => "Opus",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MusicDownloadChoice {
+    pub mode: MusicDownloadMode,
+    pub original_preference: MusicOriginalPreference,
+    pub unified_format: MusicDownloadFormat,
+    pub embed_cover: bool,
+    pub write_tags: bool,
+}
+
+impl Default for MusicDownloadChoice {
+    fn default() -> Self {
+        Self {
+            mode: MusicDownloadMode::Original,
+            original_preference: MusicOriginalPreference::Auto,
+            unified_format: MusicDownloadFormat::M4aAac,
+            embed_cover: true,
+            write_tags: true,
+        }
+    }
+}
+
+impl MusicDownloadChoice {
+    fn target_format(self) -> Option<MusicDownloadFormat> {
+        match self.mode {
+            MusicDownloadMode::Original => None,
+            MusicDownloadMode::Unified => Some(self.unified_format),
+        }
+    }
+
+    fn format_selector(self) -> &'static str {
+        match self.mode {
+            MusicDownloadMode::Original => match self.original_preference {
+                MusicOriginalPreference::Auto => MUSIC_ORIGINAL_AUTO_SELECTOR,
+                MusicOriginalPreference::PreferMp3 => MUSIC_ORIGINAL_MP3_SELECTOR,
+                MusicOriginalPreference::PreferAac => MUSIC_ORIGINAL_AAC_SELECTOR,
+                MusicOriginalPreference::PreferOpus => MUSIC_ORIGINAL_OPUS_SELECTOR,
+            },
+            MusicDownloadMode::Unified => music_online_target_format_selector(self.unified_format),
+        }
+    }
+
+    fn selection_token(self) -> &'static str {
+        match self.mode {
+            MusicDownloadMode::Original => match self.original_preference {
+                MusicOriginalPreference::Auto => "original:auto",
+                MusicOriginalPreference::PreferMp3 => "original:mp3",
+                MusicOriginalPreference::PreferAac => "original:aac",
+                MusicOriginalPreference::PreferOpus => "original:opus",
+            },
+            MusicDownloadMode::Unified => self.unified_format.extension(),
         }
     }
 }
@@ -203,6 +304,33 @@ pub enum MusicDownloadSourceKind {
     /// yt-dlp selected an online source that already matches the requested audio codec.
     YtDlpOnlineTarget,
     YtDlpDownload,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ToolLogStatus {
+    Running,
+    Success,
+    Failed,
+    Skipped,
+}
+
+#[derive(Clone, Debug)]
+pub struct ToolLogStep {
+    pub id: u64,
+    pub status: ToolLogStatus,
+    pub tool: String,
+    pub action: String,
+    pub command: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct ToolLogAction {
+    pub id: u64,
+    pub timestamp: String,
+    pub status: ToolLogStatus,
+    pub mode: String,
+    pub action: String,
+    pub steps: Vec<ToolLogStep>,
 }
 
 pub enum ThumbnailRenderSource {
@@ -244,6 +372,12 @@ pub struct AppState {
     pending_dependency_installs: VecDeque<DependencyTool>,
     pub last_action: String,
     pub runtime_log: VecDeque<String>,
+    pub tool_logs: VecDeque<ToolLogAction>,
+    pub log_viewer_selected_step: Option<u64>,
+    pub log_viewer_expanded_action: Option<u64>,
+    tool_log_action_by_workflow: HashMap<WorkflowRunId, u64>,
+    next_tool_log_action_id: u64,
+    next_tool_log_step_id: u64,
     pub format_picker: FormatPickerState,
     pub is_adding_batch: bool,
     pub is_cancelling_batch_add: bool,
@@ -271,8 +405,22 @@ pub struct AppState {
     music_playback: Option<MusicPlaybackControl>,
     music_player_current_item_id: Option<QueueItemId>,
     music_playback_session_id: u64,
+    non_audio_queue_items: Vec<QueueItem>,
+    audio_queue_items: Vec<QueueItem>,
+    music_history_back: Vec<QueueItemId>,
+    music_history_forward: Vec<QueueItemId>,
+    music_reserved_next_item_id: Option<QueueItemId>,
+    music_prefetch_active_item_id: Option<QueueItemId>,
+    music_prefetch_control: Option<MusicPrefetchControl>,
+    music_prefetch_pending_item_id: Option<QueueItemId>,
+    music_prefetch_session_id: u64,
+    music_prefetch_started_at: Option<Instant>,
+    music_prefetch_lead_seconds: f64,
+    music_prefetch_for_current_item_id: Option<QueueItemId>,
+    music_scroll_to_item_id: Option<QueueItemId>,
     music_download_prompt_open: bool,
-    active_music_download_format: Option<MusicDownloadFormat>,
+    music_download_prompt_choice: MusicDownloadChoice,
+    active_music_download_choice: Option<MusicDownloadChoice>,
     music_player_error: Option<String>,
     music_volume: f32,
     music_playback_mode: MusicPlaybackMode,
@@ -300,10 +448,102 @@ struct AnalyzeResult {
     target_item_id: Option<QueueItemId>,
     workflow_id: Option<WorkflowRunId>,
     used_cookies: bool,
+    tool_log_action_id: Option<u64>,
+    command_line: Option<String>,
     result: Result<Value, String>,
 }
 
+fn analyze_output_parts(
+    result: Result<AnalyzeOutput, AnalyzeError>,
+) -> (Result<Value, String>, Option<String>) {
+    match result {
+        Ok(output) => (Ok(output.json), Some(output.command_line)),
+        Err(error) => (Err(error.message), error.command_line),
+    }
+}
+
+fn download_target_log_action(target_kind: DownloadTargetKind) -> &'static str {
+    match target_kind {
+        DownloadTargetKind::Normal => "download",
+        DownloadTargetKind::Video => "download video",
+        DownloadTargetKind::Audio => "download audio",
+        DownloadTargetKind::Subtitle => "download subtitle",
+    }
+}
+
+fn music_source_kind_log_action(source_kind: MusicDownloadSourceKind) -> &'static str {
+    match source_kind {
+        MusicDownloadSourceKind::CacheCopy => "music cache copy",
+        MusicDownloadSourceKind::CacheConvert => "music cache convert",
+        MusicDownloadSourceKind::YtDlpOnlineTarget => "music download",
+        MusicDownloadSourceKind::YtDlpDownload => "music download",
+    }
+}
+
+fn aggregate_tool_log_status(steps: &[ToolLogStep]) -> ToolLogStatus {
+    if steps.is_empty()
+        || steps
+            .iter()
+            .any(|step| step.status == ToolLogStatus::Running)
+    {
+        ToolLogStatus::Running
+    } else if steps
+        .iter()
+        .any(|step| step.status == ToolLogStatus::Failed)
+    {
+        ToolLogStatus::Failed
+    } else if steps
+        .iter()
+        .all(|step| step.status == ToolLogStatus::Success)
+    {
+        ToolLogStatus::Success
+    } else {
+        ToolLogStatus::Skipped
+    }
+}
+
+fn current_log_timestamp() -> String {
+    let elapsed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let seconds_in_day = elapsed % 86_400;
+    let hour = seconds_in_day / 3_600;
+    let minute = (seconds_in_day % 3_600) / 60;
+    let second = seconds_in_day % 60;
+    format!("{hour:02}:{minute:02}:{second:02}")
+}
+
+fn format_process_command_line(command: &Command) -> String {
+    let program = quote_command_arg(&command.get_program().to_string_lossy());
+    let args = command
+        .get_args()
+        .map(|arg| quote_command_arg(&arg.to_string_lossy()))
+        .collect::<Vec<_>>()
+        .join(" ");
+    if args.is_empty() {
+        program
+    } else {
+        format!("{program} {args}")
+    }
+}
+
+fn quote_command_arg(value: &str) -> String {
+    if value.contains([' ', '\t', '"']) {
+        format!("\"{}\"", value.replace('"', "\\\""))
+    } else {
+        value.to_owned()
+    }
+}
+
 enum MusicStreamResolveEvent {
+    ToolCommandFinished {
+        action_id: u64,
+        tool: String,
+        action: String,
+        command_line: String,
+        success: bool,
+    },
     FlatImport {
         source: String,
         result: Result<Vec<PlaylistEntrySeed>, String>,
@@ -328,6 +568,15 @@ enum MusicDownloadEvent {
         workflow_id: WorkflowRunId,
         percent: f32,
     },
+    ToolCommandFinished {
+        item_id: QueueItemId,
+        workflow_id: WorkflowRunId,
+        source_kind: MusicDownloadSourceKind,
+        tool: String,
+        action: String,
+        command_line: String,
+        success: bool,
+    },
     Finished {
         item_id: QueueItemId,
         workflow_id: WorkflowRunId,
@@ -339,6 +588,7 @@ enum MusicDownloadEvent {
 struct MusicStreamSeed {
     source_url: String,
     title: String,
+    album_title: String,
     thumbnail_url: String,
     thumbnail_hint: String,
     duration_text: String,
@@ -357,6 +607,7 @@ struct CompleteMusicCacheHit {
     cache_key: String,
     source_url: String,
     title: String,
+    album_title: String,
     thumbnail_url: String,
     duration_seconds: Option<f64>,
     ext: String,
@@ -371,6 +622,38 @@ struct CachedLrcTrack {
     modified: Option<SystemTime>,
     lines: Vec<LrcLine>,
     missing_checked_at: Option<Instant>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct AudioPlaylistSnapshot {
+    version: u32,
+    items: Vec<AudioPlaylistItemSnapshot>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct AudioPlaylistItemSnapshot {
+    source_url: String,
+    title: String,
+    #[serde(default)]
+    album_title: String,
+    #[serde(default)]
+    thumbnail_hint: String,
+    #[serde(default)]
+    thumbnail_url: String,
+    #[serde(default)]
+    duration_text: String,
+    duration_seconds: Option<f64>,
+    #[serde(default)]
+    stream_ext: String,
+    #[serde(default)]
+    stream_format_id: String,
+    #[serde(default)]
+    stream_acodec: String,
+    expected_bytes: Option<u64>,
+    #[serde(default)]
+    cache_key: String,
+    #[serde(default)]
+    use_cookies: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -407,6 +690,9 @@ fn restore_music_compact_item_from_cache_hit(item: &mut QueueItem, hit: &Complet
     if !hit.title.trim().is_empty() {
         item.title = hit.title.clone();
     }
+    if !hit.album_title.trim().is_empty() {
+        item.music_album_title = hit.album_title.clone();
+    }
     if !hit.thumbnail_url.trim().is_empty() {
         item.thumbnail_url = hit.thumbnail_url.clone();
         item.thumbnail_hint = hit.thumbnail_url.clone();
@@ -424,6 +710,24 @@ fn restore_music_compact_item_from_cache_hit(item: &mut QueueItem, hit: &Complet
     item.music_cache_key = hit.cache_key.clone();
     item.compact_music_state = Some(CompactMusicState::Ready);
     item.last_error = None;
+}
+
+fn audio_playlist_item_snapshot(item: &QueueItem) -> AudioPlaylistItemSnapshot {
+    AudioPlaylistItemSnapshot {
+        source_url: item.source_url.clone(),
+        title: item.title.clone(),
+        album_title: item.music_album_title.clone(),
+        thumbnail_hint: item.thumbnail_hint.clone(),
+        thumbnail_url: item.thumbnail_url.clone(),
+        duration_text: item.duration_text.clone(),
+        duration_seconds: item.music_duration_seconds,
+        stream_ext: item.music_stream_ext.clone(),
+        stream_format_id: item.music_stream_format_id.clone(),
+        stream_acodec: item.music_stream_acodec.clone(),
+        expected_bytes: item.music_stream_expected_bytes,
+        cache_key: item.music_cache_key.clone(),
+        use_cookies: item.selection.use_cookies,
+    }
 }
 
 pub struct YoutubePlaylistPrompt {
@@ -490,7 +794,7 @@ fn progress_summary_text(language: Language, progress: &ToolInstallProgress) -> 
     }
 }
 
-fn format_download_progress_detail(language: Language, detail: &DownloadProgressDetail) -> String {
+fn format_download_progress_detail(_language: Language, detail: &DownloadProgressDetail) -> String {
     let mut lines = Vec::new();
 
     push_detail_line(&mut lines, "Downloaded", detail.downloaded.as_deref());
@@ -502,7 +806,7 @@ fn format_download_progress_detail(language: Language, detail: &DownloadProgress
     push_detail_line(&mut lines, "Time", detail.time.as_deref());
 
     if lines.is_empty() {
-        i18n::text(language, "item.status.running").to_owned()
+        "Running".to_owned()
     } else {
         lines.join("\n")
     }
@@ -551,9 +855,9 @@ fn queue_item_status_key(item: &QueueItem) -> &'static str {
         ) && matches!(run.state, WorkflowState::Queued | WorkflowState::Running)
     }) {
         return match run.state {
-            WorkflowState::Queued => "item.status.queued",
-            WorkflowState::Running => "item.status.running",
-            _ => "item.status.queued",
+            WorkflowState::Queued => "Queued",
+            WorkflowState::Running => "Running",
+            _ => "Queued",
         };
     }
 
@@ -564,21 +868,21 @@ fn queue_item_status_key(item: &QueueItem) -> &'static str {
         .find(|run| run.kind == WorkflowKind::DownloadMedia)
     {
         return match run.state {
-            WorkflowState::Queued => "item.status.queued",
-            WorkflowState::Running => "item.status.running",
-            WorkflowState::Finished if item.last_error.is_some() => "item.status.failed",
-            WorkflowState::Finished => "item.status.finished",
-            WorkflowState::Failed => "item.status.failed",
-            WorkflowState::Cancelled => "item.status.cancelled",
+            WorkflowState::Queued => "Queued",
+            WorkflowState::Running => "Running",
+            WorkflowState::Finished if item.last_error.is_some() => "Failed",
+            WorkflowState::Finished => "Done",
+            WorkflowState::Failed => "Failed",
+            WorkflowState::Cancelled => "Cancelled",
         };
     }
 
     match &item.metadata_state {
-        MetadataState::Idle => "item.status.idle",
-        MetadataState::Queued => "item.status.waiting_analysis",
-        MetadataState::Running => "item.status.analyzing",
-        MetadataState::Ready(_) => "item.status.queued",
-        MetadataState::Failed(_) => "item.status.analysis_failed",
+        MetadataState::Idle => "Not started",
+        MetadataState::Queued => "Waiting for analysis",
+        MetadataState::Running => "Analyzing",
+        MetadataState::Ready(_) => "Queued",
+        MetadataState::Failed(_) => "Analysis failed",
     }
 }
 
@@ -676,6 +980,12 @@ impl AppState {
             pending_dependency_installs: VecDeque::new(),
             last_action: String::new(),
             runtime_log: VecDeque::new(),
+            tool_logs: VecDeque::new(),
+            log_viewer_selected_step: None,
+            log_viewer_expanded_action: None,
+            tool_log_action_by_workflow: HashMap::new(),
+            next_tool_log_action_id: 1,
+            next_tool_log_step_id: 1,
             format_picker: FormatPickerState::default(),
             is_adding_batch: false,
             is_cancelling_batch_add: false,
@@ -703,8 +1013,22 @@ impl AppState {
             music_playback: None,
             music_player_current_item_id: None,
             music_playback_session_id: 0,
+            non_audio_queue_items: Vec::new(),
+            audio_queue_items: Vec::new(),
+            music_history_back: Vec::new(),
+            music_history_forward: Vec::new(),
+            music_reserved_next_item_id: None,
+            music_prefetch_active_item_id: None,
+            music_prefetch_control: None,
+            music_prefetch_pending_item_id: None,
+            music_prefetch_session_id: 0,
+            music_prefetch_started_at: None,
+            music_prefetch_lead_seconds: MUSIC_PREFETCH_DEFAULT_LEAD_SECONDS,
+            music_prefetch_for_current_item_id: None,
+            music_scroll_to_item_id: None,
             music_download_prompt_open: false,
-            active_music_download_format: None,
+            music_download_prompt_choice: MusicDownloadChoice::default(),
+            active_music_download_choice: None,
             music_player_error: None,
             music_volume,
             music_playback_mode,
@@ -727,6 +1051,7 @@ impl AppState {
             next_workflow_run_id: 1,
         };
 
+        state.restore_saved_audio_playlist();
         state.refresh_prepare_report();
         state.reset_prepare_tool_selection_to_defaults();
         state.prime_clipboard_monitor_baseline();
@@ -786,7 +1111,7 @@ impl AppState {
             }
             self.run_primary_url_action();
         } else {
-            self.last_action = self.tr("state.clipboard_detected_url").to_owned();
+            self.last_action = "Detected a YouTube URL from the clipboard.".to_owned();
         }
     }
 
@@ -800,7 +1125,7 @@ impl AppState {
 
     pub fn analyze_current_input(&mut self) {
         let Some(source) = self.primary_candidate_url() else {
-            self.last_action = self.tr("state.no_url_to_analyze").to_owned();
+            self.last_action = "There is no URL to analyze.".to_owned();
             return;
         };
 
@@ -809,13 +1134,14 @@ impl AppState {
             return;
         }
 
-        self.last_action = self.trf("state.analyzing_source", &[("{source}", source.as_str())]);
+        self.last_action =
+            i18n::format_fixed_english("Analyzing: {source}", &[("{source}", source.as_str())]);
         self.spawn_analyze_worker(source, None, None, false);
     }
 
     pub fn add_current_url_to_batch(&mut self) {
         if self.is_adding_batch {
-            self.last_action = self.tr("state.batch_add_running").to_owned();
+            self.last_action = "Batch add is still running.".to_owned();
             return;
         }
 
@@ -826,7 +1152,7 @@ impl AppState {
 
         let source = self.url_input.trim();
         if source.is_empty() {
-            self.last_action = self.tr("state.no_url_to_add").to_owned();
+            self.last_action = "There is no URL to add.".to_owned();
             return;
         }
 
@@ -839,8 +1165,7 @@ impl AppState {
                 return;
             }
             if looks_like_playlist_url(&source) {
-                self.last_action = self
-                    .tr("state.single_mode_playlist_not_supported")
+                self.last_action = "Origin Mode does not support playlist URLs. Switch to Standard Mode to import a playlist."
                     .to_owned();
                 return;
             }
@@ -862,7 +1187,8 @@ impl AppState {
                         risk,
                         music_compact: false,
                     });
-                    self.last_action = self.tr("state.video_url_contains_playlist").to_owned();
+                    self.last_action =
+                        "Detected a video URL that also contains a playlist.".to_owned();
                     return;
                 }
                 YoutubeVideoPlaylistMode::Video => {
@@ -888,8 +1214,8 @@ impl AppState {
                     risk: Some(risk),
                     music_compact: false,
                 });
-                self.last_action = self.trf(
-                    "state.detected_high_risk_playlist",
+                self.last_action = i18n::format_fixed_english(
+                    "Detected high-risk YouTube playlist: {kind}",
                     &[("{kind}", self.tr(risk.kind.label()))],
                 );
                 return;
@@ -911,32 +1237,32 @@ impl AppState {
         }
     }
 
-    pub fn primary_url_action_label(&self) -> &'static str {
+    pub fn primary_url_action_label_key(&self) -> &'static str {
         if self.is_adding_batch {
             if self.is_cancelling_batch_add {
-                self.tr("action.stopping")
+                "action.stopping"
             } else {
-                self.tr("action.stop")
+                "action.stop"
             }
         } else if self.app_mode == AppMode::Origin {
-            self.tr("action.analyze")
+            "action.analyze"
         } else if self.queue_display_mode == QueueDisplayMode::Audio {
-            self.tr("action.add")
+            "action.add"
         } else if self.config.direct_download_on_add {
-            self.tr("action.download")
+            "action.download"
         } else {
-            self.tr("action.add")
+            "action.add"
         }
     }
 
     pub fn immediate_download_current_url(&mut self) {
         if self.is_adding_batch {
-            self.last_action = self.tr("state.batch_add_running").to_owned();
+            self.last_action = "Batch add is still running.".to_owned();
             return;
         }
         let source = self.url_input.trim();
         if source.is_empty() {
-            self.last_action = self.tr("state.no_url_to_download_now").to_owned();
+            self.last_action = "There is no URL to download immediately.".to_owned();
             return;
         }
 
@@ -952,15 +1278,14 @@ impl AppState {
             source
         };
         if looks_like_playlist_url(&source) {
-            self.last_action = self.tr("state.download_now_single_video_only").to_owned();
+            self.last_action = "Download now currently only handles one video URL.".to_owned();
             return;
         }
 
         let item_id = if self.app_mode == AppMode::Origin {
             if !self.active_workflows.is_empty() {
-                self.last_action = self
-                    .tr("state.single_mode_wait_for_current_item")
-                    .to_owned();
+                self.last_action =
+                    "Wait for the current Origin Mode item to finish first.".to_owned();
                 return;
             }
             self.stop_music_playback();
@@ -976,13 +1301,9 @@ impl AppState {
         if self.app_mode != AppMode::Origin {
             self.url_input.clear();
         }
-        let fallback_title = infer_title(
-            &source,
-            self.tr("state.untitled_task"),
-            self.tr("state.imported_source"),
-        );
-        self.last_action = self.trf(
-            "state.added_ready_download_now",
+        let fallback_title = infer_title(&source, "Untitled task", "Imported {tail}");
+        self.last_action = i18n::format_fixed_english(
+            "Added and ready to download now: {title}",
             &[("{title}", fallback_title.as_str())],
         );
         let emit_json = self
@@ -1016,7 +1337,7 @@ impl AppState {
 
     pub fn cancel_youtube_playlist_prompt(&mut self) {
         self.youtube_playlist_prompt = None;
-        self.last_action = self.tr("state.current_action_cancelled").to_owned();
+        self.last_action = "Current action cancelled.".to_owned();
     }
 
     pub fn cancel_batch_add(&mut self) {
@@ -1027,7 +1348,7 @@ impl AppState {
         if let Some(child_handle) = &self.batch_add_child {
             request_batch_add_stop(child_handle);
         }
-        self.last_action = self.tr("state.stopping_batch_add").to_owned();
+        self.last_action = "Stopping batch add...".to_owned();
     }
 
     pub fn poll_background_work(&mut self) {
@@ -1035,73 +1356,96 @@ impl AppState {
 
         loop {
             match self.analyze_result_rx.try_recv() {
-                Ok(message) => match message.result {
-                    Ok(json) => {
-                        if let Some(item_id) = message.target_item_id {
-                            if let Some(item) = self.queue_item_mut_by_id(item_id) {
-                                item.cookie_policy = if message.used_cookies {
-                                    CookiePolicy::Required
-                                } else {
-                                    CookiePolicy::NotNeeded
-                                };
-                            }
-                        }
-                        self.apply_analysis_json(
-                            json,
-                            Some(message.source),
-                            message.target_item_id,
-                            message.workflow_id,
+                Ok(message) => {
+                    let analyze_succeeded = message.result.is_ok();
+                    if let (Some(action_id), Some(command_line)) =
+                        (message.tool_log_action_id, message.command_line.as_ref())
+                    {
+                        self.push_tool_log_step(
+                            action_id,
+                            if analyze_succeeded {
+                                ToolLogStatus::Success
+                            } else {
+                                ToolLogStatus::Failed
+                            },
+                            "yt-dlp",
+                            "analyze",
+                            command_line.clone(),
                         );
                     }
-                    Err(error) => {
-                        let should_retry_with_cookies = message
-                            .target_item_id
-                            .and_then(|item_id| self.queue_item_by_id(item_id))
-                            .is_some_and(|item| item.selection.use_cookies)
-                            && !message.used_cookies
-                            && message
-                                .target_item_id
-                                .and_then(|item_id| self.queue_item_by_id(item_id))
-                                .is_some_and(|item| item.cookie_policy == CookiePolicy::Unknown)
-                            && should_retry_analyze_with_cookies(&error);
 
-                        if should_retry_with_cookies {
+                    match message.result {
+                        Ok(json) => {
                             if let Some(item_id) = message.target_item_id {
                                 if let Some(item) = self.queue_item_mut_by_id(item_id) {
-                                    item.cookie_policy = CookiePolicy::Required;
+                                    item.cookie_policy = if message.used_cookies {
+                                        CookiePolicy::Required
+                                    } else {
+                                        CookiePolicy::NotNeeded
+                                    };
                                 }
                             }
-                            self.last_action = self.trf(
-                                "state.retrying_analysis_cookie",
-                                &[("{source}", message.source.as_str())],
-                            );
-                            self.spawn_analyze_worker(
-                                message.source,
+                            self.apply_analysis_json(
+                                json,
+                                Some(message.source),
                                 message.target_item_id,
                                 message.workflow_id,
-                                true,
                             );
-                            continue;
                         }
-                        eprintln!("[analyze] {error}");
-                        if let Some(item_id) = message.target_item_id {
-                            if let Some(item) = self.queue_item_mut_by_id(item_id) {
-                                item.metadata_state = MetadataState::Failed(error.clone());
-                                item.last_error = Some(error.clone());
-                                if let Some(workflow_id) = message.workflow_id {
-                                    if let Some(run) =
-                                        item.workflows.iter_mut().find(|run| run.id == workflow_id)
-                                    {
-                                        run.state = WorkflowState::Failed;
-                                        run.error = Some(error.clone());
+                        Err(error) => {
+                            let should_retry_with_cookies = message
+                                .target_item_id
+                                .and_then(|item_id| self.queue_item_by_id(item_id))
+                                .is_some_and(|item| item.selection.use_cookies)
+                                && !message.used_cookies
+                                && message
+                                    .target_item_id
+                                    .and_then(|item_id| self.queue_item_by_id(item_id))
+                                    .is_some_and(|item| {
+                                        item.cookie_policy == CookiePolicy::Unknown
+                                    })
+                                && should_retry_analyze_with_cookies(&error);
+
+                            if should_retry_with_cookies {
+                                if let Some(item_id) = message.target_item_id {
+                                    if let Some(item) = self.queue_item_mut_by_id(item_id) {
+                                        item.cookie_policy = CookiePolicy::Required;
                                     }
-                                    self.unregister_active_workflow(workflow_id);
+                                }
+                                self.last_action = i18n::format_fixed_english(
+                                    "Retrying analysis with cookies: {source}",
+                                    &[("{source}", message.source.as_str())],
+                                );
+                                self.spawn_analyze_worker(
+                                    message.source,
+                                    message.target_item_id,
+                                    message.workflow_id,
+                                    true,
+                                );
+                                continue;
+                            }
+                            eprintln!("[analyze] {error}");
+                            if let Some(item_id) = message.target_item_id {
+                                if let Some(item) = self.queue_item_mut_by_id(item_id) {
+                                    item.metadata_state = MetadataState::Failed(error.clone());
+                                    item.last_error = Some(error.clone());
+                                    if let Some(workflow_id) = message.workflow_id {
+                                        if let Some(run) = item
+                                            .workflows
+                                            .iter_mut()
+                                            .find(|run| run.id == workflow_id)
+                                        {
+                                            run.state = WorkflowState::Failed;
+                                            run.error = Some(error.clone());
+                                        }
+                                        self.unregister_active_workflow(workflow_id);
+                                    }
                                 }
                             }
+                            self.last_action = error;
                         }
-                        self.last_action = error;
                     }
-                },
+                }
                 Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
             }
         }
@@ -1127,10 +1471,25 @@ impl AppState {
             }
         }
 
+        self.maybe_prefetch_next_music_item();
+
         if let Some(rx) = self.batch_add_result_rx.take() {
             let mut keep_rx = true;
             loop {
                 match rx.try_recv() {
+                    Ok(BatchAddEvent::ToolCommandFinished {
+                        action_id,
+                        command_line,
+                        success,
+                    }) => {
+                        self.push_tool_log_step(
+                            action_id,
+                            self.tool_log_status_for_batch_step(success),
+                            "yt-dlp",
+                            "batch import",
+                            command_line,
+                        );
+                    }
                     Ok(BatchAddEvent::ItemAdded { source, seed }) => {
                         let cancel_requested = self
                             .batch_add_cancel_requested
@@ -1156,25 +1515,24 @@ impl AppState {
                         self.batch_add_music_compact = false;
                         keep_rx = false;
                         if added == 0 {
-                            self.last_action = self.tr("state.batch_no_new_items").to_owned();
+                            self.last_action = "No new items were found in the batch.".to_owned();
                         } else if stopped_by_limit {
-                            self.last_action = self.trf(
-                                "state.playlist_added_limited",
+                            self.last_action = i18n::format_fixed_english(
+                                "Added {count} batch items from the playlist (limit applied).",
                                 &[("{count}", &added.to_string())],
                             );
                         } else if added == 1 {
-                            let fallback_title = infer_title(
-                                &source,
-                                self.tr("state.untitled_task"),
-                                self.tr("state.imported_source"),
-                            );
-                            self.last_action = self.trf(
-                                "state.batch_added_title",
+                            let fallback_title =
+                                infer_title(&source, "Untitled task", "Imported {tail}");
+                            self.last_action = i18n::format_fixed_english(
+                                "Added to batch: {title}",
                                 &[("{title}", fallback_title.as_str())],
                             );
                         } else {
-                            self.last_action = self
-                                .trf("state.playlist_added", &[("{count}", &added.to_string())]);
+                            self.last_action = i18n::format_fixed_english(
+                                "Added {count} batch items from the playlist.",
+                                &[("{count}", &added.to_string())],
+                            );
                         }
                         self.url_input.clear();
                         break;
@@ -1197,10 +1555,10 @@ impl AppState {
                         self.batch_add_music_compact = false;
                         keep_rx = false;
                         self.last_action = if added == 0 {
-                            self.tr("state.batch_add_cancelled").to_owned()
+                            "Batch add cancelled.".to_owned()
                         } else {
-                            self.trf(
-                                "state.batch_add_cancelled_with_count",
+                            i18n::format_fixed_english(
+                                "Batch add cancelled; {count} items were added.",
                                 &[("{count}", &added.to_string())],
                             )
                         };
@@ -1215,7 +1573,7 @@ impl AppState {
                         self.batch_add_cancel_requested = None;
                         self.batch_add_music_compact = false;
                         keep_rx = false;
-                        self.last_action = self.tr("state.batch_add_interrupted").to_owned();
+                        self.last_action = "Batch add was interrupted.".to_owned();
                         break;
                     }
                 }
@@ -1243,7 +1601,7 @@ impl AppState {
                                     tool,
                                     stage: ToolInstallStage::Completed,
                                     percent: Some(100),
-                                    message: self.tr("state.deployment_complete").to_owned(),
+                                    message: "Deployment complete".to_owned(),
                                 },
                             );
                             match tool {
@@ -1256,8 +1614,10 @@ impl AppState {
                             if let Some(next_tool) = self.pending_dependency_installs.pop_front() {
                                 self.begin_dependency_install(next_tool);
                             } else {
-                                self.last_action =
-                                    self.trf("state.tool_deployed", &[("{tool}", tool.label())]);
+                                self.last_action = i18n::format_fixed_english(
+                                    "{tool} downloaded and deployed.",
+                                    &[("{tool}", tool.label())],
+                                );
                                 if !self.should_show_prepare_tab()
                                     && self.active_tab == AppTab::Prepare
                                 {
@@ -1282,8 +1642,8 @@ impl AppState {
                                 self.active_tab = AppTab::Main;
                             }
                             let localized_error = self.localize_message(&error);
-                            self.last_action = self.trf(
-                                "state.tool_deploy_failed",
+                            self.last_action = i18n::format_fixed_english(
+                                "{tool} deployment failed: {error}",
                                 &[
                                     ("{tool}", tool.label()),
                                     ("{error}", localized_error.as_str()),
@@ -1300,6 +1660,26 @@ impl AppState {
             match self.download_result_rx.try_recv() {
                 Ok(DownloadEvent::Metadata { item_id, json }) => {
                     self.apply_analysis_json(json, None, Some(item_id), None);
+                }
+                Ok(DownloadEvent::ToolCommandFinished {
+                    item_id: _,
+                    workflow_id,
+                    target_kind,
+                    command_line,
+                    success,
+                }) => {
+                    let action_id = self.workflow_tool_log_action(
+                        workflow_id,
+                        "origin",
+                        download_target_log_action(target_kind),
+                    );
+                    self.push_tool_log_step(
+                        action_id,
+                        self.tool_log_status_for_workflow_step(workflow_id, success),
+                        "yt-dlp",
+                        "download",
+                        command_line,
+                    );
                 }
                 Ok(DownloadEvent::Progress {
                     item_id,
@@ -1347,11 +1727,12 @@ impl AppState {
                         .queue_item_by_id(message.item_id)
                         .map(|item| item.title.trim().to_owned())
                         .filter(|title| !title.is_empty())
-                        .unwrap_or_else(|| self.tr("state.download_item_fallback").to_owned());
+                        .unwrap_or_else(|| "Download item".to_owned());
                     let notification_result = message.result.clone();
                     let should_send_windows_toast =
                         message.workflow_kind == WorkflowKind::DownloadMedia;
                     self.unregister_active_workflow(message.workflow_id);
+                    self.finish_workflow_tool_log(message.workflow_id);
                     let mut pending_post_process_input = None;
                     if let Some(item) = self.queue_item_mut_by_id(message.item_id) {
                         if let Some(run) = item
@@ -1425,7 +1806,7 @@ impl AppState {
                         }
                         Err(error) if error == DOWNLOAD_CANCELLED_MESSAGE => {
                             self.push_runtime_log("Download cancelled".to_owned());
-                            self.last_action = self.tr("state.download_stopped").to_owned();
+                            self.last_action = "Download stopped.".to_owned();
                         }
                         Err(error) => {
                             self.push_runtime_log(format!("Download failed: {error}"));
@@ -1462,13 +1843,31 @@ impl AppState {
                         }
                     }
                 }
+                Ok(PostProcessEvent::ToolCommandFinished {
+                    item_id: _,
+                    workflow_id,
+                    tool,
+                    action,
+                    command_line,
+                    success,
+                }) => {
+                    let action_id =
+                        self.workflow_tool_log_action(workflow_id, "origin", "post-process");
+                    self.push_tool_log_step(
+                        action_id,
+                        self.tool_log_status_for_workflow_step(workflow_id, success),
+                        tool,
+                        action,
+                        command_line,
+                    );
+                }
                 Ok(PostProcessEvent::Finished(message)) => {
                     let finished_item_id = message.item_id;
                     let notification_title = self
                         .queue_item_by_id(message.item_id)
                         .map(|item| item.title.trim().to_owned())
                         .filter(|title| !title.is_empty())
-                        .unwrap_or_else(|| self.tr("state.download_item_fallback").to_owned());
+                        .unwrap_or_else(|| "Download item".to_owned());
                     let notification_result = message.result.clone();
                     self.unregister_active_workflow(message.workflow_id);
 
@@ -1518,7 +1917,7 @@ impl AppState {
                         }
                         Err(error) if error == POST_PROCESS_CANCELLED_MESSAGE => {
                             self.push_runtime_log("Post-process cancelled".to_owned());
-                            self.last_action = self.tr("state.download_stopped").to_owned();
+                            self.last_action = "Download stopped.".to_owned();
                         }
                         Err(error) => {
                             self.push_runtime_log(format!("Post-process failed: {error}"));
@@ -1544,7 +1943,7 @@ impl AppState {
         let urls = self.parsed_batch_urls();
         let count = urls.len();
         if count == 0 {
-            self.last_action = self.tr("state.no_url_to_add_batch").to_owned();
+            self.last_action = "There is no URL to add to the batch.".to_owned();
             return;
         }
 
@@ -1554,9 +1953,10 @@ impl AppState {
             .collect();
         if self.queue_display_mode == QueueDisplayMode::Audio {
             self.prepare_queue_items_for_audio_mode();
+            self.save_active_audio_playlist_if_needed();
         }
-        self.last_action = self.trf(
-            "state.batch_input_added",
+        self.last_action = i18n::format_fixed_english(
+            "Added {count} queued items from batch input.",
             &[("{count}", &count.to_string())],
         );
     }
@@ -1573,27 +1973,18 @@ impl AppState {
         match mode {
             AppMode::Audio => {
                 if self.queue_display_mode != QueueDisplayMode::Audio {
+                    self.enter_audio_queue_context();
                     self.queue_display_mode = QueueDisplayMode::Audio;
                     self.config.queue_display_mode =
                         QueueDisplayMode::Audio.config_value().to_owned();
-                    self.prepare_queue_items_for_audio_mode();
                 }
             }
             AppMode::Origin | AppMode::Standard => {
                 if self.queue_display_mode == QueueDisplayMode::Audio {
+                    self.leave_audio_queue_context();
                     self.queue_display_mode = QueueDisplayMode::Normal;
                     self.config.queue_display_mode =
                         QueueDisplayMode::Normal.config_value().to_owned();
-                    if let Some(control) = self.music_playback.take() {
-                        control.stop();
-                        self.mark_music_playback_state(control.item_id, CompactMusicState::Ready);
-                    }
-                    self.music_player_current_item_id = None;
-                    self.music_player_error = None;
-                    self.media_session.clear();
-                    for item in &mut self.queue_items {
-                        item.view_kind = QueueItemViewKind::VideoCard;
-                    }
                 }
             }
         }
@@ -1614,35 +2005,71 @@ impl AppState {
         if self.queue_display_mode == mode {
             return;
         }
-        self.queue_display_mode = mode;
         if mode == QueueDisplayMode::Audio {
+            self.enter_audio_queue_context();
             self.app_mode = AppMode::Audio;
-        } else if self.app_mode == AppMode::Audio {
-            self.app_mode = AppMode::Standard;
+        } else {
+            self.leave_audio_queue_context();
+            if self.app_mode == AppMode::Audio {
+                self.app_mode = AppMode::Standard;
+            }
         }
+        self.queue_display_mode = mode;
         self.config.queue_display_mode = mode.config_value().to_owned();
         self.config.app_mode = self.app_mode.config_value().to_owned();
         let _ = self.config.save();
-        if mode == QueueDisplayMode::Audio {
-            self.prepare_queue_items_for_audio_mode();
-        } else {
-            if let Some(control) = self.music_playback.take() {
-                control.stop();
-                self.mark_music_playback_state(control.item_id, CompactMusicState::Ready);
-            }
-            self.music_player_current_item_id = None;
-            self.music_player_error = None;
-            self.media_session.clear();
-        }
         let mode_label_key = match mode {
-            QueueDisplayMode::Normal => "queue_display.normal",
-            QueueDisplayMode::Audio => "queue_display.audio",
+            QueueDisplayMode::Normal => "Standard",
+            QueueDisplayMode::Audio => "Audio",
         };
         let mode_label = self.tr(mode_label_key).to_owned();
-        self.last_action = self.trf(
-            "state.queue_display_mode_changed",
-            &[("{mode}", mode_label.as_str())],
-        );
+        self.last_action =
+            i18n::format_fixed_english("List mode: {mode}", &[("{mode}", mode_label.as_str())]);
+    }
+
+    fn enter_audio_queue_context(&mut self) {
+        if self.queue_display_mode == QueueDisplayMode::Audio {
+            return;
+        }
+        self.non_audio_queue_items = std::mem::take(&mut self.queue_items);
+        self.queue_items = std::mem::take(&mut self.audio_queue_items);
+        for item in &mut self.queue_items {
+            item.view_kind = QueueItemViewKind::MusicCompact;
+            item.compact_music_state
+                .get_or_insert(CompactMusicState::Ready);
+        }
+        self.prune_music_navigation_state();
+        self.rebuild_batch_input_from_queue();
+    }
+
+    fn leave_audio_queue_context(&mut self) {
+        if self.queue_display_mode != QueueDisplayMode::Audio {
+            return;
+        }
+        self.stop_music_playback_for_audio_context();
+        self.audio_queue_items = std::mem::take(&mut self.queue_items);
+        self.save_audio_playlist_items(&self.audio_queue_items);
+        self.queue_items = std::mem::take(&mut self.non_audio_queue_items);
+        for item in &mut self.queue_items {
+            item.view_kind = QueueItemViewKind::VideoCard;
+            item.compact_music_state = None;
+        }
+        self.rebuild_batch_input_from_queue();
+    }
+
+    fn stop_music_playback_for_audio_context(&mut self) {
+        if let Some(control) = self.music_playback.take() {
+            control.stop();
+            self.mark_music_playback_state(control.item_id, CompactMusicState::Ready);
+        }
+        self.music_player_current_item_id = None;
+        self.music_player_error = None;
+        self.music_reserved_next_item_id = None;
+        self.cancel_music_prefetch();
+        self.music_scroll_to_item_id = None;
+        self.music_history_back.clear();
+        self.music_history_forward.clear();
+        self.media_session.clear();
     }
 
     pub fn music_player_visible(&self) -> bool {
@@ -1745,32 +2172,65 @@ impl AppState {
     pub fn request_main_download(&mut self) {
         if self.queue_mode_downloads_as_audio() {
             self.prepare_queue_items_for_audio_mode();
+            self.music_download_prompt_choice.mode = MusicDownloadMode::Original;
+            self.music_download_prompt_choice.embed_cover = true;
+            self.music_download_prompt_choice.write_tags = true;
             self.music_download_prompt_open = true;
         } else {
             self.start_single_download();
         }
     }
 
+    pub fn music_download_prompt_choice(&self) -> MusicDownloadChoice {
+        self.music_download_prompt_choice
+    }
+
+    pub fn set_music_download_prompt_mode(&mut self, mode: MusicDownloadMode) {
+        self.music_download_prompt_choice.mode = mode;
+    }
+
+    pub fn set_music_download_original_preference(&mut self, preference: MusicOriginalPreference) {
+        self.music_download_prompt_choice.original_preference = preference;
+    }
+
+    pub fn set_music_download_unified_format(&mut self, format: MusicDownloadFormat) {
+        self.music_download_prompt_choice.unified_format = format;
+    }
+
+    pub fn set_music_download_embed_cover(&mut self, enabled: bool) {
+        self.music_download_prompt_choice.embed_cover = enabled;
+    }
+
+    pub fn set_music_download_write_tags(&mut self, enabled: bool) {
+        self.music_download_prompt_choice.write_tags = enabled;
+    }
+
     pub fn cancel_music_download_prompt(&mut self) {
         self.music_download_prompt_open = false;
     }
 
-    pub fn confirm_music_download_format(&mut self, format: MusicDownloadFormat) {
+    pub fn confirm_music_download_choice(&mut self) {
+        let mut choice = self.music_download_prompt_choice;
+        choice.mode = MusicDownloadMode::Original;
+        choice.embed_cover = true;
+        choice.write_tags = true;
+        self.music_download_prompt_choice = choice;
         self.music_download_prompt_open = false;
-        self.start_download_with_music_format(format);
+        self.start_download_with_music_choice(choice);
     }
 
-    fn start_download_with_music_format(&mut self, format: MusicDownloadFormat) {
+    fn start_download_with_music_choice(&mut self, choice: MusicDownloadChoice) {
         if let Err(error) = self.ensure_yt_dlp_ready() {
             self.last_action = error;
             return;
         }
         if self.has_running_download_workflow() {
-            self.last_action = self.tr("state.download_already_running").to_owned();
+            self.last_action =
+                "A download is already running. Please wait for it to finish.".to_owned();
             return;
         }
 
-        self.active_music_download_format = Some(format);
+        self.active_music_download_choice = Some(choice);
         self.enqueue_download_ready_items();
 
         let Some(item_id) = self
@@ -1779,12 +2239,12 @@ impl AppState {
             .find(|item| item_latest_download_state(item).is_some_and(is_pending_download_state))
             .map(|item| item.id)
         else {
-            self.last_action = self.tr("state.no_runnable_batch_items").to_owned();
+            self.last_action = "There are no runnable batch items.".to_owned();
             return;
         };
 
         if self.queue_mode_downloads_as_audio() {
-            let _ = self.start_music_download_task_at(item_id, format);
+            let _ = self.start_music_download_task_at(item_id, choice);
         } else {
             let emit_json = self
                 .queue_item_by_id(item_id)
@@ -1795,7 +2255,7 @@ impl AppState {
 
     pub fn start_single_download(&mut self) {
         let Some(url) = self.primary_candidate_url() else {
-            self.last_action = self.tr("state.no_url_to_download").to_owned();
+            self.last_action = "There is no URL to download.".to_owned();
             return;
         };
 
@@ -1813,7 +2273,8 @@ impl AppState {
         }
 
         if self.has_running_download_workflow() {
-            self.last_action = self.tr("state.download_already_running").to_owned();
+            self.last_action =
+                "A download is already running. Please wait for it to finish.".to_owned();
             return;
         }
 
@@ -1825,7 +2286,7 @@ impl AppState {
             .find(|item| item_latest_download_state(item).is_some_and(is_pending_download_state))
             .map(|item| item.id)
         else {
-            self.last_action = self.tr("state.no_runnable_batch_items").to_owned();
+            self.last_action = "There are no runnable batch items.".to_owned();
             return;
         };
 
@@ -1949,6 +2410,42 @@ impl AppState {
         self.active_workflows.remove(&workflow_id);
     }
 
+    fn active_workflow_cancel_requested(&self, workflow_id: WorkflowRunId) -> bool {
+        self.active_workflows
+            .get(&workflow_id)
+            .and_then(|workflow| workflow.cancel_requested.as_ref())
+            .is_some_and(|flag| flag.load(Ordering::Relaxed))
+    }
+
+    fn tool_log_status_for_workflow_step(
+        &self,
+        workflow_id: WorkflowRunId,
+        success: bool,
+    ) -> ToolLogStatus {
+        if success {
+            ToolLogStatus::Success
+        } else if self.active_workflow_cancel_requested(workflow_id) {
+            ToolLogStatus::Skipped
+        } else {
+            ToolLogStatus::Failed
+        }
+    }
+
+    fn tool_log_status_for_batch_step(&self, success: bool) -> ToolLogStatus {
+        if success {
+            ToolLogStatus::Success
+        } else if self.is_cancelling_batch_add
+            || self
+                .batch_add_cancel_requested
+                .as_ref()
+                .is_some_and(|flag| flag.load(Ordering::Relaxed))
+        {
+            ToolLogStatus::Skipped
+        } else {
+            ToolLogStatus::Failed
+        }
+    }
+
     fn has_running_download_workflow(&self) -> bool {
         self.active_workflows
             .values()
@@ -1995,8 +2492,8 @@ impl AppState {
             item.workflows.push(run);
         }
 
-        self.last_action = self.trf(
-            "state.transcode_post_processing_title",
+        self.last_action = i18n::format_fixed_english(
+            "Converting with {profile}: {title}",
             &[("{title}", title.as_str()), ("{profile}", profile.label())],
         );
         self.push_runtime_log(format!(
@@ -2050,8 +2547,8 @@ impl AppState {
         };
 
         if self.queue_mode_downloads_as_audio() {
-            if let Some(format) = self.active_music_download_format {
-                let _ = self.start_music_download_task_at(next_item_id, format);
+            if let Some(choice) = self.active_music_download_choice {
+                let _ = self.start_music_download_task_at(next_item_id, choice);
                 return;
             }
         }
@@ -2102,14 +2599,14 @@ impl AppState {
             .collect::<Vec<_>>();
 
         if workflows.is_empty() {
-            self.last_action = self.tr("state.no_download_to_stop").to_owned();
+            self.last_action = "There is no download to stop.".to_owned();
             return;
         }
 
         for workflow_id in workflows {
             self.request_active_download_stop(workflow_id);
         }
-        self.last_action = self.tr("state.stopping_download").to_owned();
+        self.last_action = "Stopping download...".to_owned();
     }
 
     fn request_active_download_stop(&self, workflow_id: WorkflowRunId) {
@@ -2265,9 +2762,7 @@ impl AppState {
     pub fn localized_thumbnail_hint<'a>(&self, hint: &'a str) -> std::borrow::Cow<'a, str> {
         match hint {
             "item.thumbnail" => std::borrow::Cow::Borrowed(self.tr("item.thumbnail")),
-            "item.thumbnail_preview" => {
-                std::borrow::Cow::Borrowed(self.tr("item.thumbnail_preview"))
-            }
+            "Thumbnail preview" => std::borrow::Cow::Borrowed(self.tr("item.thumbnail_preview")),
             _ => std::borrow::Cow::Borrowed(hint),
         }
     }
@@ -2399,7 +2894,7 @@ impl AppState {
     pub fn save_thumbnail_url_to_path(&mut self, url: &str, path: &Path) -> Result<(), String> {
         let url = url.trim();
         if url.is_empty() {
-            return Err(self.tr("runtime.thumbnail_empty_url").to_owned());
+            return Err("Thumbnail load failed: empty URL".to_owned());
         }
 
         let proxy_url = self
@@ -2410,8 +2905,8 @@ impl AppState {
         let bytes = fetch_thumbnail_bytes(url, &proxy_url, self.tool_paths.no_check_certificates)?;
         Self::save_thumbnail_bytes_as(&bytes, path)?;
         let display_path = path.display().to_string();
-        self.last_action = self.trf(
-            "state.thumbnail_saved",
+        self.last_action = i18n::format_fixed_english(
+            "Thumbnail saved: {path}",
             &[("{path}", display_path.as_str())],
         );
         Ok(())
@@ -2490,7 +2985,8 @@ impl AppState {
             }
         }
 
-        self.last_action = self.trf("state.analyzing_source", &[("{source}", source.as_str())]);
+        self.last_action =
+            i18n::format_fixed_english("Analyzing: {source}", &[("{source}", source.as_str())]);
         self.spawn_analyze_worker(
             source,
             Some(item_id),
@@ -2512,6 +3008,8 @@ impl AppState {
                 target_item_id,
                 workflow_id,
                 used_cookies: use_cookies,
+                tool_log_action_id: None,
+                command_line: None,
                 result: Err(error),
             });
             return;
@@ -2523,22 +3021,31 @@ impl AppState {
                 target_item_id,
                 workflow_id,
                 used_cookies: use_cookies,
+                tool_log_action_id: None,
+                command_line: None,
                 result: Err(error),
             });
             return;
         }
+
+        let tool_log_action_id =
+            Some(self.push_tool_log_action(self.app_mode.config_value(), "analyze"));
 
         let tool_paths = self.tool_paths.clone();
         let tx = self.analyze_result_tx.clone();
         let source_for_worker = source.clone();
 
         thread::spawn(move || {
-            let result = tool_paths.analyze_url(&source_for_worker, use_cookies);
+            let (result, command_line) = analyze_output_parts(
+                tool_paths.analyze_url_detailed(&source_for_worker, use_cookies),
+            );
             let _ = tx.send(AnalyzeResult {
                 source: source_for_worker,
                 target_item_id,
                 workflow_id,
                 used_cookies: use_cookies,
+                tool_log_action_id,
+                command_line,
                 result,
             });
         });
@@ -2563,12 +3070,12 @@ impl AppState {
         emit_json: bool,
     ) -> Result<(), String> {
         let Some(task_index) = self.queue_item_index_by_id(item_id) else {
-            let error = self.tr("state.target_download_not_found").to_owned();
+            let error = "Target download item was not found.".to_owned();
             self.last_action = error.clone();
             return Err(error);
         };
         if self.has_running_download_workflow() {
-            let error = self.tr("state.download_already_running").to_owned();
+            let error = "A download is already running. Please wait for it to finish.".to_owned();
             self.last_action = error.clone();
             return Err(error);
         }
@@ -2580,7 +3087,7 @@ impl AppState {
         }
 
         let Some(item) = self.queue_items.get(task_index) else {
-            let error = self.tr("state.analyze_before_download").to_owned();
+            let error = "Analyze the video before starting download.".to_owned();
             self.last_action = error.clone();
             return Err(error);
         };
@@ -2731,12 +3238,12 @@ impl AppState {
             }
         }
         self.last_action = if aria2_fallback {
-            self.trf(
-                "state.downloading_title_aria2_fallback",
+            i18n::format_fixed_english(
+                "Downloading: {title} (Aria2 not found; using yt-dlp native download)",
                 &[("{title}", title.as_str())],
             )
         } else {
-            self.trf("state.downloading_title", &[("{title}", title.as_str())])
+            i18n::format_fixed_english("Downloading: {title}", &[("{title}", title.as_str())])
         };
 
         let tool_paths = self.tool_paths.clone();
@@ -2768,15 +3275,15 @@ impl AppState {
     fn start_music_download_task_at(
         &mut self,
         item_id: QueueItemId,
-        format: MusicDownloadFormat,
+        choice: MusicDownloadChoice,
     ) -> Result<(), String> {
         let Some(task_index) = self.queue_item_index_by_id(item_id) else {
-            let error = self.tr("state.target_download_not_found").to_owned();
+            let error = "Target download item was not found.".to_owned();
             self.last_action = error.clone();
             return Err(error);
         };
         if self.has_running_download_workflow() {
-            let error = self.tr("state.download_already_running").to_owned();
+            let error = "A download is already running. Please wait for it to finish.".to_owned();
             self.last_action = error.clone();
             return Err(error);
         }
@@ -2789,7 +3296,7 @@ impl AppState {
         self.prepare_queue_item_for_audio_mode(item_id);
 
         let Some(mut item) = self.queue_items.get(task_index).cloned() else {
-            let error = self.tr("state.analyze_before_download").to_owned();
+            let error = "Analyze the video before starting download.".to_owned();
             self.last_action = error.clone();
             return Err(error);
         };
@@ -2810,12 +3317,10 @@ impl AppState {
             .music_cache_cover_path(&item)
             .filter(|path| path.is_file());
         let cover_cache_dir = self.music_cache_cover_write_dir(&item);
-        let has_cover_source = cover_path.is_some() || !item.thumbnail_url.trim().is_empty();
+        let has_cover_source =
+            choice.embed_cover && (cover_path.is_some() || !item.thumbnail_url.trim().is_empty());
         let source_kind = match cache_media_path.as_ref() {
-            Some(path)
-                if music_download_format_matches_cache(format, path)
-                    && !music_cached_output_needs_metadata_pass(format, has_cover_source) =>
-            {
+            Some(path) if music_cache_can_be_copied_for_choice(choice, path, has_cover_source) => {
                 MusicDownloadSourceKind::CacheCopy
             }
             Some(_) => MusicDownloadSourceKind::CacheConvert,
@@ -2847,7 +3352,7 @@ impl AppState {
             reset_item_for_new_work(item, DownloadTargetKind::Normal);
             item.completed_selection = None;
             item.selection.file_name = music_output_stem_template_for_title(&item.title);
-            item.selection.audio_selector = format.extension().to_owned();
+            item.selection.audio_selector = choice.selection_token().to_owned();
             if let Some(run) = item.workflows.iter_mut().rev().find(|run| {
                 run.kind == WorkflowKind::DownloadMedia
                     && matches!(run.state, WorkflowState::Queued | WorkflowState::Failed)
@@ -2871,8 +3376,8 @@ impl AppState {
             }
         }
 
-        self.last_action = self.trf(
-            "state.downloading_music",
+        self.last_action = i18n::format_fixed_english(
+            "Downloading music: {title}",
             &[("{title}", item.title.as_str())],
         );
 
@@ -2881,8 +3386,9 @@ impl AppState {
             workflow_id,
             source_url: item.source_url.clone(),
             title: item.title.clone(),
+            album_title: item.music_album_title.clone(),
             output_dir,
-            target_format: format,
+            choice,
             source_acodec: item.music_stream_acodec.clone(),
             cache_media_path,
             cover_path,
@@ -3039,10 +3545,10 @@ impl AppState {
         output_path: String,
     ) -> Result<(), String> {
         let Some(item_index) = self.queue_item_index_by_id(item_id) else {
-            return Err(self.tr("state.target_export_not_found").to_owned());
+            return Err("Target export item was not found.".to_owned());
         };
         if !self.item_can_export(item_index, kind) {
-            return Err(self.tr("state.cannot_export_item").to_owned());
+            return Err("This item cannot be exported right now.".to_owned());
         }
 
         if let Err(error) = self.ensure_yt_dlp_ready() {
@@ -3054,10 +3560,10 @@ impl AppState {
         }
 
         let Some(item) = self.queue_items.get(item_index) else {
-            return Err(self.tr("state.target_export_not_found").to_owned());
+            return Err("Target export item was not found.".to_owned());
         };
         let Some(metadata) = item.metadata() else {
-            return Err(self.tr("state.analyze_before_export").to_owned());
+            return Err("Analyze the video before exporting.".to_owned());
         };
         let item_title = item.title.clone();
         let source_url = item.source_url.clone();
@@ -3079,7 +3585,7 @@ impl AppState {
             subtitle_is_auto_translated,
         ) = if kind == DownloadTargetKind::Subtitle {
             let Some(track) = selected_subtitle_track.as_ref() else {
-                return Err(self.tr("state.choose_subtitles_before_export").to_owned());
+                return Err("Choose subtitles before exporting.".to_owned());
             };
             (
                 Some(track.download_language_code.clone()),
@@ -3102,8 +3608,8 @@ impl AppState {
             .extension()
             .and_then(|value| value.to_str())
             .and_then(normalized_export_extension)
-            .ok_or_else(|| self.tr("state.specify_file_extension").to_owned())?;
-        validate_export_extension(self.language(), kind, &export_ext)?;
+            .ok_or_else(|| "Specify a file extension.".to_owned())?;
+        validate_export_extension(kind, &export_ext)?;
 
         let (audio_selector, _) = self.resolve_download_format_selection(
             &selected_video,
@@ -3196,24 +3702,26 @@ impl AppState {
         }
 
         let action_text = match kind {
-            DownloadTargetKind::Video => {
-                self.trf("state.exporting_video", &[("{title}", item_title.as_str())])
-            }
-            DownloadTargetKind::Audio => {
-                self.trf("state.exporting_audio", &[("{title}", item_title.as_str())])
-            }
-            DownloadTargetKind::Normal => self.trf(
-                "state.downloading_title",
+            DownloadTargetKind::Video => i18n::format_fixed_english(
+                "Exporting video: {title}",
                 &[("{title}", item_title.as_str())],
             ),
-            DownloadTargetKind::Subtitle => self.trf(
-                "state.exporting_subtitles",
+            DownloadTargetKind::Audio => i18n::format_fixed_english(
+                "Exporting audio: {title}",
+                &[("{title}", item_title.as_str())],
+            ),
+            DownloadTargetKind::Normal => i18n::format_fixed_english(
+                "Downloading: {title}",
+                &[("{title}", item_title.as_str())],
+            ),
+            DownloadTargetKind::Subtitle => i18n::format_fixed_english(
+                "Exporting subtitles: {title}",
                 &[("{title}", item_title.as_str())],
             ),
         };
         self.last_action = if aria2_fallback {
-            self.trf(
-                "state.action_aria2_fallback",
+            i18n::format_fixed_english(
+                "{action} (Aria2 not found; using yt-dlp native download)",
                 &[("{action}", action_text.as_str())],
             )
         } else {
@@ -3247,7 +3755,11 @@ impl AppState {
     pub fn clear_queue(&mut self) {
         self.stop_music_playback();
         self.queue_items.clear();
-        self.last_action = self.tr("state.cleared_queue").to_owned();
+        self.music_history_back.clear();
+        self.music_history_forward.clear();
+        self.music_reserved_next_item_id = None;
+        self.last_action = "Queue cleared.".to_owned();
+        self.save_active_audio_playlist_if_needed();
     }
 
     pub fn remove_queue_item(&mut self, item_id: QueueItemId) {
@@ -3256,7 +3768,7 @@ impl AppState {
         };
 
         if self.item_is_busy(index) {
-            self.last_action = self.tr("state.cannot_remove_running_item").to_owned();
+            self.last_action = "Running items cannot be removed.".to_owned();
             return;
         }
 
@@ -3275,7 +3787,10 @@ impl AppState {
             })
             .collect::<Vec<_>>()
             .join("\n");
-        self.last_action = self.trf("state.removed_item", &[("{title}", removed.title.as_str())]);
+        self.last_action =
+            i18n::format_fixed_english("Removed: {title}", &[("{title}", removed.title.as_str())]);
+        self.prune_music_navigation_state();
+        self.save_active_audio_playlist_if_needed();
     }
 
     pub fn primary_candidate_url(&self) -> Option<String> {
@@ -3325,11 +3840,7 @@ impl AppState {
     }
 
     fn build_queue_item_from_url(&mut self, url: &str) -> QueueItem {
-        let title = infer_title(
-            url,
-            self.tr("state.untitled_task"),
-            self.tr("state.imported_source"),
-        );
+        let title = infer_title(url, "Untitled task", "Imported {tail}");
         let mut item = QueueItem::new(self.alloc_queue_item_id(), url, title);
         item.selection.quality = self.item_defaults.quality;
         item.selection.write_thumbnail = self.item_defaults.write_thumbnail;
@@ -3350,6 +3861,7 @@ impl AppState {
         if !seed.title.trim().is_empty() {
             item.title = seed.title;
         }
+        item.music_album_title = seed.album_title;
         item.thumbnail_hint = seed.thumbnail_hint;
         item.thumbnail_url = seed.thumbnail_url;
         item.duration_text = seed.duration_text;
@@ -3362,6 +3874,22 @@ impl AppState {
 
     fn apply_music_stream_result(&mut self, message: MusicStreamResolveEvent) {
         match message {
+            MusicStreamResolveEvent::ToolCommandFinished {
+                action_id,
+                tool,
+                action,
+                command_line,
+                success,
+            } => {
+                let status = if success {
+                    ToolLogStatus::Success
+                } else if action == "prefetch resolve" {
+                    ToolLogStatus::Skipped
+                } else {
+                    ToolLogStatus::Failed
+                };
+                self.push_tool_log_step(action_id, status, tool, action, command_line);
+            }
             MusicStreamResolveEvent::FlatImport { source, result } => match result {
                 Ok(seeds) => {
                     let mut added = 0usize;
@@ -3372,20 +3900,21 @@ impl AppState {
                     }
                     self.music_player_error = None;
                     self.last_action = if added == 0 {
-                        self.trf(
-                            "state.music_no_items_from_source",
+                        i18n::format_fixed_english(
+                            "No music items could be added: {source}",
                             &[("{source}", source.as_str())],
                         )
                     } else {
-                        self.trf(
-                            "state.music_items_added",
+                        i18n::format_fixed_english(
+                            "Added {count} music items.",
                             &[("{count}", &added.to_string())],
                         )
                     };
+                    self.save_active_audio_playlist_if_needed();
                 }
                 Err(error) => {
-                    let message = self.trf(
-                        "state.music_playlist_parse_failed",
+                    let message = i18n::format_fixed_english(
+                        "Music list analysis failed: {error}",
                         &[("{error}", error.as_str())],
                     );
                     self.music_player_error = Some(message.clone());
@@ -3403,6 +3932,7 @@ impl AppState {
                     Ok(seed) => {
                         self.update_music_compact_item_from_seed(item_id, seed);
                         self.music_player_error = None;
+                        self.save_active_audio_playlist_if_needed();
                     }
                     Err(error) => {
                         // Flat metadata is an enhancement for single-item compact rows.
@@ -3426,6 +3956,9 @@ impl AppState {
                     if let Some(item) = self.queue_item_mut_by_id(item_id) {
                         item.source_url = seed.source_url;
                         item.title = seed.title;
+                        if !seed.album_title.trim().is_empty() {
+                            item.music_album_title = seed.album_title;
+                        }
                         if !seed.thumbnail_url.trim().is_empty() {
                             item.thumbnail_url = seed.thumbnail_url;
                         }
@@ -3455,14 +3988,42 @@ impl AppState {
                     if let Some(item) = updated_item.as_ref() {
                         self.cache_music_lyrics_for_item(item, lyrics_track.as_ref());
                     }
+                    if !play_after_resolve {
+                        let is_current_prefetch_resolve = self.music_prefetch_pending_item_id
+                            == Some(item_id)
+                            && self.music_prefetch_session_id == session_id;
+                        if is_current_prefetch_resolve {
+                            self.music_prefetch_pending_item_id = None;
+                            if let Some(item) = updated_item {
+                                self.start_resolved_music_prefetch(item);
+                            }
+                            self.save_active_audio_playlist_if_needed();
+                        }
+                        return;
+                    }
                     self.music_player_error = None;
-                    self.last_action =
-                        self.trf("state.music_stream_ready", &[("{source}", source.as_str())]);
+                    self.last_action = i18n::format_fixed_english(
+                        "Music stream ready: {source}",
+                        &[("{source}", source.as_str())],
+                    );
+                    self.save_active_audio_playlist_if_needed();
                     if play_after_resolve && self.is_current_music_session(item_id, session_id) {
                         self.start_music_stream_playback_with_session(item_id, session_id);
                     }
                 }
                 Err(error) => {
+                    if !play_after_resolve {
+                        let is_current_prefetch_resolve = self.music_prefetch_pending_item_id
+                            == Some(item_id)
+                            && self.music_prefetch_session_id == session_id;
+                        if is_current_prefetch_resolve {
+                            self.music_prefetch_pending_item_id = None;
+                            eprintln!(
+                                "[music-prefetch] resolve skipped for item={item_id}: {error}"
+                            );
+                        }
+                        return;
+                    }
                     if play_after_resolve && !self.is_current_music_session(item_id, session_id) {
                         if let Some(item) = self.queue_item_mut_by_id(item_id) {
                             item.compact_music_state = Some(CompactMusicState::Ready);
@@ -3478,8 +4039,8 @@ impl AppState {
                         item.compact_music_state = Some(CompactMusicState::Failed);
                         item.last_error = Some(error.clone());
                     }
-                    let message = self.trf(
-                        "state.music_stream_parse_failed",
+                    let message = i18n::format_fixed_english(
+                        "Music stream analysis failed: {error}",
                         &[("{error}", error.as_str())],
                     );
                     self.music_player_error = Some(message.clone());
@@ -3506,6 +4067,28 @@ impl AppState {
                     }
                 }
             }
+            MusicDownloadEvent::ToolCommandFinished {
+                item_id: _,
+                workflow_id,
+                source_kind,
+                tool,
+                action,
+                command_line,
+                success,
+            } => {
+                let action_id = self.workflow_tool_log_action(
+                    workflow_id,
+                    "audio",
+                    music_source_kind_log_action(source_kind),
+                );
+                self.push_tool_log_step(
+                    action_id,
+                    self.tool_log_status_for_workflow_step(workflow_id, success),
+                    tool,
+                    action,
+                    command_line,
+                );
+            }
             MusicDownloadEvent::Finished {
                 item_id,
                 workflow_id,
@@ -3513,6 +4096,7 @@ impl AppState {
                 result,
             } => {
                 self.unregister_active_workflow(workflow_id);
+                self.finish_workflow_tool_log(workflow_id);
                 if let Some(item) = self.queue_item_mut_by_id(item_id) {
                     if let Some(run) = item.workflows.iter_mut().find(|run| run.id == workflow_id) {
                         match &result {
@@ -3564,7 +4148,7 @@ impl AppState {
                     }
                     Err(error) if error == DOWNLOAD_CANCELLED_MESSAGE => {
                         self.push_runtime_log("Music download cancelled".to_owned());
-                        self.last_action = self.tr("state.download_stopped").to_owned();
+                        self.last_action = "Download stopped.".to_owned();
                     }
                     Err(error) => {
                         self.push_runtime_log(format!("Music download failed: {error}"));
@@ -3579,6 +4163,30 @@ impl AppState {
 
     fn apply_music_playback_event(&mut self, event: MusicPlaybackEvent) {
         match event {
+            MusicPlaybackEvent::ToolCommandFinished {
+                item_id,
+                session_id,
+                tool,
+                action,
+                command_line,
+                success,
+            } => {
+                if !self.is_current_music_session(item_id, session_id) {
+                    return;
+                }
+                let action_id = self.push_tool_log_action("audio", "playback cache");
+                self.push_tool_log_step(
+                    action_id,
+                    if success {
+                        ToolLogStatus::Success
+                    } else {
+                        ToolLogStatus::Failed
+                    },
+                    tool,
+                    action,
+                    command_line,
+                );
+            }
             MusicPlaybackEvent::Started {
                 item_id,
                 session_id,
@@ -3606,7 +4214,7 @@ impl AppState {
                 self.mark_music_playback_state(item_id, CompactMusicState::Ready);
                 self.music_playback = None;
                 self.music_player_error = None;
-                self.last_action = self.tr("state.music_playback_finished").to_owned();
+                self.last_action = "Playback finished.".to_owned();
                 self.advance_music_after_finished(item_id);
             }
             MusicPlaybackEvent::Stopped {
@@ -3656,14 +4264,62 @@ impl AppState {
                 if let Some(item) = self.queue_item_mut_by_id(item_id) {
                     item.last_error = Some(error.clone());
                 }
-                let message = self.trf(
-                    "state.music_playback_failed",
+                let message = i18n::format_fixed_english(
+                    "Playback failed: {error}",
                     &[("{error}", error.as_str())],
                 );
                 self.music_player_error = Some(message.clone());
                 self.push_runtime_log(message.clone());
                 eprintln!("[music-stream] playback failed: {error}");
                 self.last_action = message;
+            }
+            MusicPlaybackEvent::PrefetchToolCommandFinished {
+                item_id,
+                session_id,
+                tool,
+                action,
+                command_line,
+                success,
+            } => {
+                if !self.prefetch_event_is_current(item_id, session_id) {
+                    return;
+                }
+                let action_id = self.push_tool_log_action("audio", "prefetch cache");
+                let status = if success {
+                    ToolLogStatus::Success
+                } else {
+                    ToolLogStatus::Skipped
+                };
+                self.push_tool_log_step(action_id, status, tool, action, command_line);
+            }
+            MusicPlaybackEvent::PrefetchFinished {
+                item_id,
+                session_id,
+                success,
+                error,
+            } => {
+                if !self.prefetch_event_is_current(item_id, session_id) {
+                    return;
+                }
+                if success {
+                    if let Some(started) = self.music_prefetch_started_at {
+                        let elapsed = Instant::now().duration_since(started).as_secs_f64();
+                        if elapsed.is_finite() && elapsed > 0.0 {
+                            self.music_prefetch_lead_seconds =
+                                (elapsed * MUSIC_PREFETCH_SPEED_MULTIPLIER).clamp(
+                                    MUSIC_PREFETCH_MIN_LEAD_SECONDS,
+                                    MUSIC_PREFETCH_MAX_LEAD_SECONDS,
+                                );
+                        }
+                    }
+                } else if let Some(error) = error {
+                    eprintln!("[music-prefetch] cache skipped for item={item_id}: {error}");
+                }
+                if self.music_prefetch_active_item_id == Some(item_id) {
+                    self.music_prefetch_control = None;
+                }
+                self.music_prefetch_active_item_id = None;
+                self.music_prefetch_started_at = None;
             }
         }
     }
@@ -3679,7 +4335,7 @@ impl AppState {
 
     fn add_current_url_to_music_compact_batch(&mut self) {
         if self.is_adding_batch {
-            self.last_action = self.tr("state.batch_add_running").to_owned();
+            self.last_action = "Batch add is still running.".to_owned();
             return;
         }
 
@@ -3690,7 +4346,7 @@ impl AppState {
 
         let source = self.url_input.trim();
         if source.is_empty() {
-            self.last_action = self.tr("state.no_url_to_add").to_owned();
+            self.last_action = "There is no URL to add.".to_owned();
             return;
         }
 
@@ -3709,7 +4365,8 @@ impl AppState {
                         risk,
                         music_compact: true,
                     });
-                    self.last_action = self.tr("state.video_url_contains_playlist").to_owned();
+                    self.last_action =
+                        "Detected a video URL that also contains a playlist.".to_owned();
                     return;
                 }
                 YoutubeVideoPlaylistMode::Video => {
@@ -3738,8 +4395,8 @@ impl AppState {
                     risk: Some(risk),
                     music_compact: true,
                 });
-                self.last_action = self.trf(
-                    "state.detected_high_risk_playlist",
+                self.last_action = i18n::format_fixed_english(
+                    "Detected high-risk YouTube playlist: {kind}",
                     &[("{kind}", self.tr(risk.kind.label()))],
                 );
                 return;
@@ -3766,9 +4423,11 @@ impl AppState {
                 if let Some(item) = self.queue_item_mut_by_id(existing_id) {
                     restore_music_compact_item_from_cache_hit(item, &hit);
                 }
-                self.last_action = self.tr("state.music_duplicate_with_cache").to_owned();
+                self.last_action =
+                    "Music item is already in the list; local cache was used.".to_owned();
+                self.save_active_audio_playlist_if_needed();
             } else {
-                self.last_action = self.tr("state.music_duplicate").to_owned();
+                self.last_action = "Music item is already in the list.".to_owned();
                 let use_cookies = self
                     .queue_item_by_id(existing_id)
                     .map(|item| item.selection.use_cookies)
@@ -3802,7 +4461,9 @@ impl AppState {
         self.queue_items.push(item);
         self.batch_input_push_unique(&source);
         self.url_input.clear();
-        self.last_action = self.trf("state.batch_added_title", &[("{title}", title.as_str())]);
+        self.last_action =
+            i18n::format_fixed_english("Added to batch: {title}", &[("{title}", title.as_str())]);
+        self.save_active_audio_playlist_if_needed();
         if cache_hit.is_none() {
             let use_cookies = self
                 .queue_item_by_id(item_id)
@@ -3810,27 +4471,30 @@ impl AppState {
                 .unwrap_or(self.item_defaults.use_cookies);
             self.spawn_music_flat_update_worker(item_id, source, use_cookies);
         } else {
-            self.last_action = self.trf(
-                "state.music_added_from_cache",
+            self.last_action = i18n::format_fixed_english(
+                "Added music from local cache: {title}",
                 &[("{title}", title.as_str())],
             );
         }
     }
 
     fn spawn_music_flat_update_worker(
-        &self,
+        &mut self,
         item_id: QueueItemId,
         source: String,
         use_cookies: bool,
     ) {
         let tx = self.music_stream_result_tx.clone();
         let tool_paths = self.tool_paths.clone();
-        let untitled_task = self.tr("state.untitled_task").to_owned();
-        let imported_template = self.tr("state.imported_source").to_owned();
+        let untitled_task = "Untitled task".to_owned();
+        let imported_template = "Imported {tail}".to_owned();
+        let tool_log_action_id = self.push_tool_log_action("audio", "flat update");
         thread::spawn(move || {
+            let mut command_line = String::new();
             let result = (|| -> Result<PlaylistEntrySeed, String> {
                 let mut command =
                     tool_paths.prepare_music_flat_update_command(&source, use_cookies)?;
+                command_line = format_process_command_line(&command);
                 command
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
@@ -3883,7 +4547,7 @@ impl AppState {
                     {
                         if let Some(thumbnail_url) = select_largest_thumbnail_url(&entry) {
                             seed.thumbnail_url = thumbnail_url;
-                            seed.thumbnail_hint = "item.thumbnail_preview".to_owned();
+                            seed.thumbnail_hint = "Thumbnail preview".to_owned();
                         }
                         first_seed = Some(seed);
                         terminate_child_process(&mut child);
@@ -3913,6 +4577,18 @@ impl AppState {
                     Err(format!("yt-dlp music flat import failed: {detail}"))
                 }
             })();
+            if command_line.trim().is_empty() && result.is_err() {
+                command_line = "yt-dlp".to_owned();
+            }
+            if !command_line.trim().is_empty() {
+                let _ = tx.send(MusicStreamResolveEvent::ToolCommandFinished {
+                    action_id: tool_log_action_id,
+                    tool: "yt-dlp".to_owned(),
+                    action: "flat update".to_owned(),
+                    command_line,
+                    success: result.is_ok(),
+                });
+            }
             let _ = tx.send(MusicStreamResolveEvent::FlatUpdate {
                 item_id,
                 source,
@@ -3936,6 +4612,7 @@ impl AppState {
             if !seed.title.trim().is_empty() {
                 item.title = seed.title;
             }
+            item.music_album_title = seed.album_title;
             if !seed.thumbnail_url.trim().is_empty() {
                 item.thumbnail_url = seed.thumbnail_url;
             }
@@ -4342,7 +5019,8 @@ impl AppState {
         if requested > allowed + f32::EPSILON {
             self.music_seek_snap_ratio = Some(allowed);
             self.music_seek_snap_deadline = Some(Instant::now() + Duration::from_millis(700));
-            self.last_action = self.tr("state.music_seek_clamped").to_owned();
+            self.last_action =
+                "Outside the cached range; moved back to a playable position.".to_owned();
         } else {
             self.music_seek_snap_ratio = None;
             self.music_seek_snap_deadline = None;
@@ -4405,7 +5083,7 @@ impl AppState {
                     Some(CompactMusicState::Resolving | CompactMusicState::Buffering)
                 )
             }) {
-                self.last_action = self.tr("state.music_stream_still_preparing").to_owned();
+                self.last_action = "Music stream is still preparing.".to_owned();
                 return;
             }
         }
@@ -4423,7 +5101,7 @@ impl AppState {
         if let Some(item_id) = item_id {
             self.start_music_stream_playback(item_id);
         } else {
-            self.last_action = self.tr("state.no_playable_music_items").to_owned();
+            self.last_action = "There are no playable music items.".to_owned();
         }
     }
 
@@ -4433,7 +5111,19 @@ impl AppState {
             self.mark_music_playback_state(control.item_id, CompactMusicState::Ready);
         }
         self.music_player_current_item_id = None;
+        self.cancel_music_prefetch();
         self.media_session.clear();
+    }
+
+    fn cancel_music_prefetch(&mut self) {
+        if let Some(control) = self.music_prefetch_control.take() {
+            control.cancel();
+        }
+        self.music_prefetch_active_item_id = None;
+        self.music_prefetch_pending_item_id = None;
+        self.music_prefetch_for_current_item_id = None;
+        self.music_prefetch_started_at = None;
+        self.music_prefetch_session_id = self.music_prefetch_session_id.wrapping_add(1).max(1);
     }
 
     fn next_music_playback_session_id(&mut self) -> u64 {
@@ -4442,11 +5132,22 @@ impl AppState {
     }
 
     fn start_music_stream_playback(&mut self, item_id: QueueItemId) {
+        self.start_music_stream_playback_recorded(item_id, true);
+    }
+
+    fn start_music_stream_playback_recorded(&mut self, item_id: QueueItemId, record_history: bool) {
+        if record_history {
+            self.record_music_navigation_target(item_id);
+        }
         let session_id = self.next_music_playback_session_id();
         self.start_music_stream_playback_with_session(item_id, session_id);
     }
 
     fn start_music_stream_playback_with_session(&mut self, item_id: QueueItemId, session_id: u64) {
+        if self.music_player_current_item_id != Some(item_id) {
+            self.music_reserved_next_item_id = None;
+            self.cancel_music_prefetch();
+        }
         if let Some(previous_id) = self
             .music_player_current_item_id
             .filter(|id| *id != item_id)
@@ -4501,8 +5202,8 @@ impl AppState {
             ) {
                 Ok(command) => Some(command),
                 Err(error) => {
-                    let message = self.trf(
-                        "state.music_cache_prepare_failed",
+                    let message = i18n::format_fixed_english(
+                        "Music cache preparation failed: {error}",
                         &[("{error}", error.as_str())],
                     );
                     self.music_player_error = Some(message.clone());
@@ -4526,6 +5227,7 @@ impl AppState {
             direct_url: item.music_stream_url.clone(),
             headers: item.music_stream_headers.clone(),
             title: item.title.clone(),
+            album_title: item.music_album_title.clone(),
             thumbnail_url: item.thumbnail_url.clone(),
             duration_seconds: item.music_duration_seconds,
             ext: item.music_stream_ext.clone(),
@@ -4542,8 +5244,8 @@ impl AppState {
         self.music_playback = Some(control);
         self.music_player_current_item_id = Some(item_id);
         self.mark_music_playback_state(item_id, CompactMusicState::Buffering);
-        self.last_action = self.trf(
-            "state.preparing_music_playback",
+        self.last_action = i18n::format_fixed_english(
+            "Preparing playback: {title}",
             &[("{title}", item.title.as_str())],
         );
     }
@@ -4562,15 +5264,15 @@ impl AppState {
             return;
         };
         if item.source_url.trim().is_empty() {
-            self.last_action = self.tr("state.music_missing_source_url").to_owned();
+            self.last_action = "Music item is missing a source URL.".to_owned();
             return;
         }
         self.mark_music_playback_state(item_id, CompactMusicState::Resolving);
         self.music_player_current_item_id = Some(item_id);
         self.music_playback_session_id = session_id;
         self.music_player_error = None;
-        self.last_action = self.trf(
-            "state.resolving_music_stream",
+        self.last_action = i18n::format_fixed_english(
+            "Resolving music stream: {title}",
             &[("{title}", item.title.as_str())],
         );
 
@@ -4578,10 +5280,27 @@ impl AppState {
         let tool_paths = self.tool_paths.clone();
         let source = item.source_url.clone();
         let use_cookies = item.selection.use_cookies;
+        let tool_log_action_id = self.push_tool_log_action("audio", "resolve stream");
         thread::spawn(move || {
-            let result = tool_paths
-                .analyze_music_stream_url(&source, use_cookies)
-                .and_then(|json| music_stream_seed_from_json(&json, &source));
+            let (result, command_line, success) =
+                match tool_paths.analyze_music_stream_url_detailed(&source, use_cookies) {
+                    Ok(output) => {
+                        let command_line = output.command_line.clone();
+                        let result = music_stream_seed_from_json(&output.json, &source);
+                        (result, Some(command_line), true)
+                    }
+                    Err(error) => (Err(error.message), error.command_line, false),
+                };
+            let command_line = command_line.or_else(|| (!success).then(|| "yt-dlp".to_owned()));
+            if let Some(command_line) = command_line {
+                let _ = tx.send(MusicStreamResolveEvent::ToolCommandFinished {
+                    action_id: tool_log_action_id,
+                    tool: "yt-dlp".to_owned(),
+                    action: "resolve stream".to_owned(),
+                    command_line,
+                    success,
+                });
+            }
             let _ = tx.send(MusicStreamResolveEvent::Resolve {
                 item_id,
                 session_id,
@@ -4590,6 +5309,195 @@ impl AppState {
                 result,
             });
         });
+    }
+
+    fn maybe_prefetch_next_music_item(&mut self) {
+        if self.queue_display_mode != QueueDisplayMode::Audio {
+            return;
+        }
+        if self.music_prefetch_active_item_id.is_some()
+            || self.music_prefetch_pending_item_id.is_some()
+        {
+            return;
+        }
+        let Some(control) = self.music_playback.clone() else {
+            return;
+        };
+        if control.is_paused() {
+            return;
+        }
+        let current_item_id = control.item_id;
+        if self.music_player_current_item_id != Some(current_item_id) {
+            return;
+        }
+        if self.music_prefetch_for_current_item_id == Some(current_item_id) {
+            return;
+        }
+        let played = control.playback_seconds();
+        if played < MUSIC_PREFETCH_MIN_PLAY_SECONDS {
+            return;
+        }
+        let Some(duration) = control.duration_seconds().or_else(|| {
+            self.queue_item_by_id(current_item_id)
+                .and_then(|item| item.music_duration_seconds)
+        }) else {
+            return;
+        };
+        if duration <= 0.0 || !duration.is_finite() {
+            return;
+        }
+        let lead = self.music_prefetch_lead_seconds.clamp(
+            MUSIC_PREFETCH_MIN_LEAD_SECONDS,
+            MUSIC_PREFETCH_MAX_LEAD_SECONDS,
+        );
+        let remaining = (duration - played).max(0.0);
+        if remaining > lead {
+            return;
+        }
+
+        let allow_wrap = matches!(
+            self.music_playback_mode,
+            MusicPlaybackMode::RepeatAll | MusicPlaybackMode::Shuffle
+        );
+        let Some(next_item_id) = self.peek_next_music_item_id_for_prefetch(allow_wrap) else {
+            return;
+        };
+        if next_item_id == current_item_id {
+            return;
+        }
+        self.music_prefetch_for_current_item_id = Some(current_item_id);
+        self.start_music_prefetch_for_item(next_item_id);
+    }
+
+    fn start_music_prefetch_for_item(&mut self, item_id: QueueItemId) {
+        let Some(item) = self.queue_item_by_id(item_id).cloned() else {
+            return;
+        };
+        if self.complete_music_cache_media_path(&item).is_some() {
+            return;
+        }
+        if let Some(hit) = self.complete_music_cache_hit_for_item(&item) {
+            if let Some(target) = self.queue_item_mut_by_id(item_id) {
+                restore_music_compact_item_from_cache_hit(target, &hit);
+            }
+            self.save_active_audio_playlist_if_needed();
+            return;
+        }
+        if item.music_stream_url.trim().is_empty() || item.music_stream_format_id.trim().is_empty()
+        {
+            self.resolve_music_item_for_prefetch(item_id);
+            return;
+        }
+        self.start_resolved_music_prefetch(item);
+    }
+
+    fn resolve_music_item_for_prefetch(&mut self, item_id: QueueItemId) {
+        let Some(item) = self.queue_item_by_id(item_id).cloned() else {
+            return;
+        };
+        if item.source_url.trim().is_empty() {
+            return;
+        }
+        self.music_prefetch_pending_item_id = Some(item_id);
+        let session_id = self.next_music_prefetch_session_id();
+        let tx = self.music_stream_result_tx.clone();
+        let tool_paths = self.tool_paths.clone();
+        let source = item.source_url.clone();
+        let use_cookies = item.selection.use_cookies;
+        let tool_log_action_id = self.push_tool_log_action("audio", "prefetch resolve");
+        thread::spawn(move || {
+            let (result, command_line, success) =
+                match tool_paths.analyze_music_stream_url_detailed(&source, use_cookies) {
+                    Ok(output) => {
+                        let command_line = output.command_line.clone();
+                        let result = music_stream_seed_from_json(&output.json, &source);
+                        (result, Some(command_line), true)
+                    }
+                    Err(error) => (Err(error.message), error.command_line, false),
+                };
+            let command_line = command_line.or_else(|| (!success).then(|| "yt-dlp".to_owned()));
+            if let Some(command_line) = command_line {
+                let _ = tx.send(MusicStreamResolveEvent::ToolCommandFinished {
+                    action_id: tool_log_action_id,
+                    tool: "yt-dlp".to_owned(),
+                    action: "prefetch resolve".to_owned(),
+                    command_line,
+                    success,
+                });
+            }
+            let _ = tx.send(MusicStreamResolveEvent::Resolve {
+                item_id,
+                session_id,
+                source,
+                play_after_resolve: false,
+                result,
+            });
+        });
+    }
+
+    fn start_resolved_music_prefetch(&mut self, item: QueueItem) {
+        if self.complete_music_cache_media_path(&item).is_some() {
+            return;
+        }
+        let cache_root = self.music_stream_cache_root();
+        let cache_dir = cache_root.join(sanitize_music_cache_key(&item.music_cache_key));
+        let cache_media_path = cache_dir.join(format!(
+            "audio.{}",
+            sanitize_music_cache_ext(&item.music_stream_ext)
+        ));
+        let cache_command = match self.tool_paths.prepare_music_stream_cache_command(
+            &item.source_url,
+            &cache_media_path,
+            &item.music_stream_format_id,
+            item.selection.use_cookies,
+        ) {
+            Ok(command) => Some(command),
+            Err(error) => {
+                eprintln!(
+                    "[music-prefetch] prepare skipped for item={}: {error}",
+                    item.id
+                );
+                return;
+            }
+        };
+
+        let session_id = self.next_music_prefetch_session_id();
+        self.music_prefetch_active_item_id = Some(item.id);
+        self.music_prefetch_started_at = Some(Instant::now());
+        let stream = ResolvedMusicStream {
+            item_id: item.id,
+            session_id,
+            source_url: item.source_url.clone(),
+            direct_url: item.music_stream_url.clone(),
+            headers: item.music_stream_headers.clone(),
+            title: item.title.clone(),
+            album_title: item.music_album_title.clone(),
+            thumbnail_url: item.thumbnail_url.clone(),
+            duration_seconds: item.music_duration_seconds,
+            ext: item.music_stream_ext.clone(),
+            format_id: item.music_stream_format_id.clone(),
+            acodec: item.music_stream_acodec.clone(),
+            cache_key: item.music_cache_key.clone(),
+            expected_bytes: item.music_stream_expected_bytes,
+            cache_root,
+            cache_command,
+            volume: 0.0,
+        };
+        let control = music_stream::spawn_music_stream_prefetch(
+            stream,
+            self.music_playback_event_tx.clone(),
+        );
+        self.music_prefetch_control = Some(control);
+    }
+
+    fn next_music_prefetch_session_id(&mut self) -> u64 {
+        self.music_prefetch_session_id = self.music_prefetch_session_id.wrapping_add(1).max(1);
+        self.music_prefetch_session_id
+    }
+
+    fn prefetch_event_is_current(&self, item_id: QueueItemId, session_id: u64) -> bool {
+        self.music_prefetch_active_item_id == Some(item_id)
+            && self.music_prefetch_session_id == session_id
     }
 
     fn music_item_can_play(&self, item_id: QueueItemId) -> bool {
@@ -4623,7 +5531,7 @@ impl AppState {
             if self.music_playback.is_some() {
                 self.toggle_music_playback();
             } else {
-                self.last_action = self.tr("state.music_stream_still_resolving").to_owned();
+                self.last_action = "Music stream is still resolving.".to_owned();
             }
             return;
         }
@@ -4631,15 +5539,13 @@ impl AppState {
             self.start_music_stream_playback(item_id);
         } else if let Some(item) = self.queue_item_by_id(item_id) {
             let message = match item.compact_music_state {
-                Some(CompactMusicState::Resolving) => {
-                    self.tr("state.music_stream_still_resolving").to_owned()
-                }
-                Some(CompactMusicState::Buffering) => self.tr("state.music_buffering").to_owned(),
+                Some(CompactMusicState::Resolving) => "Music stream is still resolving.".to_owned(),
+                Some(CompactMusicState::Buffering) => "Music is buffering.".to_owned(),
                 Some(CompactMusicState::Failed) => item
                     .last_error
                     .clone()
-                    .unwrap_or_else(|| self.tr("state.music_item_not_playable").to_owned()),
-                _ => self.tr("state.music_stream_not_ready").to_owned(),
+                    .unwrap_or_else(|| "This music item cannot be played right now.".to_owned()),
+                _ => "Music stream is not ready yet.".to_owned(),
             };
             self.last_action = message;
         }
@@ -4647,18 +5553,38 @@ impl AppState {
 
     pub fn previous_music_item(&mut self) {
         let Some(item_id) = self.previous_music_item_id() else {
-            self.last_action = self.tr("state.no_previous_music").to_owned();
+            self.last_action = "No previous track.".to_owned();
             return;
         };
-        self.start_music_stream_playback(item_id);
+        if let Some(current) = self
+            .music_player_current_item_id
+            .filter(|id| *id != item_id)
+        {
+            self.music_history_forward.push(current);
+        }
+        self.request_music_scroll_to_item(item_id);
+        self.start_music_stream_playback_recorded(item_id, false);
     }
 
     pub fn next_music_item(&mut self) {
         let Some(item_id) = self.next_music_item_id(false) else {
-            self.last_action = self.tr("state.no_next_music").to_owned();
+            self.last_action = "No next track.".to_owned();
             return;
         };
-        self.start_music_stream_playback(item_id);
+        self.request_music_scroll_to_item(item_id);
+        self.start_music_stream_playback_recorded(item_id, true);
+    }
+
+    fn request_music_scroll_to_item(&mut self, item_id: QueueItemId) {
+        self.music_scroll_to_item_id = Some(item_id);
+    }
+
+    pub fn take_music_scroll_to_item_request(&mut self, item_id: QueueItemId) -> bool {
+        if self.music_scroll_to_item_id == Some(item_id) {
+            self.music_scroll_to_item_id = None;
+            return true;
+        }
+        false
     }
 
     pub fn cycle_music_playback_mode(&mut self) {
@@ -4666,18 +5592,12 @@ impl AppState {
         self.config.music_playback_mode = self.music_playback_mode.config_value().to_owned();
         let _ = self.config.save();
         let mode_label = self.tr(self.music_playback_mode.label_key()).to_owned();
-        self.last_action = self.trf(
-            "state.music_playback_mode_changed",
-            &[("{mode}", mode_label.as_str())],
-        );
+        self.last_action =
+            i18n::format_fixed_english("Playback mode: {mode}", &[("{mode}", mode_label.as_str())]);
     }
 
     pub fn music_playback_mode_text(&self) -> &'static str {
         self.tr(self.music_playback_mode.label_key())
-    }
-
-    pub fn music_playback_mode_tooltip(&self) -> &'static str {
-        self.tr(self.music_playback_mode.tooltip_key())
     }
 
     pub fn music_playback_mode_kind(&self) -> MusicPlaybackMode {
@@ -4697,7 +5617,17 @@ impl AppState {
         }
     }
 
-    fn previous_music_item_id(&self) -> Option<QueueItemId> {
+    fn previous_music_item_id(&mut self) -> Option<QueueItemId> {
+        while let Some(item_id) = self.music_history_back.pop() {
+            if self.music_item_can_play(item_id) {
+                return Some(item_id);
+            }
+        }
+
+        if self.music_playback_mode == MusicPlaybackMode::Shuffle {
+            return None;
+        }
+
         let items = self.music_playable_item_ids();
         if items.is_empty() {
             return None;
@@ -4714,26 +5644,44 @@ impl AppState {
         }
     }
 
-    fn next_music_item_id(&self, allow_wrap: bool) -> Option<QueueItemId> {
+    fn next_music_item_id(&mut self, allow_wrap: bool) -> Option<QueueItemId> {
+        if self.music_playback_mode == MusicPlaybackMode::Shuffle {
+            while let Some(item_id) = self.music_history_forward.pop() {
+                if self.music_item_can_play(item_id) {
+                    return Some(item_id);
+                }
+            }
+            if let Some(item_id) = self
+                .music_reserved_next_item_id
+                .take()
+                .filter(|id| self.music_item_can_play(*id))
+            {
+                return Some(item_id);
+            }
+            return self.random_music_next_item_id(allow_wrap);
+        }
+        self.ordered_next_music_item_id(allow_wrap)
+    }
+
+    fn peek_next_music_item_id_for_prefetch(&mut self, allow_wrap: bool) -> Option<QueueItemId> {
+        if self.music_playback_mode == MusicPlaybackMode::Shuffle {
+            if let Some(item_id) = self
+                .music_reserved_next_item_id
+                .filter(|id| self.music_item_can_play(*id))
+            {
+                return Some(item_id);
+            }
+            let item_id = self.random_music_next_item_id(allow_wrap)?;
+            self.music_reserved_next_item_id = Some(item_id);
+            return Some(item_id);
+        }
+        self.ordered_next_music_item_id(allow_wrap)
+    }
+
+    fn ordered_next_music_item_id(&self, allow_wrap: bool) -> Option<QueueItemId> {
         let items = self.music_playable_item_ids();
         if items.is_empty() {
             return None;
-        }
-        if self.music_playback_mode == MusicPlaybackMode::Shuffle && items.len() > 1 {
-            let current = self.music_player_current_item_id;
-            let mut candidates = items
-                .iter()
-                .copied()
-                .filter(|id| Some(*id) != current)
-                .collect::<Vec<_>>();
-            if candidates.is_empty() {
-                candidates = items;
-            }
-            let seed = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|duration| duration.as_nanos() as usize)
-                .unwrap_or(0);
-            return candidates.get(seed % candidates.len()).copied();
         }
         let Some(current) = self.music_player_current_item_id else {
             return items.first().copied();
@@ -4748,6 +5696,57 @@ impl AppState {
             items.first().copied()
         } else {
             None
+        }
+    }
+
+    fn random_music_next_item_id(&self, allow_wrap: bool) -> Option<QueueItemId> {
+        let items = self.music_playable_item_ids();
+        if items.is_empty() {
+            return None;
+        }
+        let current = self.music_player_current_item_id;
+        let candidates = items
+            .iter()
+            .copied()
+            .filter(|id| Some(*id) != current)
+            .collect::<Vec<_>>();
+        if candidates.is_empty() {
+            return allow_wrap.then(|| items[0]);
+        }
+        let seed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos() as usize)
+            .unwrap_or(0);
+        candidates.get(seed % candidates.len()).copied()
+    }
+
+    fn record_music_navigation_target(&mut self, item_id: QueueItemId) {
+        let Some(current) = self.music_player_current_item_id else {
+            return;
+        };
+        if current == item_id {
+            return;
+        }
+        if self.music_history_back.last().copied() != Some(current) {
+            self.music_history_back.push(current);
+        }
+        if self.music_history_back.len() > MUSIC_PLAY_HISTORY_LIMIT {
+            let excess = self.music_history_back.len() - MUSIC_PLAY_HISTORY_LIMIT;
+            self.music_history_back.drain(0..excess);
+        }
+        self.music_history_forward.clear();
+    }
+
+    fn prune_music_navigation_state(&mut self) {
+        let playable = self.music_playable_item_ids();
+        self.music_history_back.retain(|id| playable.contains(id));
+        self.music_history_forward
+            .retain(|id| playable.contains(id));
+        if self
+            .music_reserved_next_item_id
+            .is_some_and(|id| !playable.contains(&id))
+        {
+            self.music_reserved_next_item_id = None;
         }
     }
 
@@ -4821,6 +5820,7 @@ impl AppState {
                 cache_key,
                 source_url: manifest_source,
                 title: json_str_field(&json, "title").unwrap_or_default(),
+                album_title: json_str_field(&json, "album_title").unwrap_or_default(),
                 thumbnail_url: json_str_field(&json, "thumbnail_url").unwrap_or_default(),
                 duration_seconds: json_f64_field(&json, "duration_seconds"),
                 ext,
@@ -4924,6 +5924,128 @@ impl AppState {
             .join("music-stream")
     }
 
+    fn audio_playlist_snapshot_path(&self) -> PathBuf {
+        crate::infrastructure::resolve_output_dir(&self.tool_paths.cache_dir)
+            .unwrap_or_else(|_| PathBuf::from(&self.tool_paths.cache_dir))
+            .join("music-playlist.json")
+    }
+
+    fn restore_saved_audio_playlist(&mut self) {
+        let items = self.load_audio_playlist_snapshot_items();
+        if self.queue_display_mode == QueueDisplayMode::Audio {
+            self.queue_items = items;
+            self.rebuild_batch_input_from_queue();
+        } else {
+            self.audio_queue_items = items;
+        }
+    }
+
+    fn load_audio_playlist_snapshot_items(&mut self) -> Vec<QueueItem> {
+        let path = self.audio_playlist_snapshot_path();
+        let Ok(data) = fs::read_to_string(&path) else {
+            return Vec::new();
+        };
+        let Ok(snapshot) = serde_json::from_str::<AudioPlaylistSnapshot>(&data) else {
+            return Vec::new();
+        };
+        snapshot
+            .items
+            .into_iter()
+            .filter_map(|entry| self.queue_item_from_audio_playlist_snapshot(entry))
+            .collect()
+    }
+
+    fn queue_item_from_audio_playlist_snapshot(
+        &mut self,
+        entry: AudioPlaylistItemSnapshot,
+    ) -> Option<QueueItem> {
+        let source = entry.source_url.trim().to_owned();
+        if source.is_empty() {
+            return None;
+        }
+        let mut item = self.build_queue_item_from_url(&source);
+        item.view_kind = QueueItemViewKind::MusicCompact;
+        item.compact_music_state = Some(CompactMusicState::Ready);
+        item.metadata_state = MetadataState::Idle;
+        if !entry.title.trim().is_empty() {
+            item.title = entry.title;
+        }
+        item.music_album_title = entry.album_title;
+        item.thumbnail_hint = if entry.thumbnail_hint.trim().is_empty() {
+            "item.thumbnail".to_owned()
+        } else {
+            entry.thumbnail_hint
+        };
+        item.thumbnail_url = entry.thumbnail_url;
+        item.duration_text = entry.duration_text;
+        item.music_duration_seconds = entry
+            .duration_seconds
+            .or_else(|| duration_text_to_seconds(&item.duration_text));
+        item.music_stream_url.clear();
+        item.music_stream_headers.clear();
+        item.music_stream_ext = entry.stream_ext;
+        item.music_stream_format_id = entry.stream_format_id;
+        item.music_stream_acodec = entry.stream_acodec;
+        item.music_stream_expected_bytes = entry.expected_bytes;
+        item.music_cache_key = if entry.cache_key.trim().is_empty() {
+            music_cache_key(&item.source_url, "flat", "", "")
+        } else {
+            entry.cache_key
+        };
+        item.selection.use_cookies = entry.use_cookies;
+        item.last_error = None;
+        self.restore_music_compact_cache_hit_for_item(&mut item);
+        Some(item)
+    }
+
+    fn save_active_audio_playlist_if_needed(&self) {
+        if self.queue_display_mode == QueueDisplayMode::Audio {
+            self.save_audio_playlist_items(&self.queue_items);
+        } else {
+            self.save_audio_playlist_items(&self.audio_queue_items);
+        }
+    }
+
+    fn save_audio_playlist_items(&self, items: &[QueueItem]) {
+        let snapshot = AudioPlaylistSnapshot {
+            version: 1,
+            items: items
+                .iter()
+                .filter(|item| item.view_kind == QueueItemViewKind::MusicCompact)
+                .filter(|item| !item.source_url.trim().is_empty())
+                .map(audio_playlist_item_snapshot)
+                .collect(),
+        };
+        let path = self.audio_playlist_snapshot_path();
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        match serde_json::to_vec_pretty(&snapshot) {
+            Ok(data) => {
+                let _ = fs::write(path, data);
+            }
+            Err(error) => {
+                eprintln!("[music-playlist] save skipped: {error}");
+            }
+        }
+    }
+
+    fn rebuild_batch_input_from_queue(&mut self) {
+        self.batch_input = self
+            .queue_items
+            .iter()
+            .filter(|item| !item.source_url.trim().is_empty())
+            .map(|item| item.source_url.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
+    }
+
+    fn restore_music_compact_cache_hit_for_item(&self, item: &mut QueueItem) {
+        if let Some(hit) = self.complete_music_cache_hit_for_item(item) {
+            restore_music_compact_item_from_cache_hit(item, &hit);
+        }
+    }
+
     pub fn queue_summary(&self) -> QueueSummary {
         let mut summary = QueueSummary::default();
         summary.total = self.queue_items.len();
@@ -4963,7 +6085,7 @@ impl AppState {
 
     pub fn resolved_output_dir_display(&self) -> String {
         if self.output_dir_locked_by_config() {
-            return self.tr("state.controlled_by_config").to_owned();
+            return "Controlled by config".to_owned();
         }
         let path = self.item_defaults.output_dir.as_str();
         resolve_output_dir(path)
@@ -4973,7 +6095,7 @@ impl AppState {
 
     pub fn output_dir_display(&self) -> String {
         if self.output_dir_locked_by_config() {
-            return self.tr("state.controlled_by_config").to_owned();
+            return "Controlled by config".to_owned();
         }
         let path = self.item_defaults.output_dir.as_str();
         display_output_dir(path)
@@ -4998,12 +6120,30 @@ impl AppState {
         }
     }
 
-    pub fn tr(&self, key: &'static str) -> &'static str {
+    pub fn ui_tr(&self, key: &'static str) -> &'static str {
+        // UI-owned translation only.
+        // Use this for stable labels, buttons, tabs, menus, dialogs, and visible UI copy.
+        // Runtime/status/tool/internal messages should stay fixed English unless a UI zone
+        // explicitly owns the wording.
         i18n::text(self.language(), key)
     }
 
-    pub fn trf(&self, key: &'static str, args: &[(&str, &str)]) -> String {
+    pub fn ui_trf(&self, key: &'static str, args: &[(&str, &str)]) -> String {
+        // UI-owned formatted translation only.
+        // Do not use this for generated tool/status/diagnostic messages.
         i18n::format_text(self.language(), key, args)
+    }
+
+    pub fn tr(&self, key: &'static str) -> &'static str {
+        // Compatibility wrapper during zone-by-zone migration.
+        // New or migrated UI zones should call ui_tr(...) so the ownership boundary is visible.
+        self.ui_tr(key)
+    }
+
+    pub fn trf(&self, key: &'static str, args: &[(&str, &str)]) -> String {
+        // Compatibility wrapper during zone-by-zone migration.
+        // New or migrated UI zones should call ui_trf(...).
+        self.ui_trf(key, args)
     }
 
     pub fn localize_message(&self, value: &str) -> String {
@@ -5225,16 +6365,16 @@ impl AppState {
                 )
         })?;
 
-        Some(self.trf(
-            "state.install_blocked_by_prepare",
+        Some(i18n::format_fixed_english(
+            "Handle {items} before installing dependency tools.",
             &[("{items}", blocking_issue.title.as_str())],
         ))
     }
 
     pub fn install_all_prepare_tools(&mut self) {
         if let Some(active) = self.installing_dependency_tool {
-            self.last_action = self.trf(
-                "state.tool_deployment_running",
+            self.last_action = i18n::format_fixed_english(
+                "{tool} deployment is still running.",
                 &[("{tool}", active.label())],
             );
             return;
@@ -5247,7 +6387,7 @@ impl AppState {
 
         let tools = self.prepare_tools_to_install_all();
         if tools.is_empty() {
-            self.last_action = self.tr("state.no_tools_to_install").to_owned();
+            self.last_action = "There are no tools to install.".to_owned();
             return;
         }
 
@@ -5259,8 +6399,8 @@ impl AppState {
 
     pub fn install_selected_prepare_tools(&mut self) {
         if let Some(active) = self.installing_dependency_tool {
-            self.last_action = self.trf(
-                "state.tool_deployment_running",
+            self.last_action = i18n::format_fixed_english(
+                "{tool} deployment is still running.",
                 &[("{tool}", active.label())],
             );
             return;
@@ -5273,7 +6413,7 @@ impl AppState {
 
         let tools = self.prepare_selected_tools_to_install();
         if tools.is_empty() {
-            self.last_action = self.tr("state.no_selected_tools_to_install").to_owned();
+            self.last_action = "There are no selected deployable items.".to_owned();
             return;
         }
 
@@ -5293,14 +6433,16 @@ impl AppState {
                 if self.active_tab == AppTab::Prepare {
                     self.active_tab = AppTab::Main;
                 }
-                self.last_action = self.tr("state.prepare_skipped").to_owned();
+                self.last_action =
+                    "Prepare page skipped. You can handle dependency deployment later in Options."
+                        .to_owned();
             }
             Err(error) => {
                 self.config.prepare_skipped = previous_prepare_skipped;
                 self.prepare_tab_snoozed = false;
                 let localized_error = self.localize_message(&error);
-                self.last_action = self.trf(
-                    "state.skip_failed",
+                self.last_action = i18n::format_fixed_english(
+                    "Skip failed: {error}",
                     &[("{error}", localized_error.as_str())],
                 );
                 self.refresh_prepare_report();
@@ -5392,8 +6534,8 @@ impl AppState {
 
     pub fn install_dependency_tool(&mut self, tool: DependencyTool) {
         if let Some(active) = self.installing_dependency_tool {
-            self.last_action = self.trf(
-                "state.tool_deployment_running",
+            self.last_action = i18n::format_fixed_english(
+                "{tool} deployment is still running.",
                 &[("{tool}", active.label())],
             );
             return;
@@ -5416,11 +6558,11 @@ impl AppState {
                 tool,
                 stage: ToolInstallStage::Preparing,
                 percent: None,
-                message: self.tr("state.preparing_deployment").to_owned(),
+                message: "Preparing deployment".to_owned(),
             },
         );
-        self.last_action = self.trf(
-            "state.tool_downloading_deploying",
+        self.last_action = i18n::format_fixed_english(
+            "{tool} downloading and deploying...",
             &[("{tool}", tool.label())],
         );
         let proxy_url = self.tool_paths.effective_proxy_url().map(str::to_owned);
@@ -5453,14 +6595,14 @@ impl AppState {
             Some(path) => {
                 let display_path = path.display().to_string();
                 self.set_dependency_tool_path(tool, display_path.clone());
-                self.last_action = self.trf(
-                    "state.tool_auto_detected",
+                self.last_action = i18n::format_fixed_english(
+                    "{tool} detected from PATH: {path}",
                     &[("{tool}", tool.label()), ("{path}", display_path.as_str())],
                 );
             }
             None => {
-                self.last_action = self.trf(
-                    "state.tool_auto_detect_not_found",
+                self.last_action = i18n::format_fixed_english(
+                    "{tool} was not found in system PATH.",
                     &[("{tool}", tool.label())],
                 );
             }
@@ -5490,14 +6632,14 @@ impl AppState {
         }
 
         if detected.is_empty() {
-            self.last_action = self.tr("state.tools_auto_detect_none").to_owned();
+            self.last_action = "No dependency tools were found in system PATH.".to_owned();
             return;
         }
 
         let found_count = detected.len().to_string();
         let total_count = TOOLS.len().to_string();
-        let mut message = self.trf(
-            "state.tools_auto_detected",
+        let mut message = i18n::format_fixed_english(
+            "Detected {found}/{total} tools from PATH.",
             &[
                 ("{found}", found_count.as_str()),
                 ("{total}", total_count.as_str()),
@@ -5507,8 +6649,8 @@ impl AppState {
         message.push_str(&detected.join("\n"));
         if !missing.is_empty() {
             message.push_str("\n");
-            message.push_str(&self.trf(
-                "state.tools_auto_detect_missing",
+            message.push_str(&i18n::format_fixed_english(
+                "Not found in PATH: {tools}.",
                 &[("{tools}", missing.join(", ").as_str())],
             ));
         }
@@ -5533,9 +6675,9 @@ impl AppState {
             }
         }
         if self.dependency_tool_is_installed(tool) {
-            self.tr("state.found").to_owned()
+            "Found".to_owned()
         } else {
-            self.tr("state.not_found").to_owned()
+            "Not found".to_owned()
         }
     }
 
@@ -5702,13 +6844,14 @@ impl AppState {
             self.last_clipboard_text = read_clipboard_text().unwrap_or_default();
             self.last_clipboard_check = Some(Instant::now());
             self.last_action = if self.config.clipboard_auto_add {
-                self.tr("state.clipboard_monitor_enabled_auto_add")
+                "Clipboard monitor enabled; the next YouTube URL change will be added immediately."
                     .to_owned()
             } else {
-                self.tr("state.clipboard_monitor_enabled_fill").to_owned()
+                "Clipboard monitor enabled; the next YouTube URL change will fill the URL field."
+                    .to_owned()
             };
         } else {
-            self.last_action = self.tr("state.clipboard_monitor_disabled").to_owned();
+            self.last_action = "Clipboard monitor disabled.".to_owned();
         }
     }
 
@@ -5719,9 +6862,9 @@ impl AppState {
             self.last_clipboard_text = read_clipboard_text().unwrap_or_default();
             self.last_clipboard_check = Some(Instant::now());
             self.last_action = if enabled {
-                self.tr("state.clipboard_will_auto_add").to_owned()
+                "YouTube URLs will be added immediately after the clipboard changes.".to_owned()
             } else {
-                self.tr("state.clipboard_will_fill_only").to_owned()
+                "Clipboard changes will only fill the URL field.".to_owned()
             };
         }
     }
@@ -5894,9 +7037,112 @@ impl AppState {
         if message.trim().is_empty() {
             return;
         }
-        self.runtime_log.push_front(message);
-        while self.runtime_log.len() > 120 {
-            self.runtime_log.pop_back();
+        self.runtime_log.push_back(message);
+        while self.runtime_log.len() > 20 {
+            self.runtime_log.pop_front();
+        }
+    }
+
+    pub fn push_tool_log_action(
+        &mut self,
+        mode: impl Into<String>,
+        action: impl Into<String>,
+    ) -> u64 {
+        let id = self.next_tool_log_action_id;
+        self.next_tool_log_action_id = self.next_tool_log_action_id.saturating_add(1);
+        self.tool_logs.push_back(ToolLogAction {
+            id,
+            timestamp: current_log_timestamp(),
+            status: ToolLogStatus::Running,
+            mode: mode.into(),
+            action: action.into(),
+            steps: Vec::new(),
+        });
+        self.trim_tool_logs();
+        id
+    }
+
+    pub fn push_tool_log_step(
+        &mut self,
+        action_id: u64,
+        status: ToolLogStatus,
+        tool: impl Into<String>,
+        action: impl Into<String>,
+        command: impl Into<String>,
+    ) -> u64 {
+        let id = self.next_tool_log_step_id;
+        self.next_tool_log_step_id = self.next_tool_log_step_id.saturating_add(1);
+        if let Some(parent) = self
+            .tool_logs
+            .iter_mut()
+            .find(|entry| entry.id == action_id)
+        {
+            parent.steps.push(ToolLogStep {
+                id,
+                status,
+                tool: tool.into(),
+                action: action.into(),
+                command: command.into(),
+            });
+            parent.status = aggregate_tool_log_status(&parent.steps);
+            if status == ToolLogStatus::Failed {
+                self.reveal_log_tab_for_tool_failure();
+            }
+        }
+        id
+    }
+
+    pub fn workflow_tool_log_action(
+        &mut self,
+        workflow_id: WorkflowRunId,
+        mode: impl Into<String>,
+        action: impl Into<String>,
+    ) -> u64 {
+        if let Some(action_id) = self.tool_log_action_by_workflow.get(&workflow_id).copied() {
+            if self.tool_logs.iter().any(|entry| entry.id == action_id) {
+                return action_id;
+            }
+        }
+        let action_id = self.push_tool_log_action(mode, action);
+        self.tool_log_action_by_workflow
+            .insert(workflow_id, action_id);
+        action_id
+    }
+
+    pub fn finish_workflow_tool_log(&mut self, workflow_id: WorkflowRunId) {
+        self.tool_log_action_by_workflow.remove(&workflow_id);
+    }
+
+    pub fn enter_log_tab(&mut self) {
+        self.config.show_log_tab = true;
+        self.active_tab = AppTab::Log;
+        self.collapse_tool_log_viewer();
+    }
+
+    fn reveal_log_tab_for_tool_failure(&mut self) {
+        self.enter_log_tab();
+    }
+
+    fn collapse_tool_log_viewer(&mut self) {
+        self.log_viewer_expanded_action = None;
+        self.log_viewer_selected_step = None;
+    }
+
+    fn trim_tool_logs(&mut self) {
+        while self.tool_logs.len() > 20 {
+            let removed = self.tool_logs.pop_front();
+            if let Some(removed) = removed {
+                if self.log_viewer_expanded_action == Some(removed.id) {
+                    self.log_viewer_expanded_action = None;
+                }
+                if let Some(selected_step) = self.log_viewer_selected_step {
+                    if removed.steps.iter().any(|step| step.id == selected_step) {
+                        self.log_viewer_selected_step = None;
+                    }
+                }
+                self.tool_log_action_by_workflow
+                    .retain(|_, action_id| *action_id != removed.id);
+            }
         }
     }
 
@@ -5924,7 +7170,7 @@ impl AppState {
 
     pub fn cache_location_display(&self) -> String {
         match self.tool_paths.cache_mode {
-            CacheLocationMode::YtDlpDefault => self.tr("state.cache_yt_dlp_default").to_owned(),
+            CacheLocationMode::YtDlpDefault => "yt-dlp default".to_owned(),
             CacheLocationMode::V2Cache => {
                 crate::infrastructure::resolve_output_dir(&self.tool_paths.cache_dir)
                     .map(|path| path.display().to_string())
@@ -5971,15 +7217,17 @@ impl AppState {
                 self.refresh_cache_management_summary();
                 let count = summary.entries.to_string();
                 let size = format_byte_size(summary.bytes);
-                self.last_action = self.trf(
-                    "state.cache_cleaned_expired",
+                self.last_action = i18n::format_fixed_english(
+                    "Cleared {count} expired cache entries ({size}).",
                     &[("{count}", count.as_str()), ("{size}", size.as_str())],
                 );
             }
             Err(error) => {
                 let error = error.to_string();
-                self.last_action =
-                    self.trf("state.cache_cleanup_failed", &[("{error}", error.as_str())]);
+                self.last_action = i18n::format_fixed_english(
+                    "Cache cleanup failed: {error}",
+                    &[("{error}", error.as_str())],
+                );
             }
         }
     }
@@ -5992,15 +7240,17 @@ impl AppState {
                 self.refresh_cache_management_summary();
                 let count = summary.entries.to_string();
                 let size = format_byte_size(summary.bytes);
-                self.last_action = self.trf(
-                    "state.cache_cleaned_audio",
+                self.last_action = i18n::format_fixed_english(
+                    "Cleared audio cache: {count} entries ({size}).",
                     &[("{count}", count.as_str()), ("{size}", size.as_str())],
                 );
             }
             Err(error) => {
                 let error = error.to_string();
-                self.last_action =
-                    self.trf("state.cache_cleanup_failed", &[("{error}", error.as_str())]);
+                self.last_action = i18n::format_fixed_english(
+                    "Cache cleanup failed: {error}",
+                    &[("{error}", error.as_str())],
+                );
             }
         }
     }
@@ -6013,15 +7263,17 @@ impl AppState {
                 self.refresh_cache_management_summary();
                 let count = summary.entries.to_string();
                 let size = format_byte_size(summary.bytes);
-                self.last_action = self.trf(
-                    "state.cache_cleaned_all",
+                self.last_action = i18n::format_fixed_english(
+                    "Cleared app cache: {count} entries ({size}).",
                     &[("{count}", count.as_str()), ("{size}", size.as_str())],
                 );
             }
             Err(error) => {
                 let error = error.to_string();
-                self.last_action =
-                    self.trf("state.cache_cleanup_failed", &[("{error}", error.as_str())]);
+                self.last_action = i18n::format_fixed_english(
+                    "Cache cleanup failed: {error}",
+                    &[("{error}", error.as_str())],
+                );
             }
         }
     }
@@ -6046,7 +7298,8 @@ impl AppState {
         self.is_adding_batch = true;
         self.is_cancelling_batch_add = false;
         self.batch_add_music_compact = music_compact;
-        self.last_action = self.trf("state.adding_source", &[("{source}", source.as_str())]);
+        self.last_action =
+            i18n::format_fixed_english("Adding: {source}", &[("{source}", source.as_str())]);
 
         let tool_paths = self.tool_paths.clone();
         let source_for_worker = source.clone();
@@ -6060,8 +7313,14 @@ impl AppState {
             .config
             .batch_limit_enabled
             .then_some(self.config.batch_limit_count.max(1));
-        let untitled_task = self.tr("state.untitled_task").to_owned();
-        let imported_template = self.tr("state.imported_source").to_owned();
+        let untitled_task = "Untitled task".to_owned();
+        let imported_template = "Imported {tail}".to_owned();
+        let log_mode = if music_compact {
+            "audio".to_owned()
+        } else {
+            self.app_mode.config_value().to_owned()
+        };
+        let tool_log_action_id = self.push_tool_log_action(log_mode, "batch import");
 
         thread::spawn(move || {
             run_batch_add_worker(
@@ -6071,6 +7330,7 @@ impl AppState {
                 untitled_task,
                 imported_template,
                 music_compact,
+                tool_log_action_id,
                 tx,
                 child_handle,
                 cancel_requested,
@@ -6207,9 +7467,8 @@ impl AppState {
 
         let item_id = if self.app_mode == AppMode::Origin {
             if !self.active_workflows.is_empty() {
-                self.last_action = self
-                    .tr("state.single_mode_wait_for_current_item")
-                    .to_owned();
+                self.last_action =
+                    "Wait for the current Origin Mode item to finish first.".to_owned();
                 return;
             }
             self.stop_music_playback();
@@ -6225,13 +7484,9 @@ impl AppState {
         if self.app_mode != AppMode::Origin {
             self.url_input.clear();
         }
-        let fallback_title = infer_title(
-            &source,
-            self.tr("state.untitled_task"),
-            self.tr("state.imported_source"),
-        );
-        self.last_action = self.trf(
-            "state.added_to_list",
+        let fallback_title = infer_title(&source, "Untitled task", "Imported {tail}");
+        self.last_action = i18n::format_fixed_english(
+            "Added to list: {title}",
             &[("{title}", fallback_title.as_str())],
         );
         self.enqueue_item_analysis(item_id, source);
@@ -6681,19 +7936,21 @@ impl AppState {
         }
 
         self.last_action = match kind {
-            FormatPickerKind::Section if selected_format_id.trim().is_empty() => self.trf(
-                "state.range_set_item_full",
-                &[("{index}", &(target_item_id + 1).to_string())],
-            ),
-            FormatPickerKind::Section => self.trf(
-                "state.range_set_item_value",
+            FormatPickerKind::Section if selected_format_id.trim().is_empty() => {
+                i18n::format_fixed_english(
+                    "Download range set: Item {index} / Full video",
+                    &[("{index}", &(target_item_id + 1).to_string())],
+                )
+            }
+            FormatPickerKind::Section => i18n::format_fixed_english(
+                "Download range set: Item {index} / {value}",
                 &[
                     ("{index}", &(target_item_id + 1).to_string()),
                     ("{value}", selected_format_id),
                 ],
             ),
-            _ => self.trf(
-                "state.format_selection_updated",
+            _ => i18n::format_fixed_english(
+                "Format selection updated: Item {index} / {kind} / {value}",
                 &[
                     ("{index}", &(target_item_id + 1).to_string()),
                     ("{kind}", kind.label()),
@@ -6775,7 +8032,7 @@ impl AppState {
         if item.selection.subtitle_source == SubtitleSource::None
             || item.selection.subtitle_selector.is_empty()
         {
-            return self.tr("tools.subtitle_source.none").to_owned();
+            return self.tr("picker.subtitle_tab.none").to_owned();
         }
 
         self.subtitle_track_by_id(&item.selection.subtitle_selector, item.metadata())
@@ -6791,9 +8048,9 @@ impl AppState {
 
     pub fn subtitle_source_label(&self, source: SubtitleSource) -> &'static str {
         match source {
-            SubtitleSource::None => self.tr("tools.subtitle_source.none"),
-            SubtitleSource::Original => self.tr("tools.subtitle_source.original"),
-            SubtitleSource::Automatic => self.tr("tools.subtitle_source.automatic"),
+            SubtitleSource::None => self.tr("picker.subtitle_tab.none"),
+            SubtitleSource::Original => self.tr("picker.subtitle_tab.original"),
+            SubtitleSource::Automatic => self.tr("picker.subtitle_tab.automatic"),
         }
     }
 
@@ -6895,10 +8152,13 @@ impl AppState {
         item.selection.download_sections = value.clone();
         item.completed_selection = None;
         self.last_action = if value.is_empty() {
-            self.trf("state.range_set_title_full", &[("{title}", title.as_str())])
+            i18n::format_fixed_english(
+                "Download range set: {title} / Full video",
+                &[("{title}", title.as_str())],
+            )
         } else {
-            self.trf(
-                "state.range_set_title_value",
+            i18n::format_fixed_english(
+                "Download range set: {title} / {value}",
                 &[("{title}", title.as_str()), ("{value}", value.as_str())],
             )
         };
@@ -7009,8 +8269,8 @@ impl AppState {
     ) {
         if json.get("entries").and_then(Value::as_array).is_some() {
             let target = analyzed_source.unwrap_or_else(|| "playlist".to_owned());
-            self.last_action = self.trf(
-                "state.playlist_ignored_for_now",
+            self.last_action = i18n::format_fixed_english(
+                "Playlist is ignored for now: {target}",
                 &[("{target}", target.as_str())],
             );
             return;
@@ -7019,7 +8279,7 @@ impl AppState {
         let title = json
             .get("title")
             .and_then(Value::as_str)
-            .unwrap_or(self.tr("state.untitled_video"))
+            .unwrap_or("Untitled video")
             .to_owned();
         let webpage_url = json
             .get("webpage_url")
@@ -7051,7 +8311,7 @@ impl AppState {
         let thumbnail_hint = json
             .get("thumbnail")
             .and_then(Value::as_str)
-            .map(|_| "item.thumbnail_preview".to_owned())
+            .map(|_| "Thumbnail preview".to_owned())
             .unwrap_or_else(|| "item.thumbnail".to_owned());
         let thumbnail_url = select_best_thumbnail_url(&json).unwrap_or_default();
 
@@ -7060,7 +8320,7 @@ impl AppState {
         let subtitle_tracks = extract_subtitle_tracks(&json);
         let chapters = extract_chapters(&json, |index| {
             let number = (index + 1).to_string();
-            self.trf("state.chapter_fallback", &[("{index}", number.as_str())])
+            i18n::format_fixed_english("Chapter {index}", &[("{index}", number.as_str())])
         });
 
         let metadata = VideoMetadata {
@@ -7176,8 +8436,8 @@ impl AppState {
         let analyzed_target = analyzed_source
             .or_else(|| (!metadata.webpage_url.is_empty()).then(|| metadata.webpage_url.clone()))
             .unwrap_or_else(|| title.clone());
-        self.last_action = self.trf(
-            "state.analysis_complete",
+        self.last_action = i18n::format_fixed_english(
+            "Analysis complete: {title}",
             &[("{title}", analyzed_target.as_str())],
         );
     }
@@ -7307,11 +8567,7 @@ fn normalized_export_extension(value: &str) -> Option<String> {
     }
 }
 
-fn validate_export_extension(
-    language: Language,
-    kind: DownloadTargetKind,
-    extension: &str,
-) -> Result<(), String> {
+fn validate_export_extension(kind: DownloadTargetKind, extension: &str) -> Result<(), String> {
     let valid = match kind {
         DownloadTargetKind::Video => matches!(extension, "mkv" | "mp4" | "webm" | "mov" | "flv"),
         DownloadTargetKind::Audio => {
@@ -7342,14 +8598,10 @@ fn validate_export_extension(
         Ok(())
     } else {
         Err(match kind {
-            DownloadTargetKind::Video => {
-                i18n::text(language, "state.video_extension_error").to_owned()
-            }
-            DownloadTargetKind::Audio => {
-                i18n::text(language, "state.audio_extension_error").to_owned()
-            }
+            DownloadTargetKind::Video => "Could not determine the video file extension.".to_owned(),
+            DownloadTargetKind::Audio => "Could not determine the audio file extension.".to_owned(),
             DownloadTargetKind::Subtitle => {
-                i18n::text(language, "state.subtitle_extension_error").to_owned()
+                "Could not determine the subtitle file extension.".to_owned()
             }
             DownloadTargetKind::Normal => String::new(),
         })
@@ -7400,7 +8652,7 @@ fn flat_music_entries_from_url(
         {
             if let Some(thumbnail_url) = select_largest_thumbnail_url(&entry) {
                 seed.thumbnail_url = thumbnail_url;
-                seed.thumbnail_hint = "item.thumbnail_preview".to_owned();
+                seed.thumbnail_hint = "Thumbnail preview".to_owned();
             }
             seeds.push(seed);
         }
@@ -7502,6 +8754,7 @@ fn music_stream_seed_from_json(json: &Value, source: &str) -> Result<MusicStream
     let title = json_str_field(json, "title")
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| source.to_owned());
+    let album_title = music_album_title_from_json(json);
     let duration_seconds = json_f64_field(json, "duration");
     let duration_text = json_str_field(json, "duration_string")
         .as_deref()
@@ -7537,6 +8790,7 @@ fn music_stream_seed_from_json(json: &Value, source: &str) -> Result<MusicStream
     Ok(MusicStreamSeed {
         source_url: source.to_owned(),
         title,
+        album_title,
         thumbnail_url,
         thumbnail_hint: "item.thumbnail".to_owned(),
         duration_text,
@@ -7869,6 +9123,13 @@ fn json_str_field(value: &Value, key: &str) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
+fn music_album_title_from_json(value: &Value) -> String {
+    json_str_field(value, "album")
+        .or_else(|| json_str_field(value, "playlist_title"))
+        .or_else(|| json_str_field(value, "playlist"))
+        .unwrap_or_default()
+}
+
 fn json_number_or_str_field(value: &Value, key: &str) -> Option<String> {
     let value = value.get(key)?;
     if let Some(text) = value.as_str() {
@@ -8145,8 +9406,9 @@ struct MusicDownloadJob {
     workflow_id: WorkflowRunId,
     source_url: String,
     title: String,
+    album_title: String,
     output_dir: PathBuf,
-    target_format: MusicDownloadFormat,
+    choice: MusicDownloadChoice,
     source_acodec: String,
     cache_media_path: Option<PathBuf>,
     cover_path: Option<PathBuf>,
@@ -8162,18 +9424,18 @@ fn run_music_download_worker(
     child_handle: Arc<Mutex<Option<Child>>>,
     cancel_requested: Arc<AtomicBool>,
 ) {
-    if !job.cover_path.as_ref().is_some_and(|path| path.is_file()) {
+    if job.choice.embed_cover && !job.cover_path.as_ref().is_some_and(|path| path.is_file()) {
         job.cover_path = ensure_music_download_cover_path(&job);
     }
-    let has_cover = job.cover_path.as_ref().is_some_and(|path| path.is_file());
-    let online_target_available = job.cache_media_path.as_ref().is_some_and(|path| {
-        !music_cache_source_matches_target(job.target_format, path, &job.source_acodec)
-    }) && online_music_target_source_available(&tool_paths, &job);
+    let has_cover =
+        job.choice.embed_cover && job.cover_path.as_ref().is_some_and(|path| path.is_file());
+    let online_target_available = job.choice.target_format().is_some_and(|format| {
+        job.cache_media_path.as_ref().is_some_and(|path| {
+            !music_cache_source_matches_target(format, path, &job.source_acodec)
+        }) && online_music_target_source_available(&tool_paths, &job, format)
+    });
     let source_kind = match job.cache_media_path.as_ref() {
-        Some(path)
-            if music_download_format_matches_cache(job.target_format, path)
-                && !music_cached_output_needs_metadata_pass(job.target_format, has_cover) =>
-        {
+        Some(path) if music_cache_can_be_copied_for_choice(job.choice, path, has_cover) => {
             MusicDownloadSourceKind::CacheCopy
         }
         Some(_) if online_target_available => MusicDownloadSourceKind::YtDlpOnlineTarget,
@@ -8196,12 +9458,30 @@ fn run_music_download_worker(
             download_music_output_with_yt_dlp(
                 &tool_paths,
                 &job,
+                source_kind,
                 tx.clone(),
                 &child_handle,
                 &cancel_requested,
             )
         }
     };
+
+    let result = result.map(|path_text| {
+        let output_path = PathBuf::from(&path_text);
+        match ensure_music_download_album_metadata_written(
+            &tool_paths,
+            &job,
+            output_path,
+            source_kind,
+            &tx,
+        ) {
+            Ok(path) => path.display().to_string(),
+            Err(error) => {
+                eprintln!("[music-download] album metadata pass skipped: {error}");
+                path_text
+            }
+        }
+    });
 
     let _ = tx.send(MusicDownloadEvent::Finished {
         item_id: job.item_id,
@@ -8303,16 +9583,41 @@ fn music_cover_extension_from_bytes(data: &[u8]) -> &'static str {
     }
 }
 
+fn send_music_tool_command_finished(
+    tx: &Sender<MusicDownloadEvent>,
+    job: &MusicDownloadJob,
+    source_kind: MusicDownloadSourceKind,
+    tool: &str,
+    action: &str,
+    command_line: String,
+    success: bool,
+) {
+    let _ = tx.send(MusicDownloadEvent::ToolCommandFinished {
+        item_id: job.item_id,
+        workflow_id: job.workflow_id,
+        source_kind,
+        tool: tool.to_owned(),
+        action: action.to_owned(),
+        command_line,
+        success,
+    });
+}
+
 fn ensure_music_download_requested_extension(
     tool_paths: &ToolPaths,
     job: &MusicDownloadJob,
     output_path: PathBuf,
+    source_kind: MusicDownloadSourceKind,
+    tx: &Sender<MusicDownloadEvent>,
 ) -> Result<PathBuf, String> {
+    let Some(target_format) = job.choice.target_format() else {
+        return Ok(output_path);
+    };
     let current_ext = output_path
         .extension()
         .and_then(|value| value.to_str())
         .unwrap_or_default();
-    if current_ext.eq_ignore_ascii_case(job.target_format.extension()) {
+    if current_ext.eq_ignore_ascii_case(target_format.extension()) {
         return Ok(output_path);
     }
     // yt-dlp should normally return the requested extension, but some extract-audio
@@ -8323,28 +9628,50 @@ fn ensure_music_download_requested_extension(
         return Ok(output_path);
     }
     let target_path =
-        unique_music_output_path(&job.output_dir, &job.title, job.target_format.extension());
+        unique_music_output_path(&job.output_dir, &job.title, target_format.extension());
     let mut command = Command::new(&ffmpeg);
     configure_background_command(&mut command);
-    command
-        .arg("-y")
-        .arg("-i")
-        .arg(&output_path)
-        .args(
-            resolve_music_audio_export_plan(
-                job.target_format,
-                &probe_music_audio_source_profile(tool_paths, &output_path, &job.source_acodec),
-            )
-            .ffmpeg_args,
+    command.arg("-y").arg("-i").arg(&output_path).args(
+        resolve_music_audio_export_plan(
+            target_format,
+            &probe_music_audio_source_profile(tool_paths, &output_path, &job.source_acodec),
         )
-        .arg(&target_path)
+        .ffmpeg_args,
+    );
+    if job.choice.write_tags {
+        append_music_metadata_args(&mut command, job);
+    }
+    command.arg(&target_path);
+    let command_line = format_process_command_line(&command);
+    command
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .stdin(Stdio::null());
-    let output = command
-        .output()
-        .map_err(|error| format!("Could not start FFmpeg music output pass: {error}"))?;
+    let output = match command.output() {
+        Ok(output) => output,
+        Err(error) => {
+            send_music_tool_command_finished(
+                tx,
+                job,
+                source_kind,
+                "ffmpeg",
+                "extension pass",
+                command_line,
+                false,
+            );
+            return Err(format!("Could not start FFmpeg music output pass: {error}"));
+        }
+    };
     if !output.status.success() {
+        send_music_tool_command_finished(
+            tx,
+            job,
+            source_kind,
+            "ffmpeg",
+            "extension pass",
+            command_line.clone(),
+            false,
+        );
         let _ = fs::remove_file(&target_path);
         let detail = String::from_utf8_lossy(&output.stderr)
             .lines()
@@ -8354,6 +9681,15 @@ fn ensure_music_download_requested_extension(
             .to_owned();
         return Err(format!("FFmpeg music output pass failed: {detail}"));
     }
+    send_music_tool_command_finished(
+        tx,
+        job,
+        source_kind,
+        "ffmpeg",
+        "extension pass",
+        command_line,
+        true,
+    );
     let _ = fs::remove_file(&output_path);
     Ok(target_path)
 }
@@ -8362,8 +9698,10 @@ fn ensure_music_download_cover_embedded(
     tool_paths: &ToolPaths,
     job: &MusicDownloadJob,
     output_path: PathBuf,
+    source_kind: MusicDownloadSourceKind,
+    tx: &Sender<MusicDownloadEvent>,
 ) -> Result<PathBuf, String> {
-    if !music_format_supports_embedded_cover(job.target_format) {
+    if !job.choice.embed_cover || !music_output_path_supports_embedded_cover(&output_path) {
         return Ok(output_path);
     }
     let Some(cover_path) = job.cover_path.as_ref().filter(|path| path.is_file()) else {
@@ -8376,7 +9714,7 @@ fn ensure_music_download_cover_embedded(
     let extension = output_path
         .extension()
         .and_then(|value| value.to_str())
-        .unwrap_or_else(|| job.target_format.extension());
+        .unwrap_or("m4a");
     let temp_path = output_path.with_extension(format!("cover-pass.{extension}"));
     let mut command = Command::new(&ffmpeg);
     configure_background_command(&mut command);
@@ -8397,21 +9735,40 @@ fn ensure_music_download_cover_embedded(
             "-metadata:s:v",
             "comment=Cover (front)",
         ]);
-    let (artist, title) = split_artist_title(&job.title);
-    if let Some(artist) = artist.as_deref() {
-        command.arg("-metadata").arg(format!("artist={artist}"));
+    if job.choice.write_tags {
+        append_music_metadata_args(&mut command, job);
     }
+    command.arg(&temp_path);
+    let command_line = format_process_command_line(&command);
     command
-        .arg("-metadata")
-        .arg(format!("title={title}"))
-        .arg(&temp_path)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .stdin(Stdio::null());
-    let output = command
-        .output()
-        .map_err(|error| format!("Could not start FFmpeg cover embed pass: {error}"))?;
+    let output = match command.output() {
+        Ok(output) => output,
+        Err(error) => {
+            send_music_tool_command_finished(
+                tx,
+                job,
+                source_kind,
+                "ffmpeg",
+                "embed cover",
+                command_line,
+                false,
+            );
+            return Err(format!("Could not start FFmpeg cover embed pass: {error}"));
+        }
+    };
     if !output.status.success() {
+        send_music_tool_command_finished(
+            tx,
+            job,
+            source_kind,
+            "ffmpeg",
+            "embed cover",
+            command_line.clone(),
+            false,
+        );
         let _ = fs::remove_file(&temp_path);
         let detail = String::from_utf8_lossy(&output.stderr)
             .lines()
@@ -8426,6 +9783,107 @@ fn ensure_music_download_cover_embedded(
     })?;
     fs::rename(&temp_path, &output_path)
         .map_err(|error| format!("Could not move music output after cover embed pass: {error}"))?;
+    send_music_tool_command_finished(
+        tx,
+        job,
+        source_kind,
+        "ffmpeg",
+        "embed cover",
+        command_line,
+        true,
+    );
+    Ok(output_path)
+}
+
+fn ensure_music_download_album_metadata_written(
+    tool_paths: &ToolPaths,
+    job: &MusicDownloadJob,
+    output_path: PathBuf,
+    source_kind: MusicDownloadSourceKind,
+    tx: &Sender<MusicDownloadEvent>,
+) -> Result<PathBuf, String> {
+    if !job.choice.write_tags {
+        return Ok(output_path);
+    }
+    if matches!(
+        source_kind,
+        MusicDownloadSourceKind::YtDlpDownload | MusicDownloadSourceKind::YtDlpOnlineTarget
+    ) && job.album_title.trim().is_empty()
+    {
+        return Ok(output_path);
+    }
+    let ffmpeg = resolve_tool_path(&tool_paths.ffmpeg);
+    if !ffmpeg.is_file() || !output_path.is_file() {
+        return Ok(output_path);
+    }
+    let extension = output_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("m4a");
+    let temp_path = output_path.with_extension(format!("metadata-pass.{extension}"));
+    let mut command = Command::new(&ffmpeg);
+    configure_background_command(&mut command);
+    command
+        .arg("-y")
+        .arg("-i")
+        .arg(&output_path)
+        .args(["-map", "0", "-c", "copy"]);
+    append_music_metadata_args(&mut command, job);
+    command.arg(&temp_path);
+    let command_line = format_process_command_line(&command);
+    command
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .stdin(Stdio::null());
+    let output = match command.output() {
+        Ok(output) => output,
+        Err(error) => {
+            send_music_tool_command_finished(
+                tx,
+                job,
+                source_kind,
+                "ffmpeg",
+                "write metadata",
+                command_line,
+                false,
+            );
+            return Err(format!(
+                "Could not start FFmpeg album metadata pass: {error}"
+            ));
+        }
+    };
+    if !output.status.success() {
+        send_music_tool_command_finished(
+            tx,
+            job,
+            source_kind,
+            "ffmpeg",
+            "write metadata",
+            command_line.clone(),
+            false,
+        );
+        let _ = fs::remove_file(&temp_path);
+        let detail = String::from_utf8_lossy(&output.stderr)
+            .lines()
+            .rev()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("unknown FFmpeg error")
+            .to_owned();
+        return Err(format!("FFmpeg album metadata pass failed: {detail}"));
+    }
+    fs::remove_file(&output_path)
+        .map_err(|error| format!("Could not replace music output after metadata pass: {error}"))?;
+    fs::rename(&temp_path, &output_path)
+        .map_err(|error| format!("Could not move music output after metadata pass: {error}"))?;
+    send_music_tool_command_finished(
+        tx,
+        job,
+        source_kind,
+        "ffmpeg",
+        "write metadata",
+        command_line,
+        true,
+    );
     Ok(output_path)
 }
 
@@ -8439,8 +9897,8 @@ fn copy_music_cache_output(
     };
     fs::create_dir_all(&job.output_dir)
         .map_err(|error| format!("Could not create music download folder: {error}"))?;
-    let output_path =
-        unique_music_output_path(&job.output_dir, &job.title, job.target_format.extension());
+    let output_extension = music_output_extension_for_choice(job.choice, source);
+    let output_path = unique_music_output_path(&job.output_dir, &job.title, &output_extension);
     let _ = tx.send(MusicDownloadEvent::Progress {
         item_id: job.item_id,
         workflow_id: job.workflow_id,
@@ -8471,8 +9929,8 @@ fn convert_music_cache_output(
     };
     fs::create_dir_all(&job.output_dir)
         .map_err(|error| format!("Could not create music download folder: {error}"))?;
-    let output_path =
-        unique_music_output_path(&job.output_dir, &job.title, job.target_format.extension());
+    let output_extension = music_output_extension_for_choice(job.choice, source);
+    let output_path = unique_music_output_path(&job.output_dir, &job.title, &output_extension);
     let ffmpeg = resolve_tool_path(&tool_paths.ffmpeg);
     if !ffmpeg.is_file() {
         return Err(format!(
@@ -8484,8 +9942,14 @@ fn convert_music_cache_output(
     let mut command = Command::new(&ffmpeg);
     configure_background_command(&mut command);
     command.arg("-y").arg("-i").arg(source);
-    let has_cover = job.cover_path.as_ref().is_some_and(|path| path.is_file())
-        && music_format_supports_embedded_cover(job.target_format);
+    let has_cover = job.choice.embed_cover
+        && job.cover_path.as_ref().is_some_and(|path| path.is_file())
+        && music_extension_supports_embedded_cover(
+            output_path
+                .extension()
+                .and_then(|value| value.to_str())
+                .unwrap_or_default(),
+        );
     if has_cover {
         if let Some(cover) = job.cover_path.as_ref() {
             command.arg("-i").arg(cover);
@@ -8496,7 +9960,12 @@ fn convert_music_cache_output(
         command.args(["-map", "1:v:0"]);
     }
     let source_profile = probe_music_audio_source_profile(tool_paths, source, &job.source_acodec);
-    command.args(resolve_music_audio_export_plan(job.target_format, &source_profile).ffmpeg_args);
+    let audio_args = if let Some(target_format) = job.choice.target_format() {
+        resolve_music_audio_export_plan(target_format, &source_profile).ffmpeg_args
+    } else {
+        vec!["-c:a".to_owned(), "copy".to_owned()]
+    };
+    command.args(audio_args);
     if has_cover {
         command.args([
             "-c:v",
@@ -8509,13 +9978,12 @@ fn convert_music_cache_output(
             "comment=Cover (front)",
         ]);
     }
-    let (artist, title) = split_artist_title(&job.title);
-    if let Some(artist) = artist.as_deref() {
-        command.arg("-metadata").arg(format!("artist={artist}"));
+    if job.choice.write_tags {
+        append_music_metadata_args(&mut command, job);
     }
-    command.arg("-metadata").arg(format!("title={title}"));
+    command.arg(&output_path);
+    let command_line = format_process_command_line(&command);
     command
-        .arg(&output_path)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .stdin(Stdio::null());
@@ -8544,6 +10012,15 @@ fn convert_music_cache_output(
         .unwrap_or_default();
     if cancel_requested.load(Ordering::Relaxed) {
         let _ = fs::remove_file(&output_path);
+        let _ = tx.send(MusicDownloadEvent::ToolCommandFinished {
+            item_id: job.item_id,
+            workflow_id: job.workflow_id,
+            source_kind: MusicDownloadSourceKind::CacheConvert,
+            tool: "ffmpeg".to_owned(),
+            action: "convert".to_owned(),
+            command_line,
+            success: false,
+        });
         return Err(DOWNLOAD_CANCELLED_MESSAGE.to_owned());
     }
     match status {
@@ -8553,9 +10030,27 @@ fn convert_music_cache_output(
                 workflow_id: job.workflow_id,
                 percent: 100.0,
             });
+            let _ = tx.send(MusicDownloadEvent::ToolCommandFinished {
+                item_id: job.item_id,
+                workflow_id: job.workflow_id,
+                source_kind: MusicDownloadSourceKind::CacheConvert,
+                tool: "ffmpeg".to_owned(),
+                action: "convert".to_owned(),
+                command_line,
+                success: true,
+            });
             Ok(output_path.display().to_string())
         }
         Some(Ok(status)) => {
+            let _ = tx.send(MusicDownloadEvent::ToolCommandFinished {
+                item_id: job.item_id,
+                workflow_id: job.workflow_id,
+                source_kind: MusicDownloadSourceKind::CacheConvert,
+                tool: "ffmpeg".to_owned(),
+                action: "convert".to_owned(),
+                command_line: command_line.clone(),
+                success: false,
+            });
             let detail = stderr_lines
                 .iter()
                 .rev()
@@ -8564,16 +10059,39 @@ fn convert_music_cache_output(
                 .unwrap_or_else(|| format!("exit code {:?}", status.code()));
             Err(format!("FFmpeg music conversion failed: {detail}"))
         }
-        Some(Err(error)) => Err(format!(
-            "Could not wait for FFmpeg music conversion: {error}"
-        )),
-        None => Err("Could not wait for FFmpeg music conversion: child process missing".to_owned()),
+        Some(Err(error)) => {
+            let _ = tx.send(MusicDownloadEvent::ToolCommandFinished {
+                item_id: job.item_id,
+                workflow_id: job.workflow_id,
+                source_kind: MusicDownloadSourceKind::CacheConvert,
+                tool: "ffmpeg".to_owned(),
+                action: "convert".to_owned(),
+                command_line: command_line.clone(),
+                success: false,
+            });
+            Err(format!(
+                "Could not wait for FFmpeg music conversion: {error}"
+            ))
+        }
+        None => {
+            let _ = tx.send(MusicDownloadEvent::ToolCommandFinished {
+                item_id: job.item_id,
+                workflow_id: job.workflow_id,
+                source_kind: MusicDownloadSourceKind::CacheConvert,
+                tool: "ffmpeg".to_owned(),
+                action: "convert".to_owned(),
+                command_line,
+                success: false,
+            });
+            Err("Could not wait for FFmpeg music conversion: child process missing".to_owned())
+        }
     }
 }
 
 fn download_music_output_with_yt_dlp(
     tool_paths: &ToolPaths,
     job: &MusicDownloadJob,
+    source_kind: MusicDownloadSourceKind,
     tx: Sender<MusicDownloadEvent>,
     child_handle: &Arc<Mutex<Option<Child>>>,
     cancel_requested: &Arc<AtomicBool>,
@@ -8581,7 +10099,12 @@ fn download_music_output_with_yt_dlp(
     let prepared = tool_paths.prepare_music_audio_download_command(
         &job.source_url,
         &job.output_dir,
-        job.target_format.yt_dlp_audio_format(),
+        job.choice
+            .target_format()
+            .map(MusicDownloadFormat::yt_dlp_audio_format),
+        job.choice.format_selector(),
+        job.choice.embed_cover,
+        job.choice.write_tags,
         job.use_cookies,
     )?;
     println!(
@@ -8592,7 +10115,7 @@ fn download_music_output_with_yt_dlp(
     let PreparedDownload {
         mut command,
         output_path,
-        ..
+        command_line,
     } = prepared;
 
     let mut child = command
@@ -8626,18 +10149,40 @@ fn download_music_output_with_yt_dlp(
     );
 
     if cancel_requested.load(Ordering::Relaxed) {
+        let _ = tx.send(MusicDownloadEvent::ToolCommandFinished {
+            item_id: job.item_id,
+            workflow_id: job.workflow_id,
+            source_kind,
+            tool: "yt-dlp".to_owned(),
+            action: "download".to_owned(),
+            command_line: command_line.clone(),
+            success: false,
+        });
         return Err(DOWNLOAD_CANCELLED_MESSAGE.to_owned());
     }
 
     match status {
         Some(Ok(status)) if status.success() => {
             let output_path = reported_music_final_output_path(&lines)
-                .or_else(|| find_latest_music_download_output(&job.output_dir, job.target_format))
+                .or_else(|| {
+                    find_latest_music_download_output_for_choice(&job.output_dir, job.choice)
+                })
                 .unwrap_or(output_path);
+            let _ = tx.send(MusicDownloadEvent::ToolCommandFinished {
+                item_id: job.item_id,
+                workflow_id: job.workflow_id,
+                source_kind,
+                tool: "yt-dlp".to_owned(),
+                action: "download".to_owned(),
+                command_line: command_line.clone(),
+                success: true,
+            });
             let output_path = match ensure_music_download_requested_extension(
                 &tool_paths,
                 job,
                 output_path.clone(),
+                source_kind,
+                &tx,
             ) {
                 Ok(path) => path,
                 Err(error) => {
@@ -8645,14 +10190,19 @@ fn download_music_output_with_yt_dlp(
                     output_path
                 }
             };
-            let output_path =
-                match ensure_music_download_cover_embedded(&tool_paths, job, output_path.clone()) {
-                    Ok(path) => path,
-                    Err(error) => {
-                        eprintln!("[music-download] cover embed pass skipped: {error}");
-                        output_path
-                    }
-                };
+            let output_path = match ensure_music_download_cover_embedded(
+                &tool_paths,
+                job,
+                output_path.clone(),
+                source_kind,
+                &tx,
+            ) {
+                Ok(path) => path,
+                Err(error) => {
+                    eprintln!("[music-download] cover embed pass skipped: {error}");
+                    output_path
+                }
+            };
             let _ = tx.send(MusicDownloadEvent::Progress {
                 item_id: job.item_id,
                 workflow_id: job.workflow_id,
@@ -8661,6 +10211,15 @@ fn download_music_output_with_yt_dlp(
             Ok(output_path.display().to_string())
         }
         Some(Ok(status)) => {
+            let _ = tx.send(MusicDownloadEvent::ToolCommandFinished {
+                item_id: job.item_id,
+                workflow_id: job.workflow_id,
+                source_kind,
+                tool: "yt-dlp".to_owned(),
+                action: "download".to_owned(),
+                command_line: command_line.clone(),
+                success: false,
+            });
             let detail = lines
                 .iter()
                 .rev()
@@ -8669,8 +10228,30 @@ fn download_music_output_with_yt_dlp(
                 .unwrap_or_else(|| format!("exit code {:?}", status.code()));
             Err(format!("yt-dlp music download failed: {detail}"))
         }
-        Some(Err(error)) => Err(format!("Could not wait for yt-dlp music download: {error}")),
-        None => Err("Could not wait for yt-dlp music download: child process missing".to_owned()),
+        Some(Err(error)) => {
+            let _ = tx.send(MusicDownloadEvent::ToolCommandFinished {
+                item_id: job.item_id,
+                workflow_id: job.workflow_id,
+                source_kind,
+                tool: "yt-dlp".to_owned(),
+                action: "download".to_owned(),
+                command_line: command_line.clone(),
+                success: false,
+            });
+            Err(format!("Could not wait for yt-dlp music download: {error}"))
+        }
+        None => {
+            let _ = tx.send(MusicDownloadEvent::ToolCommandFinished {
+                item_id: job.item_id,
+                workflow_id: job.workflow_id,
+                source_kind,
+                tool: "yt-dlp".to_owned(),
+                action: "download".to_owned(),
+                command_line,
+                success: false,
+            });
+            Err("Could not wait for yt-dlp music download: child process missing".to_owned())
+        }
     }
 }
 
@@ -8778,8 +10359,28 @@ fn unique_music_output_path(output_dir: &Path, title: &str, extension: &str) -> 
     ))
 }
 
-fn find_latest_music_download_output(dir: &Path, format: MusicDownloadFormat) -> Option<PathBuf> {
-    find_latest_file_in_dir(dir, format.extension())
+fn find_latest_music_download_output_for_choice(
+    dir: &Path,
+    choice: MusicDownloadChoice,
+) -> Option<PathBuf> {
+    if let Some(format) = choice.target_format() {
+        return find_latest_file_in_dir(dir, format.extension());
+    }
+    find_latest_music_original_output(dir)
+}
+
+fn find_latest_music_original_output(dir: &Path) -> Option<PathBuf> {
+    const AUDIO_EXTENSIONS: [&str; 10] = [
+        "m4a", "webm", "opus", "mp3", "aac", "flac", "wav", "ogg", "oga", "mka",
+    ];
+    AUDIO_EXTENSIONS
+        .into_iter()
+        .filter_map(|extension| find_latest_file_in_dir(dir, extension))
+        .max_by_key(|path| {
+            path.metadata()
+                .and_then(|metadata| metadata.modified())
+                .ok()
+        })
 }
 
 fn find_latest_file_in_dir(dir: &Path, extension: &str) -> Option<PathBuf> {
@@ -8821,6 +10422,25 @@ fn split_artist_title(title: &str) -> (Option<String>, String) {
     (None, trimmed.to_owned())
 }
 
+fn append_music_metadata_args(command: &mut Command, job: &MusicDownloadJob) {
+    let (artist, title) = split_artist_title(&job.title);
+    if let Some(artist) = artist
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        command.arg("-metadata").arg(format!("artist={artist}"));
+    }
+    let title = title.trim();
+    if !title.is_empty() {
+        command.arg("-metadata").arg(format!("title={title}"));
+    }
+    let album = job.album_title.trim();
+    if !album.is_empty() {
+        command.arg("-metadata").arg(format!("album={album}"));
+    }
+}
+
 fn music_download_tool_kind(source_kind: MusicDownloadSourceKind) -> ToolKind {
     match source_kind {
         MusicDownloadSourceKind::CacheCopy => ToolKind::Other("cache".to_owned()),
@@ -8831,8 +10451,18 @@ fn music_download_tool_kind(source_kind: MusicDownloadSourceKind) -> ToolKind {
     }
 }
 
-fn music_cached_output_needs_metadata_pass(format: MusicDownloadFormat, has_cover: bool) -> bool {
-    music_format_supports_embedded_cover(format) && has_cover
+fn music_cache_can_be_copied_for_choice(
+    choice: MusicDownloadChoice,
+    path: &Path,
+    has_cover: bool,
+) -> bool {
+    if has_cover && music_output_path_supports_embedded_cover(path) {
+        return false;
+    }
+    match choice.target_format() {
+        Some(format) => music_download_format_matches_cache(format, path),
+        None => true,
+    }
 }
 
 fn music_download_format_matches_cache(format: MusicDownloadFormat, path: &Path) -> bool {
@@ -8843,10 +10473,35 @@ fn music_download_format_matches_cache(format: MusicDownloadFormat, path: &Path)
     ext.eq_ignore_ascii_case(format.extension())
 }
 
-fn music_format_supports_embedded_cover(format: MusicDownloadFormat) -> bool {
+fn music_output_extension_for_choice(choice: MusicDownloadChoice, source_path: &Path) -> String {
+    choice
+        .target_format()
+        .map(MusicDownloadFormat::extension)
+        .or_else(|| {
+            source_path
+                .extension()
+                .and_then(|value| value.to_str())
+                .map(|value| value.trim().trim_start_matches('.'))
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or("audio")
+        .to_owned()
+}
+
+fn music_output_path_supports_embedded_cover(path: &Path) -> bool {
+    path.extension()
+        .and_then(|value| value.to_str())
+        .is_some_and(music_extension_supports_embedded_cover)
+}
+
+fn music_extension_supports_embedded_cover(extension: &str) -> bool {
     matches!(
-        format,
-        MusicDownloadFormat::Mp3 | MusicDownloadFormat::M4aAac | MusicDownloadFormat::Flac
+        extension
+            .trim()
+            .trim_start_matches('.')
+            .to_ascii_lowercase()
+            .as_str(),
+        "mp3" | "m4a" | "flac"
     )
 }
 
@@ -9017,19 +10672,23 @@ fn music_cache_source_matches_target(
         || music_source_codec_matches_target_format(format, source_acodec)
 }
 
-fn online_music_target_source_available(tool_paths: &ToolPaths, job: &MusicDownloadJob) -> bool {
-    let selector = music_online_target_format_selector(job.target_format);
-    let Ok(json) = tool_paths.analyze_music_stream_url_with_selector(
+fn online_music_target_source_available(
+    tool_paths: &ToolPaths,
+    job: &MusicDownloadJob,
+    format: MusicDownloadFormat,
+) -> bool {
+    let selector = music_online_target_format_selector(format);
+    let Ok(output) = tool_paths.analyze_music_stream_url_with_selector(
         &job.source_url,
         job.use_cookies,
         selector,
     ) else {
         return false;
     };
-    let Ok(seed) = music_stream_seed_from_json(&json, &job.source_url) else {
+    let Ok(seed) = music_stream_seed_from_json(&output.json, &job.source_url) else {
         return false;
     };
-    music_source_codec_matches_target_format(job.target_format, &seed.acodec)
+    music_source_codec_matches_target_format(format, &seed.acodec)
 }
 
 fn music_online_target_format_selector(format: MusicDownloadFormat) -> &'static str {

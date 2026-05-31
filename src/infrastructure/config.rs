@@ -158,9 +158,9 @@ impl Default for YoutubeVideoPlaylistMode {
 impl YoutubeVideoPlaylistMode {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Ask => "config.youtube_playlist_mode.ask",
-            Self::Video => "config.youtube_playlist_mode.video",
-            Self::Ignore => "config.youtube_playlist_mode.ignore",
+            Self::Ask => "Ask",
+            Self::Video => "Video",
+            Self::Ignore => "Ignore",
         }
     }
 }
@@ -184,9 +184,9 @@ impl Default for OutputFileActionMode {
 impl OutputFileActionMode {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Menu => "config.output_action.menu",
-            Self::OpenFolder => "config.output_action.open_folder",
-            Self::OpenFile => "config.output_action.open_file",
+            Self::Menu => "Show menu",
+            Self::OpenFolder => "Open folder",
+            Self::OpenFile => "Open file",
         }
     }
 
@@ -214,9 +214,9 @@ impl Default for ThemeMode {
 impl ThemeMode {
     pub fn label(self) -> &'static str {
         match self {
-            Self::System => "config.theme.system",
-            Self::Light => "config.theme.light",
-            Self::Dark => "config.theme.dark",
+            Self::System => "Follow system",
+            Self::Light => "Light",
+            Self::Dark => "Dark",
         }
     }
 
@@ -254,14 +254,14 @@ impl Default for ThemeAccentColor {
 impl ThemeAccentColor {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Off => "config.theme_color.off",
-            Self::System => "config.theme_color.system",
-            Self::Blue => "config.theme_color.blue",
-            Self::Purple => "config.theme_color.purple",
-            Self::Pink => "config.theme_color.pink",
-            Self::Green => "config.theme_color.green",
-            Self::Orange => "config.theme_color.orange",
-            Self::Slate => "config.theme_color.slate",
+            Self::Off => "Off",
+            Self::System => "Blue",
+            Self::Blue => "Soft blue",
+            Self::Purple => "Purple",
+            Self::Pink => "Pink",
+            Self::Green => "Green",
+            Self::Orange => "Orange",
+            Self::Slate => "Slate",
         }
     }
 
@@ -383,11 +383,11 @@ impl Default for TranscodeIntentMode {
 impl TranscodeIntentMode {
     pub fn label(self) -> &'static str {
         match self {
-            Self::ReduceSize => "transcode.intent.reduce_size",
-            Self::QualityFirst => "transcode.intent.quality_first",
-            Self::TargetSize => "transcode.intent.target_size",
-            Self::FastTranscode => "transcode.intent.fast_transcode",
-            Self::DeviceCompat => "transcode.intent.device_compat",
+            Self::ReduceSize => "Smaller file",
+            Self::QualityFirst => "Quality first",
+            Self::TargetSize => "Size target",
+            Self::FastTranscode => "Format",
+            Self::DeviceCompat => "Compatibility target",
         }
     }
 
@@ -439,18 +439,18 @@ impl Default for CompatibilityTarget {
 impl CompatibilityTarget {
     pub fn label(self) -> &'static str {
         match self {
-            Self::MostDevices => "transcode.compat.most_devices",
-            Self::Windows => "transcode.compat.windows",
-            Self::Mac => "transcode.compat.mac",
-            Self::Apple => "transcode.compat.apple",
-            Self::AppleTvLegacy => "transcode.compat.apple_tv_legacy",
-            Self::AppleTvModern => "transcode.compat.apple_tv_modern",
-            Self::IphoneIpad => "transcode.compat.iphone_ipad",
-            Self::AndroidTv => "transcode.compat.android_tv",
-            Self::AndroidPhoneTablet => "transcode.compat.android_phone_tablet",
-            Self::BrowserMp4 => "transcode.compat.browser_mp4",
-            Self::TvNas => "transcode.compat.tv_nas",
-            Self::OldDevice => "transcode.compat.old_device",
+            Self::MostDevices => "Most devices / not sure",
+            Self::Windows => "Windows PC",
+            Self::Mac => "Mac",
+            Self::Apple => "Apple devices",
+            Self::AppleTvLegacy => "Apple TV legacy",
+            Self::AppleTvModern => "Apple TV modern",
+            Self::IphoneIpad => "iPhone / iPad",
+            Self::AndroidTv => "Android TV / Chromecast",
+            Self::AndroidPhoneTablet => "Android phone / tablet",
+            Self::BrowserMp4 => "Browser-safe MP4",
+            Self::TvNas => "Generic TV / NAS",
+            Self::OldDevice => "Old TV / USB playback",
         }
     }
 
@@ -543,9 +543,9 @@ impl Default for QualityTarget {
 impl QualityTarget {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Standard => "transcode.quality.standard",
-            Self::High => "transcode.quality.high",
-            Self::NearOriginal => "transcode.quality.near_original",
+            Self::Standard => "Standard",
+            Self::High => "High quality",
+            Self::NearOriginal => "Near original",
         }
     }
 
@@ -575,10 +575,10 @@ impl Default for ResolutionPolicy {
 impl ResolutionPolicy {
     pub fn label(self) -> &'static str {
         match self {
-            Self::AutoBalance => "transcode.resolution.auto_balance",
-            Self::KeepOriginal => "transcode.resolution.keep_original",
-            Self::Max1080p => "transcode.resolution.max_1080p",
-            Self::Max720p => "transcode.resolution.max_720p",
+            Self::AutoBalance => "Auto balance",
+            Self::KeepOriginal => "Keep original",
+            Self::Max1080p => "Max 1080p",
+            Self::Max720p => "Max 720p",
         }
     }
 
@@ -615,11 +615,11 @@ impl Default for FrameRatePolicy {
 impl FrameRatePolicy {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Source => "transcode.fps.source",
-            Self::Fps24 => "transcode.fps.24",
-            Self::Fps25 => "transcode.fps.25",
-            Self::Fps30 => "transcode.fps.30",
-            Self::Fps60 => "transcode.fps.60",
+            Self::Source => "Source",
+            Self::Fps24 => "Up to 24 fps",
+            Self::Fps25 => "Up to 25 fps",
+            Self::Fps30 => "Up to 30 fps",
+            Self::Fps60 => "Up to 60 fps",
         }
     }
 
@@ -655,10 +655,10 @@ impl Default for EncodeEffort {
 impl EncodeEffort {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Fast => "transcode.effort.fast",
-            Self::Normal => "transcode.effort.normal",
-            Self::Detailed => "transcode.effort.detailed",
-            Self::Extreme => "transcode.effort.extreme",
+            Self::Fast => "Fast",
+            Self::Normal => "Normal",
+            Self::Detailed => "Detailed",
+            Self::Extreme => "Extreme",
         }
     }
 
@@ -704,10 +704,10 @@ impl Default for AudioPolicy {
 impl AudioPolicy {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Auto => "transcode.audio.auto",
-            Self::Aac => "transcode.audio.aac",
-            Self::Opus => "transcode.audio.opus",
-            Self::Flac => "transcode.audio.flac",
+            Self::Auto => "Source",
+            Self::Aac => "AAC",
+            Self::Opus => "Opus",
+            Self::Flac => "FLAC",
         }
     }
 
@@ -777,18 +777,18 @@ pub enum TranscodeSettingKey {
 impl TranscodeSettingKey {
     pub fn label(self) -> &'static str {
         match self {
-            Self::CompatibilityTarget => "transcode.setting.compatibility",
-            Self::VideoCodecPolicy => "transcode.setting.video_codec",
-            Self::ContainerPolicy => "transcode.setting.container",
-            Self::EncoderPolicy => "transcode.setting.encoder",
-            Self::QualityTarget => "transcode.setting.quality",
-            Self::SizeRatio => "transcode.setting.size_ratio",
-            Self::TargetSize => "transcode.setting.target_size",
-            Self::ResolutionPolicy => "transcode.setting.resolution",
-            Self::FrameRatePolicy => "transcode.setting.fps",
-            Self::EncodeEffort => "transcode.setting.effort",
-            Self::PassPolicy => "transcode.setting.pass",
-            Self::AudioPolicy => "transcode.setting.audio",
+            Self::CompatibilityTarget => "Compatibility",
+            Self::VideoCodecPolicy => "Video codec",
+            Self::ContainerPolicy => "Container",
+            Self::EncoderPolicy => "Encoder",
+            Self::QualityTarget => "Quality",
+            Self::SizeRatio => "Size ratio",
+            Self::TargetSize => "Target size",
+            Self::ResolutionPolicy => "Resolution",
+            Self::FrameRatePolicy => "FPS limit",
+            Self::EncodeEffort => "Effort",
+            Self::PassPolicy => "Size control",
+            Self::AudioPolicy => "Audio",
         }
     }
 }

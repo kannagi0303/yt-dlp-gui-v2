@@ -32,10 +32,11 @@ pub use tool_install::{
     install_dependency_tool_with_progress_using_proxy,
 };
 pub use tools::{
-    BrowserCookieProfileOption, BrowserCookieSourceOption, CacheLocationMode, DownloadRequest,
-    DownloadTargetKind, FINAL_OUTPUT_PATH_PREFIX, FileTimeMode, PreparedDownload, ToolPaths,
-    YoutubePlaylistRisk, classify_youtube_playlist, configure_background_command,
-    display_output_dir, humanize_yt_dlp_error, is_windows_known_folder_segment,
-    looks_like_playlist_url, playlist_entry_url, resolve_output_dir, resolve_tool_path,
-    youtube_url_force_single_video, youtube_url_has_video_and_playlist,
+    AnalyzeError, AnalyzeOutput, BrowserCookieProfileOption, BrowserCookieSourceOption,
+    CacheLocationMode, DownloadRequest, DownloadTargetKind, FINAL_OUTPUT_PATH_PREFIX, FileTimeMode,
+    PreparedDownload, ToolPaths, YoutubePlaylistRisk, classify_youtube_playlist,
+    configure_background_command, display_output_dir, humanize_yt_dlp_error,
+    is_windows_known_folder_segment, looks_like_playlist_url, playlist_entry_url,
+    resolve_output_dir, resolve_tool_path, youtube_url_force_single_video,
+    youtube_url_has_video_and_playlist,
 };

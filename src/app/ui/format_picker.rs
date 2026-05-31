@@ -43,8 +43,10 @@ pub(super) fn render_format_picker_screen(ui: &mut Ui, state: &mut AppState) {
     let available_height = ui.available_height();
     let header_height = ui.spacing().interact_size.y + 12.0;
     let gap = ui.spacing().item_spacing.x;
-    let back_width = natural_button_width(ui, state.tr(UiText::BACK_TO_MAIN));
-    let confirm_width = natural_button_width(ui, state.tr(UiText::CONFIRM));
+    let back_text = state.ui_tr(UiText::BACK_TO_MAIN);
+    let confirm_text = state.ui_tr(UiText::CONFIRM);
+    let back_width = natural_button_width(ui, back_text);
+    let confirm_width = natural_button_width(ui, confirm_text);
     let center_width = format_picker_header_center_width(ui, state);
     let wanted_summary_width = selection_summary
         .as_deref()
@@ -66,7 +68,7 @@ pub(super) fn render_format_picker_screen(ui: &mut Ui, state: &mut AppState) {
                             tui.style(format_picker_fixed_cell_style(back_width))
                                 .ui(|ui| {
                                     ui.centered_and_justified(|ui| {
-                                        if ui.button(state.tr(UiText::BACK_TO_MAIN)).clicked() {
+                                        if ui.button(back_text).clicked() {
                                             state.cancel_format_picker();
                                         }
                                     });
@@ -97,7 +99,7 @@ pub(super) fn render_format_picker_screen(ui: &mut Ui, state: &mut AppState) {
                                         if ui
                                             .add_enabled(
                                                 pending_selection.is_some(),
-                                                egui::Button::new(state.tr(UiText::CONFIRM)),
+                                                egui::Button::new(confirm_text),
                                             )
                                             .clicked()
                                         {
@@ -254,18 +256,21 @@ fn format_picker_header_center_width(ui: &Ui, state: &AppState) -> f32 {
     let gap = ui.spacing().item_spacing.x;
     match kind {
         FormatPickerKind::Video | FormatPickerKind::Audio => {
-            natural_button_width(ui, state.tr(UiText::PICKER_MODE_FILTER))
-                + natural_button_width(ui, state.tr(UiText::PICKER_MODE_TABLE))
-                + gap
+            let filter_text = state.ui_tr(UiText::PICKER_MODE_FILTER);
+            let table_text = state.ui_tr(UiText::PICKER_MODE_TABLE);
+            natural_button_width(ui, filter_text) + natural_button_width(ui, table_text) + gap
         }
         FormatPickerKind::Subtitle => {
-            natural_button_width(ui, state.tr(SubtitlePickerTab::None.label()))
-                + natural_button_width(ui, state.tr(SubtitlePickerTab::Original.label()))
-                + natural_button_width(ui, state.tr(SubtitlePickerTab::Automatic.label()))
+            let none_text = state.ui_tr(SubtitlePickerTab::None.label_key());
+            let original_text = state.ui_tr(SubtitlePickerTab::Original.label_key());
+            let automatic_text = state.ui_tr(SubtitlePickerTab::Automatic.label_key());
+            natural_button_width(ui, none_text)
+                + natural_button_width(ui, original_text)
+                + natural_button_width(ui, automatic_text)
                 + gap * 2.0
         }
         FormatPickerKind::Section => {
-            let title = state.tr(UiText::SELECT_SECTION_TITLE);
+            let title = state.ui_tr(UiText::SELECT_SECTION_TITLE);
             text_width(ui, title, egui::TextStyle::Body) + gap * 2.0
         }
     }
@@ -278,8 +283,8 @@ fn render_format_picker_header_center(ui: &mut Ui, state: &mut AppState) {
 
     if matches!(kind, FormatPickerKind::Video | FormatPickerKind::Audio) {
         let previous_mode = state.format_picker.view_mode;
-        let picker_mode_filter = state.tr(UiText::PICKER_MODE_FILTER);
-        let picker_mode_table = state.tr(UiText::PICKER_MODE_TABLE);
+        let picker_mode_filter = state.ui_tr(UiText::PICKER_MODE_FILTER);
+        let picker_mode_table = state.ui_tr(UiText::PICKER_MODE_TABLE);
         ui.horizontal(|ui| {
             ui.selectable_value(
                 &mut state.format_picker.view_mode,
@@ -309,13 +314,13 @@ fn render_format_picker_header_center(ui: &mut Ui, state: &mut AppState) {
         FormatPickerKind::Subtitle => UiText::SELECT_SUBTITLE_TITLE,
         FormatPickerKind::Section => UiText::SELECT_SECTION_TITLE,
     };
-    ui.label(state.tr(title));
+    ui.label(state.ui_tr(title));
 }
 
 fn render_subtitle_picker_header_tabs(ui: &mut Ui, state: &mut AppState) {
-    let none_label = state.tr(SubtitlePickerTab::None.label());
-    let original_label = state.tr(SubtitlePickerTab::Original.label());
-    let automatic_label = state.tr(SubtitlePickerTab::Automatic.label());
+    let none_label = state.ui_tr(SubtitlePickerTab::None.label_key());
+    let original_label = state.ui_tr(SubtitlePickerTab::Original.label_key());
+    let automatic_label = state.ui_tr(SubtitlePickerTab::Automatic.label_key());
 
     ui.horizontal(|ui| {
         ui.selectable_value(
@@ -369,14 +374,14 @@ fn render_format_picker_contents(ui: &mut Ui, state: &mut AppState) {
         FormatPickerViewMode::Filter => {
             if filtered_rows.is_empty() {
                 ui.add_space(12.0);
-                ui.label(state.tr(UiText::EMPTY_TABLE));
+                ui.label(state.ui_tr(UiText::EMPTY_TABLE));
             }
             render_format_picker_filters(ui, state, kind, &options);
         }
         FormatPickerViewMode::Table => {
             if options.is_empty() {
                 ui.add_space(12.0);
-                ui.label(state.tr(UiText::EMPTY_TABLE));
+                ui.label(state.ui_tr(UiText::EMPTY_TABLE));
             } else {
                 render_format_picker_table(ui, state, kind, &options);
             }
@@ -390,7 +395,7 @@ fn pending_picker_selection_summary(state: &AppState) -> Option<String> {
         return None;
     }
 
-    let size_label = state.tr(UiText::HEADER_FILESIZE);
+    let size_label = state.ui_tr(UiText::HEADER_FILESIZE);
     let filesize = pending_picker_selected_format(state)
         .map(|option| option.filesize.trim().to_owned())
         .filter(|filesize| !filesize.is_empty())
@@ -483,7 +488,7 @@ fn render_section_picker_contents(ui: &mut Ui, state: &mut AppState) {
     if options.is_empty() {
         state.format_picker.selected_row = None;
         ui.add_space(12.0);
-        ui.label(state.tr("picker.no_chapters_available"));
+        ui.label(state.ui_tr("picker.no_chapters_available"));
         return;
     }
 
@@ -509,14 +514,14 @@ fn render_section_picker_contents(ui: &mut Ui, state: &mut AppState) {
             strip.cell(|ui| {
                 ui.add(
                     egui::Label::new(
-                        state.tr("picker.choose_the_range_to_download_for_this_item_d"),
+                        state.ui_tr("picker.choose_the_range_to_download_for_this_item_d"),
                     )
                     .selectable(false),
                 );
                 if state.tool_paths.chapter_compatibility_mode && options.len() > 1 {
                     ui.add(
                         egui::Label::new(
-                            state.tr("picker.chapter_compatibility_mode_is_on_chapter_dow"),
+                            state.ui_tr("picker.chapter_compatibility_mode_is_on_chapter_dow"),
                         )
                         .selectable(false),
                     );
@@ -541,7 +546,7 @@ fn render_section_picker_contents(ui: &mut Ui, state: &mut AppState) {
                             .header(row_height, |mut header| {
                                 header.col(|ui| cell_label_center(ui, ""));
                                 header.col(|ui| {
-                                    cell_label_center(ui, state.tr(UiText::HEADER_RANGE))
+                                    cell_label_center(ui, state.ui_tr(UiText::HEADER_RANGE))
                                 });
                             })
                             .body(|body| {
@@ -556,15 +561,12 @@ fn render_section_picker_contents(ui: &mut Ui, state: &mut AppState) {
                                         cell_label_center(ui, if is_selected { "✓" } else { "" })
                                     });
                                     row.col(|ui| {
-                                        let response = ui.add(
+                                        ui.add(
                                             egui::Label::new(label.as_str())
                                                 .truncate()
                                                 .selectable(false)
                                                 .sense(Sense::empty()),
                                         );
-                                        if !label.is_empty() {
-                                            response.on_hover_text(label.as_str());
-                                        }
                                     });
 
                                     let response = row.response();
@@ -592,12 +594,12 @@ fn render_subtitle_picker_contents(ui: &mut Ui, state: &mut AppState) {
     if active_page == SubtitlePickerTab::None {
         state.format_picker.subtitle_source_key = SubtitleSource::None.key().to_owned();
         state.format_picker.selected_row = Some(0);
-        ui.label(state.tr("picker.subtitles_will_not_be_downloaded"));
+        ui.label(state.ui_tr("picker.subtitles_will_not_be_downloaded"));
         return;
     }
 
     if source_options.is_empty() {
-        ui.label(state.tr("picker.no_subtitles_are_available_for_this_video"));
+        ui.label(state.ui_tr("picker.no_subtitles_are_available_for_this_video"));
         state.format_picker.selected_row = None;
         return;
     }
@@ -615,7 +617,7 @@ fn render_subtitle_picker_contents(ui: &mut Ui, state: &mut AppState) {
         .collect();
 
     if page_sources.is_empty() {
-        ui.label(state.tr("picker.no_subtitles_are_available_in_this_tab"));
+        ui.label(state.ui_tr("picker.no_subtitles_are_available_in_this_tab"));
         state.format_picker.selected_row = None;
         return;
     }
@@ -642,7 +644,7 @@ fn render_subtitle_picker_contents(ui: &mut Ui, state: &mut AppState) {
         return;
     }
 
-    ui.label(state.tr("picker.source_language"));
+    ui.label(state.ui_tr("picker.source_language"));
     ui.horizontal_wrapped(|ui| {
         for option in &page_sources {
             let source_key = option.source_key();
@@ -658,12 +660,12 @@ fn render_subtitle_picker_contents(ui: &mut Ui, state: &mut AppState) {
         }
     });
     ui.separator();
-    ui.label(state.tr("picker.translation_target"));
-    ui.label(state.tr("picker.tip_youtube_auto_translated_subtitles_are_mo"));
+    ui.label(state.ui_tr("picker.translation_target"));
+    ui.label(state.ui_tr("picker.tip_youtube_auto_translated_subtitles_are_mo"));
 
     let options = state.subtitle_translation_options();
     if options.is_empty() {
-        ui.label(state.tr("picker.no_subtitles_are_available_for_this_source"));
+        ui.label(state.ui_tr("picker.no_subtitles_are_available_for_this_source"));
         state.format_picker.selected_row = None;
         return;
     }
@@ -684,10 +686,10 @@ fn render_subtitle_picker_contents(ui: &mut Ui, state: &mut AppState) {
             .column(Column::auto().at_least(48.0))
             .header(24.0, |mut header| {
                 header.col(|ui| {
-                    cell_label_center(ui, state.tr("picker.target"));
+                    cell_label_center(ui, state.ui_tr("picker.target"));
                 });
                 header.col(|ui| {
-                    cell_label_center(ui, state.tr(UiText::HEADER_EXT));
+                    cell_label_center(ui, state.ui_tr(UiText::HEADER_EXT));
                 });
             });
 
@@ -734,7 +736,7 @@ fn render_original_subtitle_picker(
     state: &mut AppState,
     page_sources: &[crate::domain::SubtitleOption],
 ) {
-    ui.label(state.tr("picker.available_subtitles"));
+    ui.label(state.ui_tr("picker.available_subtitles"));
 
     if let Some(row) = state.format_picker.selected_row {
         if row >= page_sources.len() {
@@ -752,10 +754,10 @@ fn render_original_subtitle_picker(
             .column(Column::auto().at_least(48.0))
             .header(24.0, |mut header| {
                 header.col(|ui| {
-                    cell_label_center(ui, state.tr("picker.language"));
+                    cell_label_center(ui, state.ui_tr("picker.language"));
                 });
                 header.col(|ui| {
-                    cell_label_center(ui, state.tr(UiText::HEADER_EXT));
+                    cell_label_center(ui, state.ui_tr(UiText::HEADER_EXT));
                 });
             });
 
@@ -898,28 +900,28 @@ fn render_format_picker_filters(
     let stages = match kind {
         FormatPickerKind::Video => vec![
             FilterChainStage {
-                label: state.tr(UiText::FILTER_RESOLUTION).to_owned(),
+                label: state.ui_tr(UiText::FILTER_RESOLUTION).to_owned(),
                 field: FilterField::Resolution,
                 values: all_resolution_values(options),
                 compatible_values: compatible_resolution_values(options, &filters_snapshot),
                 selected: filters_snapshot.resolution.clone(),
             },
             FilterChainStage {
-                label: state.tr(UiText::FILTER_FPS).to_owned(),
+                label: state.ui_tr(UiText::FILTER_FPS).to_owned(),
                 field: FilterField::Fps,
                 values: all_fps_values(options),
                 compatible_values: compatible_fps_values(options, &filters_snapshot),
                 selected: filters_snapshot.fps.clone(),
             },
             FilterChainStage {
-                label: state.tr(UiText::FILTER_CODEC).to_owned(),
+                label: state.ui_tr(UiText::FILTER_CODEC).to_owned(),
                 field: FilterField::Codec,
                 values: all_codec_values(options),
                 compatible_values: compatible_codec_values(options, &filters_snapshot),
                 selected: filters_snapshot.codec.clone(),
             },
             FilterChainStage {
-                label: state.tr(UiText::FILTER_RANGE).to_owned(),
+                label: state.ui_tr(UiText::FILTER_RANGE).to_owned(),
                 field: FilterField::DynamicRange,
                 values: all_range_values(options),
                 compatible_values: compatible_range_values(options, &filters_snapshot),
@@ -928,14 +930,14 @@ fn render_format_picker_filters(
         ],
         FormatPickerKind::Audio => vec![
             FilterChainStage {
-                label: state.tr(UiText::FILTER_SAMPLE_RATE).to_owned(),
+                label: state.ui_tr(UiText::FILTER_SAMPLE_RATE).to_owned(),
                 field: FilterField::SampleRate,
                 values: all_sample_rate_values(options),
                 compatible_values: compatible_sample_rate_values(options, &filters_snapshot),
                 selected: filters_snapshot.sample_rate.clone(),
             },
             FilterChainStage {
-                label: state.tr(UiText::FILTER_CODEC).to_owned(),
+                label: state.ui_tr(UiText::FILTER_CODEC).to_owned(),
                 field: FilterField::Codec,
                 values: all_codec_values(options),
                 compatible_values: compatible_codec_values(options, &filters_snapshot),
@@ -1515,12 +1517,17 @@ fn render_format_picker_table_inner(
             .min_scrolled_height(180.0)
             .max_scroll_height(max_height)
             .header(row_height, |mut header| {
+                let resolution_text = state.ui_tr(UiText::HEADER_RESOLUTION);
+                let range_text = state.ui_tr(UiText::HEADER_RANGE);
+                let fps_text = state.ui_tr(UiText::HEADER_FPS);
+                let codec_text = state.ui_tr(UiText::HEADER_CODEC);
+                let filesize_text = state.ui_tr(UiText::HEADER_FILESIZE);
                 header.col(|ui| cell_label_center(ui, ""));
-                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_RESOLUTION)));
-                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_RANGE)));
-                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_FPS)));
-                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_CODEC)));
-                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_FILESIZE)));
+                header.col(|ui| cell_label_center(ui, resolution_text));
+                header.col(|ui| cell_label_center(ui, range_text));
+                header.col(|ui| cell_label_center(ui, fps_text));
+                header.col(|ui| cell_label_center(ui, codec_text));
+                header.col(|ui| cell_label_center(ui, filesize_text));
                 header.col(|_| {});
             }),
         FormatPickerKind::Audio => TableBuilder::new(ui)
@@ -1536,10 +1543,13 @@ fn render_format_picker_table_inner(
             .min_scrolled_height(180.0)
             .max_scroll_height(max_height)
             .header(row_height, |mut header| {
+                let sample_rate_text = state.ui_tr(UiText::HEADER_SAMPLE_RATE);
+                let codec_text = state.ui_tr(UiText::HEADER_CODEC);
+                let filesize_text = state.ui_tr(UiText::HEADER_FILESIZE);
                 header.col(|ui| cell_label_center(ui, ""));
-                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_SAMPLE_RATE)));
-                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_CODEC)));
-                header.col(|ui| cell_label_center(ui, state.tr(UiText::HEADER_FILESIZE)));
+                header.col(|ui| cell_label_center(ui, sample_rate_text));
+                header.col(|ui| cell_label_center(ui, codec_text));
+                header.col(|ui| cell_label_center(ui, filesize_text));
                 header.col(|_| {});
             }),
         FormatPickerKind::Subtitle | FormatPickerKind::Section => unreachable!(),
@@ -1633,30 +1643,36 @@ fn measure_format_picker_table_widths(
     options: &[FormatOption],
 ) -> FormatPickerTableWidths {
     let marker = 18.0;
+    let resolution_text = state.ui_tr(UiText::HEADER_RESOLUTION);
+    let range_text = state.ui_tr(UiText::HEADER_RANGE);
+    let fps_text = state.ui_tr(UiText::HEADER_FPS);
+    let sample_rate_text = state.ui_tr(UiText::HEADER_SAMPLE_RATE);
+    let codec_text = state.ui_tr(UiText::HEADER_CODEC);
+    let filesize_text = state.ui_tr(UiText::HEADER_FILESIZE);
     let resolution = measure_format_table_column(
         ui,
-        state.tr(UiText::HEADER_RESOLUTION),
+        resolution_text,
         options.iter().map(|option| option.resolution.as_str()),
         72.0,
         128.0,
     );
     let dynamic_range = measure_format_table_column(
         ui,
-        state.tr(UiText::HEADER_RANGE),
+        range_text,
         options.iter().map(|option| option.dynamic_range.as_str()),
         44.0,
         88.0,
     );
     let fps = measure_format_table_column(
         ui,
-        state.tr(UiText::HEADER_FPS),
+        fps_text,
         options.iter().map(|option| option.fps.as_str()),
         36.0,
         72.0,
     );
     let sample_rate = measure_format_table_column(
         ui,
-        state.tr(UiText::HEADER_SAMPLE_RATE),
+        sample_rate_text,
         options.iter().map(|option| option.sample_rate.as_str()),
         76.0,
         124.0,
@@ -1667,14 +1683,14 @@ fn measure_format_picker_table_widths(
     };
     let codec = measure_format_table_column(
         ui,
-        state.tr(UiText::HEADER_CODEC),
+        codec_text,
         options.iter().map(|option| option.codec.as_str()),
         codec_min,
         220.0,
     );
     let filesize = measure_format_table_column(
         ui,
-        state.tr(UiText::HEADER_FILESIZE),
+        filesize_text,
         options.iter().map(|option| option.filesize.as_str()),
         70.0,
         112.0,

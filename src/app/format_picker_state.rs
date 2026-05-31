@@ -88,7 +88,7 @@ pub enum SubtitlePickerTab {
 }
 
 impl SubtitlePickerTab {
-    pub fn label(self) -> &'static str {
+    pub fn label_key(self) -> &'static str {
         match self {
             Self::None => "picker.subtitle_tab.none",
             Self::Original => "picker.subtitle_tab.original",

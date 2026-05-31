@@ -31,6 +31,13 @@ pub(super) enum DownloadEvent {
         item_id: QueueItemId,
         json: Value,
     },
+    ToolCommandFinished {
+        item_id: QueueItemId,
+        workflow_id: WorkflowRunId,
+        target_kind: DownloadTargetKind,
+        command_line: String,
+        success: bool,
+    },
     Progress {
         item_id: QueueItemId,
         workflow_id: WorkflowRunId,
@@ -216,6 +223,9 @@ fn first_error_line(error: &str) -> String {
         .to_owned()
 }
 
+// i18n boundary:
+// This worker may emit localized app summaries through AppState/UI, but command
+// lines and yt-dlp stdout/stderr captured here must remain raw technical text.
 fn run_download_attempt(
     tool_paths: &ToolPaths,
     request: &DownloadRequest,
@@ -233,7 +243,7 @@ fn run_download_attempt(
     let PreparedDownload {
         mut command,
         output_path,
-        ..
+        command_line,
     } = prepared;
 
     let mut child = command
@@ -270,14 +280,36 @@ fn run_download_attempt(
         .unwrap_or_default();
 
     if cancel_requested.load(Ordering::Relaxed) {
+        let _ = tx.send(DownloadEvent::ToolCommandFinished {
+            item_id,
+            workflow_id,
+            target_kind: request.target_kind,
+            command_line: command_line.clone(),
+            success: false,
+        });
         return Err(DOWNLOAD_CANCELLED_MESSAGE.to_owned());
     }
 
     match status {
         Some(Ok(status)) if status.success() => {
-            finalize_download_output(tool_paths, request, &output_path, &stdout_lines)
+            let result = finalize_download_output(tool_paths, request, &output_path, &stdout_lines);
+            let _ = tx.send(DownloadEvent::ToolCommandFinished {
+                item_id,
+                workflow_id,
+                target_kind: request.target_kind,
+                command_line,
+                success: result.is_ok(),
+            });
+            result
         }
         Some(Ok(status)) => {
+            let _ = tx.send(DownloadEvent::ToolCommandFinished {
+                item_id,
+                workflow_id,
+                target_kind: request.target_kind,
+                command_line: command_line.clone(),
+                success: false,
+            });
             let detail = stderr_lines
                 .iter()
                 .rev()
@@ -287,8 +319,26 @@ fn run_download_attempt(
             let detail = humanize_download_error(request, &detail);
             Err(format!("yt-dlp download failed: {detail}"))
         }
-        Some(Err(error)) => Err(format!("Could not wait for yt-dlp to finish: {error}")),
-        None => Err("Could not wait for yt-dlp to finish: child process missing".to_owned()),
+        Some(Err(error)) => {
+            let _ = tx.send(DownloadEvent::ToolCommandFinished {
+                item_id,
+                workflow_id,
+                target_kind: request.target_kind,
+                command_line: command_line.clone(),
+                success: false,
+            });
+            Err(format!("Could not wait for yt-dlp to finish: {error}"))
+        }
+        None => {
+            let _ = tx.send(DownloadEvent::ToolCommandFinished {
+                item_id,
+                workflow_id,
+                target_kind: request.target_kind,
+                command_line,
+                success: false,
+            });
+            Err("Could not wait for yt-dlp to finish: child process missing".to_owned())
+        }
     }
 }
 
@@ -808,6 +858,10 @@ impl DownloadProgressContext {
     }
 }
 
+// i18n-exempt:
+// yt-dlp writes progress, JSON, warnings, and errors to stdout/stderr. Capture
+// those lines raw. Parse them only to derive app-owned status summaries; do not
+// translate or rewrite the original tool text.
 fn read_download_stream(
     stream: impl std::io::Read,
     is_stderr: bool,

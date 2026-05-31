@@ -165,7 +165,7 @@ mod windows {
     }
 
     fn custom_window_proc_ptr() -> isize {
-        custom_window_proc as usize as isize
+        custom_window_proc as *const () as usize as isize
     }
 
     fn refresh_non_client_frame(hwnd: HWND) {

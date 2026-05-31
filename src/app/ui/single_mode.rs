@@ -312,11 +312,10 @@ fn render_format_rows(tui: &mut Tui, state: &mut AppState) {
         )
     };
 
-    let video_label = state.tr(UiText::VIDEO).to_owned();
-    let audio_label = state.tr(UiText::AUDIO).to_owned();
-    let subtitle_label = state.tr(UiText::SUBTITLE).to_owned();
-    let section_label = state.tr(UiText::SECTION).to_owned();
-    let save_as = state.tr("item.save_as").to_owned();
+    let video_label = state.ui_tr(UiText::VIDEO).to_owned();
+    let audio_label = state.ui_tr(UiText::AUDIO).to_owned();
+    let subtitle_label = state.ui_tr(UiText::SUBTITLE).to_owned();
+    let section_label = state.ui_tr(UiText::SECTION).to_owned();
     let video_summary = state
         .localize_message(&state.selected_format_summary(index, FormatPickerKind::Video))
         .to_string();
@@ -348,7 +347,6 @@ fn render_format_rows(tui: &mut Tui, state: &mut AppState) {
         show_av_progress,
         !item_locked,
         video_export_enabled,
-        &save_as,
         || state.open_format_picker(index, FormatPickerKind::Video),
         || pending_export = Some((item_id, DownloadTargetKind::Video)),
     );
@@ -361,7 +359,6 @@ fn render_format_rows(tui: &mut Tui, state: &mut AppState) {
         show_av_progress,
         !audio_locked && !item_locked,
         audio_export_enabled,
-        &save_as,
         || state.open_format_picker(index, FormatPickerKind::Audio),
         || pending_export = Some((item_id, DownloadTargetKind::Audio)),
     );
@@ -375,7 +372,6 @@ fn render_format_rows(tui: &mut Tui, state: &mut AppState) {
             show_subtitle_progress,
             !item_locked,
             subtitle_export_enabled,
-            &save_as,
             || state.open_format_picker(index, FormatPickerKind::Subtitle),
             || pending_export = Some((item_id, DownloadTargetKind::Subtitle)),
         );
@@ -402,14 +398,13 @@ fn render_empty_format_rows(tui: &mut Tui, state: &mut AppState) {
         super::item_card::visible_item_label_width(ui, state, false, false, false)
     };
     let video_waiting = state
-        .tr("item.after_adding_choose_the_video_format_here")
+        .ui_tr("item.after_adding_choose_the_video_format_here")
         .to_owned();
     let audio_waiting = state
-        .tr("item.after_adding_choose_the_audio_format_here")
+        .ui_tr("item.after_adding_choose_the_audio_format_here")
         .to_owned();
-    let save_as = state.tr("item.save_as").to_owned();
-    let video_label = state.tr(UiText::VIDEO).to_owned();
-    let audio_label = state.tr(UiText::AUDIO).to_owned();
+    let video_label = state.ui_tr(UiText::VIDEO).to_owned();
+    let audio_label = state.ui_tr(UiText::AUDIO).to_owned();
 
     super::item_card::item_format_summary_row(
         tui,
@@ -420,7 +415,6 @@ fn render_empty_format_rows(tui: &mut Tui, state: &mut AppState) {
         false,
         false,
         false,
-        &save_as,
         || {},
         || {},
     );
@@ -433,7 +427,6 @@ fn render_empty_format_rows(tui: &mut Tui, state: &mut AppState) {
         false,
         false,
         false,
-        &save_as,
         || {},
         || {},
     );
@@ -543,8 +536,8 @@ impl SingleModeView {
             return Self {
                 title: metadata.title.clone(),
                 description: metadata.description.clone(),
-                title_hint: state.tr("single.title").to_owned(),
-                description_hint: state.tr("single.description").to_owned(),
+                title_hint: state.ui_tr("single.title").to_owned(),
+                description_hint: state.ui_tr("single.description").to_owned(),
                 thumbnail_hint: state
                     .localized_thumbnail_hint(&metadata.thumbnail_hint)
                     .into_owned(),
@@ -562,8 +555,8 @@ impl SingleModeView {
         Self {
             title: item.title.clone(),
             description: String::new(),
-            title_hint: state.tr("single.title").to_owned(),
-            description_hint: state.tr("single.description").to_owned(),
+            title_hint: state.ui_tr("single.title").to_owned(),
+            description_hint: state.ui_tr("single.description").to_owned(),
             thumbnail_hint: state
                 .localized_thumbnail_hint(&item.thumbnail_hint)
                 .into_owned(),
@@ -582,9 +575,9 @@ impl SingleModeView {
         Self {
             title: String::new(),
             description: String::new(),
-            title_hint: state.tr("single.title").to_owned(),
-            description_hint: state.tr("single.description").to_owned(),
-            thumbnail_hint: state.tr("item.thumbnail").to_owned(),
+            title_hint: state.ui_tr("single.title").to_owned(),
+            description_hint: state.ui_tr("single.description").to_owned(),
+            thumbnail_hint: state.ui_tr("item.thumbnail").to_owned(),
             thumbnail_url: String::new(),
             duration_text: String::new(),
             webpage_url: String::new(),
@@ -727,9 +720,8 @@ fn render_thumbnail_at(ui: &mut Ui, rect: Rect, state: &mut AppState, view: &Sin
         state.single_thumbnail_render_source_for_url(ui.ctx(), &view.thumbnail_url);
     paint_thumbnail_box(ui, thumbnail_rect, state, view, thumbnail_source);
     if !view.thumbnail_url.is_empty() {
-        response.clone().on_hover_text(view.thumbnail_url.as_str());
         response.context_menu(|ui| {
-            if ui.button(state.tr("item.save_as")).clicked() {
+            if ui.button(state.ui_tr("item.save_as")).clicked() {
                 save_single_mode_thumbnail_as(state, view);
                 ui.close();
             }
@@ -762,7 +754,7 @@ fn render_download_thumbnail_checkbox_at(ui: &mut Ui, rect: Rect, state: &mut Ap
         let mut checked = state.item_defaults.write_thumbnail;
         let response = ui.checkbox(
             &mut checked,
-            RichText::new(state.tr("item.download_thumbnail"))
+            RichText::new(state.ui_tr("item.download_thumbnail"))
                 .color(single_mode_picker_text_color(ui)),
         );
         if response.changed() {
@@ -803,7 +795,7 @@ fn render_right_info_at(ui: &mut Ui, rect: Rect, state: &AppState, view: &Single
         if !creator_name.is_empty() {
             let creator_url = view.creator_url.trim();
             lines.push(SingleInfoLine {
-                label: state.tr("single.info.channel").to_owned(),
+                label: state.ui_tr("single.info.channel").to_owned(),
                 value: creator_name.to_owned(),
                 link_url: (youtube_source && !creator_url.is_empty())
                     .then(|| creator_url.to_owned()),
@@ -813,7 +805,7 @@ fn render_right_info_at(ui: &mut Ui, rect: Rect, state: &AppState, view: &Single
         let upload_date = format_single_info_date(&view.upload_date);
         if !upload_date.is_empty() {
             lines.push(SingleInfoLine {
-                label: state.tr("single.info.date").to_owned(),
+                label: state.ui_tr("single.info.date").to_owned(),
                 value: upload_date,
                 link_url: None,
             });
@@ -822,7 +814,7 @@ fn render_right_info_at(ui: &mut Ui, rect: Rect, state: &AppState, view: &Single
         let view_count = compact_count_text(&view.view_count);
         if !view_count.is_empty() {
             lines.push(SingleInfoLine {
-                label: state.tr("single.info.views").to_owned(),
+                label: state.ui_tr("single.info.views").to_owned(),
                 value: view_count,
                 link_url: None,
             });
@@ -959,18 +951,17 @@ fn paint_thumbnail_box(
             });
             return;
         }
-        ThumbnailRenderSource::Failed(error) => {
+        ThumbnailRenderSource::Failed(_error) => {
             paint_single_thumbnail_placeholder(
                 ui,
                 inner,
                 state.localize_message(&view.thumbnail_hint).as_str(),
             );
-            ui.interact(
+            drop(ui.interact(
                 rect,
                 ui.make_persistent_id("single-mode-thumbnail-error"),
                 Sense::hover(),
-            )
-            .on_hover_text(error);
+            ));
             return;
         }
         ThumbnailRenderSource::None | ThumbnailRenderSource::DirectUrl => {}
@@ -1037,13 +1028,10 @@ fn save_single_mode_thumbnail_as(state: &mut AppState, view: &SingleModeView) {
 
     let file_name = format!("{}.jpg", sanitize_thumbnail_file_stem(&view.title));
     let dialog = rfd::FileDialog::new()
-        .add_filter(state.tr("thumbnail.filter.jpeg"), &["jpg", "jpeg"])
-        .add_filter(state.tr("thumbnail.filter.png"), &["png"])
-        .add_filter(state.tr("thumbnail.filter.webp"), &["webp"])
-        .add_filter(
-            state.tr("thumbnail.filter.original"),
-            &["jpg", "jpeg", "png", "webp", "img"],
-        )
+        .add_filter("JPEG image", &["jpg", "jpeg"])
+        .add_filter("PNG image", &["png"])
+        .add_filter("WebP image", &["webp"])
+        .add_filter("Original image", &["jpg", "jpeg", "png", "webp", "img"])
         .set_file_name(&file_name);
 
     if let Some(path) = dialog.save_file() {
