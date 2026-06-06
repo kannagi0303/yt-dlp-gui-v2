@@ -52,15 +52,9 @@ pub struct AppConfig {
     pub file_time_mode: FileTimeMode,
     #[serde(alias = "UseAria2")]
     pub use_aria2: bool,
-    #[serde(alias = "SaveThumbnail")]
-    pub write_thumbnail: bool,
-    #[serde(alias = "EmbedThumbnail")]
-    pub embed_thumbnail: bool,
-    pub write_subtitles: bool,
-    #[serde(alias = "EmbedSubtitles")]
-    pub embed_subtitles: bool,
-    pub write_chapters: bool,
-    pub embed_chapters: bool,
+    pub thumbnail_mode: PostProcessMode,
+    pub subtitle_mode: PostProcessMode,
+    pub chapter_mode: PostProcessMode,
     #[serde(alias = "apple_tv_hevc_post_process")]
     pub post_download_conversion_enabled: bool,
     #[serde(alias = "IsMonitor")]
@@ -105,6 +99,44 @@ pub struct AppConfig {
     pub prepare_skipped: bool,
     #[serde(skip)]
     config_path: Option<PathBuf>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum PostProcessMode {
+    #[serde(rename = "off")]
+    Off,
+    #[serde(rename = "download")]
+    Download,
+    #[serde(rename = "embed")]
+    Embed,
+}
+
+impl Default for PostProcessMode {
+    fn default() -> Self {
+        Self::Off
+    }
+}
+
+impl PostProcessMode {
+    pub fn writes(self) -> bool {
+        matches!(self, Self::Download | Self::Embed)
+    }
+
+    pub fn embeds(self) -> bool {
+        matches!(self, Self::Embed)
+    }
+
+    pub fn variants() -> [Self; 3] {
+        [Self::Off, Self::Download, Self::Embed]
+    }
+
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Self::Off => "advance.none",
+            Self::Download => "advance.download",
+            Self::Embed => "advance.embed",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
@@ -819,12 +851,9 @@ impl Default for AppConfig {
             chapter_compatibility_mode: true,
             file_time_mode: FileTimeMode::None,
             use_aria2: false,
-            write_thumbnail: false,
-            embed_thumbnail: false,
-            write_subtitles: false,
-            embed_subtitles: false,
-            write_chapters: false,
-            embed_chapters: false,
+            thumbnail_mode: PostProcessMode::Off,
+            subtitle_mode: PostProcessMode::Off,
+            chapter_mode: PostProcessMode::Off,
             post_download_conversion_enabled: false,
             auto_paste_clipboard: false,
             clipboard_auto_add: false,
@@ -1055,24 +1084,15 @@ impl AppConfig {
                 self.window_size = None;
             }
         }
-
-        if self.write_thumbnail
-            && self.embed_thumbnail
-            && self.write_subtitles
-            && !self.embed_subtitles
-            && !self.write_chapters
-            && !self.embed_chapters
-        {
-            self.write_thumbnail = false;
-            self.embed_thumbnail = false;
-            self.write_subtitles = false;
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{AppConfig, normalize_app_mode_value, queue_display_mode_from_app_mode_value};
+    use super::{
+        AppConfig, PostProcessMode, normalize_app_mode_value,
+        queue_display_mode_from_app_mode_value,
+    };
 
     #[test]
     fn app_config_defaults_to_origin_app_mode() {
@@ -1109,6 +1129,26 @@ mod tests {
             assert!(yaml.contains(&format!("app_mode: {app_mode}")));
             assert!(!yaml.contains("queue_display_mode"));
         }
+    }
+
+    #[test]
+    fn serialized_config_writes_post_process_modes_without_legacy_bools() {
+        let mut config = AppConfig::default();
+        config.thumbnail_mode = PostProcessMode::Embed;
+        config.subtitle_mode = PostProcessMode::Download;
+        config.chapter_mode = PostProcessMode::Off;
+
+        let yaml = serde_yaml::to_string(&config).expect("serialize config");
+
+        assert!(yaml.contains("thumbnail_mode: embed"));
+        assert!(yaml.contains("subtitle_mode: download"));
+        assert!(yaml.contains("chapter_mode: off"));
+        assert!(!yaml.contains("write_thumbnail"));
+        assert!(!yaml.contains("embed_thumbnail"));
+        assert!(!yaml.contains("write_subtitles"));
+        assert!(!yaml.contains("embed_subtitles"));
+        assert!(!yaml.contains("write_chapters"));
+        assert!(!yaml.contains("embed_chapters"));
     }
 }
 

@@ -1,6 +1,48 @@
 pub fn text<'a>(key: &'a str) -> &'a str {
     match key {
         "tab.advanced" => "Додатково",
+        "tab.about" => "About",
+        "about.tools" => "Версії інструментів",
+        "about.current_version" => "Поточна",
+        "about.latest_version" => "Найновіша",
+        "about.author" => "Автор",
+        "about.source" => "Джерело",
+        "about.status" => "Стан",
+        "about.message" => "Повідомлення",
+        "about.check_updates" => "Перевірити оновлення",
+        "about.update_all" => "Оновити все",
+        "about.restart" => "Перезапустити",
+        "about.open_release" => "Відкрити Release",
+        "about.install" => "Установити",
+        "about.update" => "Оновити",
+        "about.running" => "Триває перевірка оновлень...",
+        "about.last_check" => "Остання перевірка:",
+        "about.relative.minutes" => "{count} хв",
+        "about.relative.hour" => "1 год",
+        "about.relative.hours" => "{count} год",
+        "about.relative.day" => "1 день",
+        "about.relative.days" => "{count} дн.",
+        "about.never_checked" => "Оновлення ще не перевірялися",
+        "about.no_release_notes_loaded" => {
+            "Нотатки до випуску не завантажено. Спершу перевірте оновлення."
+        }
+        "about.ownership.managed_portable" => "Керується v2",
+        "about.ownership.external" => "Зовнішній",
+        "about.ownership.missing" => "Відсутній",
+        "about.ownership.unknown" => "Невідомо",
+        "about.status.unknown" => "Не перевірено",
+        "about.status.checking" => "Перевірка",
+        "about.status.up_to_date" => "Актуально ✓",
+        "about.status.update_available" => "Доступне оновлення ↑",
+        "about.status.missing" => "Відсутній +",
+        "about.status.downloading" => "Завантаження",
+        "about.status.downloading_percent" => "Завантаження {percent}%",
+        "about.status.staged" => "Підготовлено",
+        "about.status.pending_restart" => "Очікує перезапуску",
+        "about.status.applying" => "Застосування",
+        "about.status.installed" => "Установлено",
+        "about.status.skipped" => "Пропущено",
+        "about.status.failed" => "Помилка !",
         "tab.options" => "Параметри",
         "tab.log" => "Журнал",
         "main.url_hint" => "URL",
@@ -62,8 +104,75 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_cookies" => "Використовувати cookies",
         "advance.enable_cookies" => "Увімкнути cookies",
         "advance.cookie_source" => "Джерело cookies",
+        "advance.cookie_source.auto" => "Автоматично за сайтом",
         "advance.cookie_source.file" => "Використовувати файл (cookies.txt)",
+        "advance.cookie_auto" => "Автоматично",
+        "advance.cookie_auto_note" => {
+            "Завантаження використовують збережений Cookie, що відповідає URL."
+        }
+        "advance.cookie_rescue" => "Отримання Cookie",
         "advance.cookie_file" => "Файл cookies",
+        "advance.get_cookie" => "Отримати Cookie",
+        "advance.cookie" => "Cookie",
+        "advance.cookie.off" => "Do not use",
+        "advance.cookie.browser" => "Browser",
+        "advance.cookie.file" => "File",
+        "advance.cookie_file_source" => "File source",
+        "advance.cookie_file_custom" => "Custom cookies.txt",
+        "advance.cookie_file_auto_select" => "Auto select",
+        "advance.cookie_manager_row" => "Management",
+        "advance.manage_cookie" => "Manage Cookie",
+        "advance.cookie_manager_title" => "Cookie Manager",
+        "advance.add_cookie" => "Add Cookie",
+        "advance.cookie_manager_empty" => "No Cookie files have been added.",
+        "advance.cookie_manager_name" => "Name",
+        "advance.cookie_manager_updated" => "Updated",
+        "advance.cookie_manager_actions" => "Actions",
+        "advance.cookie_manager_refresh" => "Reacquire",
+        "advance.cookie_manager_delete" => "Delete",
+        "advance.file" => "File",
+        "youtube_login_rescue.short_note" => {
+            "Відкрити окреме вікно браузера, щоб отримати cookies."
+        }
+        "youtube_login_rescue.title" => "Отримання Cookie",
+        "youtube_login_rescue.confirm_heading" => "Відкрити окреме вікно входу",
+        "youtube_login_rescue.confirm_body" => {
+            "Окреме вікно {browser} відкриє URL без використання особистих даних браузера."
+        }
+        "youtube_login_rescue.target_url_label" => "URL сайту",
+        "youtube_login_rescue.target_url_hint" => "https://www.youtube.com/",
+        "youtube_login_rescue.clipboard_prefilled" => "URL вставлено з буфера обміну.",
+        "youtube_login_rescue.drop_url_note" => {
+            "Вставте URL або перетягніть файл .url / текстовий файл."
+        }
+        "youtube_login_rescue.paste_clipboard" => "Вставити з буфера",
+        "youtube_login_rescue.cookie_note" => {
+            "Увійдіть у систему в цьому вікні. Коли cookies буде знайдено, вікно закриється й вони застосуються автоматично."
+        }
+        "youtube_login_rescue.no_browser_title" => "Підтримуваний браузер не знайдено",
+        "youtube_login_rescue.no_browser_body" => {
+            "Для отримання cookies зараз потрібен Chrome, Brave або Microsoft Edge. Ви також можете вибрати cookies.txt вручну."
+        }
+        "youtube_login_rescue.start" => "Почати",
+        "youtube_login_rescue.opening" => "Відкриття {browser}...",
+        "youtube_login_rescue.waiting_for_cdp" => "Очікування підключення вікна входу {browser}...",
+        "youtube_login_rescue.waiting_for_cookie" => {
+            "Вікно входу підключено. Очікування cookies сайту..."
+        }
+        "youtube_login_rescue.cookie_exported" => "Cookie збережено.",
+        "youtube_login_rescue.cookie_exported_note" => {
+            "Cookie {site} збережено. Завантаження з цього сайту використовуватимуть його автоматично."
+        }
+        "youtube_login_rescue.do_not_close_note" => {
+            "Не закривайте браузер входу, поки триває ця перевірка."
+        }
+        "youtube_login_rescue.cdp_ready" => "Вікно входу підключено.",
+        "youtube_login_rescue.ready_next_step_note" => {
+            "Завершіть вхід у YouTube у браузері. Експорт Cookie буде додано на наступному кроці."
+        }
+        "youtube_login_rescue.close_login_window" => "Закрити вікно входу",
+        "youtube_login_rescue.failed" => "Не вдалося отримати Cookie",
+        "youtube_login_rescue.retry" => "Повторити",
         "advance.no_cookies_txt_selected" => "cookies.txt не вибрано",
         "advance.browse" => "Огляд",
         "advance.select_netscape_cookies_txt" => "Вибрати Netscape cookies.txt",
@@ -122,8 +231,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
             "Установіть потрібні інструменти зараз або пропустіть і налаштуйте їх пізніше в параметрах."
         }
-        "prepare.required" => "Обов’язково",
-        "prepare.recommended" => "Рекомендовано",
         "prepare.optional" => "Необов’язково",
         "prepare.missing" => "Відсутнє",
         "prepare.install_later" => "Установити пізніше",
@@ -138,33 +245,67 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.another_tool_is_already_being_installed" => "Інший інструмент уже встановлюється.",
         "prepare.needs_attention" => "Потребує уваги",
         "prepare.req.app_folder.title" => "Папка програми",
-        "prepare.req.app_folder.description" => "Папка портативної версії має бути доступною для запису налаштувань і службових даних.",
+        "prepare.req.app_folder.description" => {
+            "Папка портативної версії має бути доступною для запису налаштувань і службових даних."
+        }
         "prepare.req.tools_folder.title" => "Папка інструментів",
-        "prepare.req.tools_folder.description" => "Розгортання залежностей зберігає тут yt-dlp, FFmpeg і Deno.",
+        "prepare.req.tools_folder.description" => {
+            "Розгортання залежностей зберігає тут yt-dlp, FFmpeg і Deno."
+        }
         "prepare.req.deployment_temp.title" => "Тимчасова папка розгортання",
-        "prepare.req.deployment_temp.description" => "Для розпакування FFmpeg і Deno використовується ця тимчасова папка.",
+        "prepare.req.deployment_temp.description" => {
+            "Для розпакування FFmpeg і Deno використовується ця тимчасова папка."
+        }
         "prepare.req.download_cache.title" => "Кеш завантажень",
-        "prepare.req.download_cache.description" => "Режим кешу yt-dlp-gui зберігає тут кеш yt-dlp.",
+        "prepare.req.download_cache.description" => {
+            "Режим кешу yt-dlp-gui зберігає тут кеш yt-dlp."
+        }
         "prepare.req.output_folder.title" => "Папка виводу",
         "prepare.req.output_folder.description" => "Відео, аудіо й субтитри зберігаються тут.",
-        "prepare.req.output_folder.recommendation" => "Виберіть дійсну папку виводу на головному екрані або в параметрах.",
+        "prepare.req.output_folder.recommendation" => {
+            "Виберіть дійсну папку виводу на головному екрані або в параметрах."
+        }
         "prepare.req.config_file.title" => "Файл налаштувань",
-        "prepare.req.config_file.description" => "Програма має зберігати стан пропуску Prepare і шляхи до інструментів.",
-        "prepare.req.generic_writable_recommendation" => "Виберіть папку з правом запису й перевірте дозволи.",
-        "prepare.req.config_not_folder" => "Шлях налаштувань указує на папку. Виберіть шлях до файлу.",
+        "prepare.req.config_file.description" => {
+            "Програма має зберігати стан пропуску Prepare і шляхи до інструментів."
+        }
+        "prepare.req.generic_writable_recommendation" => {
+            "Виберіть папку з правом запису й перевірте дозволи."
+        }
+        "prepare.req.config_not_folder" => {
+            "Шлях налаштувань указує на папку. Виберіть шлях до файлу."
+        }
         "prepare.req.config_readonly" => "Файл налаштувань доступний лише для читання.",
-        "prepare.req.config_readonly_recommendation" => "Дозвольте запис у файл налаштувань або виберіть іншу папку програми.",
+        "prepare.req.config_readonly_recommendation" => {
+            "Дозвольте запис у файл налаштувань або виберіть іншу папку програми."
+        }
         "prepare.req.use_folder_path" => "Виберіть шлях до папки, а не до файлу.",
-        "prepare.req.move_portable_folder" => "Перемістіть програму до портативної папки з правом запису.",
-        "prepare.req.avoid_protected_folder" => "Не розміщуйте портативну програму в Program Files або папці Windows. Перемістіть її до D:\\Portable або папки користувача.",
-        "prepare.req.move_non_synced_folder" => "Перемістіть її до несинхронізованої папки, наприклад D:\\Portable\\yt-dlp-gui-v2.",
+        "prepare.req.move_portable_folder" => {
+            "Перемістіть програму до портативної папки з правом запису."
+        }
+        "prepare.req.avoid_protected_folder" => {
+            "Не розміщуйте портативну програму в Program Files або папці Windows. Перемістіть її до D:\\Portable або папки користувача."
+        }
+        "prepare.req.move_non_synced_folder" => {
+            "Перемістіть її до несинхронізованої папки, наприклад D:\\Portable\\yt-dlp-gui-v2."
+        }
         "prepare.req.drive_parent_exists" => "Переконайтеся, що диск і батьківська папка існують.",
-        "prepare.req.permission_denied" => "Перемістіть програму до портативної папки з правом запису. Якщо Робочий стіл/Документи/Завантаження все ще не працюють, можливо, блокує контрольований доступ до папок Defender.",
-        "prepare.req.file_in_use" => "Закрийте програму, яка може використовувати цю папку, або виберіть іншу папку.",
+        "prepare.req.permission_denied" => {
+            "Перемістіть програму до портативної папки з правом запису. Якщо Робочий стіл/Документи/Завантаження все ще не працюють, можливо, блокує контрольований доступ до папок Defender."
+        }
+        "prepare.req.file_in_use" => {
+            "Закрийте програму, яка може використовувати цю папку, або виберіть іншу папку."
+        }
         "prepare.req.free_disk_space" => "Звільніть місце на диску або виберіть інший диск.",
-        "prepare.req.path_too_long" => "Перемістіть програму до коротшого шляху, наприклад D:\\Portable\\yt-dlp-gui-v2.",
-        "prepare.req.choose_writable_portable_folder" => "Виберіть явно доступну для запису портативну папку й перевірте знову.",
-        "prepare.req.clear_write_test" => "Видаліть залишковий файл перевірки запису й перевірте знову.",
+        "prepare.req.path_too_long" => {
+            "Перемістіть програму до коротшого шляху, наприклад D:\\Portable\\yt-dlp-gui-v2."
+        }
+        "prepare.req.choose_writable_portable_folder" => {
+            "Виберіть явно доступну для запису портативну папку й перевірте знову."
+        }
+        "prepare.req.clear_write_test" => {
+            "Видаліть залишковий файл перевірки запису й перевірте знову."
+        }
         "options.this_url_contains_both_a_video_and_a_playlis" => {
             "Цей URL містить і відео, і список відтворення"
         }
@@ -304,9 +445,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tool_install.stage.installing" => "Установлення",
         "tool_install.stage.completed" => "Завершено",
         "tool_install.stage.failed" => "Помилка",
-        "prepare.severity.short.required" => "Обов’язково",
-        "prepare.severity.short.recommended" => "Рекомендовано",
-        "prepare.severity.short.optional" => "Необов’язково",
         "item.status.queued" => "У черзі",
         "item.status.running" => "Виконується",
         "item.status.finished" => "Готово",

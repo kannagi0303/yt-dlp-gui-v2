@@ -1,6 +1,48 @@
 pub fn text<'a>(key: &'a str) -> &'a str {
     match key {
         "tab.advanced" => "Avancé",
+        "tab.about" => "About",
+        "about.tools" => "Versions des outils",
+        "about.current_version" => "Actuelle",
+        "about.latest_version" => "Dernière",
+        "about.author" => "Auteur",
+        "about.source" => "Source",
+        "about.status" => "État",
+        "about.message" => "Message",
+        "about.check_updates" => "Rechercher des mises à jour",
+        "about.update_all" => "Tout mettre à jour",
+        "about.restart" => "Redémarrer",
+        "about.open_release" => "Ouvrir la release",
+        "about.install" => "Installer",
+        "about.update" => "Mettre à jour",
+        "about.running" => "Recherche de mises à jour...",
+        "about.last_check" => "Dernière vérification :",
+        "about.relative.minutes" => "{count} min",
+        "about.relative.hour" => "1 heure",
+        "about.relative.hours" => "{count} heures",
+        "about.relative.day" => "1 jour",
+        "about.relative.days" => "{count} jours",
+        "about.never_checked" => "Aucune recherche de mise à jour effectuée",
+        "about.no_release_notes_loaded" => {
+            "Aucune note de version chargée. Lancez d'abord une recherche de mises à jour."
+        }
+        "about.ownership.managed_portable" => "Géré par v2",
+        "about.ownership.external" => "Externe",
+        "about.ownership.missing" => "Manquant",
+        "about.ownership.unknown" => "Inconnu",
+        "about.status.unknown" => "Non vérifié",
+        "about.status.checking" => "Vérification",
+        "about.status.up_to_date" => "À jour ✓",
+        "about.status.update_available" => "Mise à jour disponible ↑",
+        "about.status.missing" => "Manquant +",
+        "about.status.downloading" => "Téléchargement",
+        "about.status.downloading_percent" => "Téléchargement {percent}%",
+        "about.status.staged" => "Préparé",
+        "about.status.pending_restart" => "Redémarrage en attente",
+        "about.status.applying" => "Application",
+        "about.status.installed" => "Installé",
+        "about.status.skipped" => "Ignoré",
+        "about.status.failed" => "Échec !",
         "tab.options" => "Options",
         "tab.log" => "Journal",
         "main.url_hint" => "URL",
@@ -62,8 +104,79 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_cookies" => "Utiliser les cookies",
         "advance.enable_cookies" => "Activer les cookies",
         "advance.cookie_source" => "Source des cookies",
+        "advance.cookie_source.auto" => "Automatique selon le site",
         "advance.cookie_source.file" => "Utiliser un fichier (cookies.txt)",
+        "advance.cookie_auto" => "Automatique",
+        "advance.cookie_auto_note" => {
+            "Les téléchargements utilisent le Cookie enregistré qui correspond à l'URL."
+        }
+        "advance.cookie_rescue" => "Récupération des cookies",
         "advance.cookie_file" => "Fichier de cookies",
+        "advance.get_cookie" => "Récupérer Cookie",
+        "advance.cookie" => "Cookie",
+        "advance.cookie.off" => "Do not use",
+        "advance.cookie.browser" => "Browser",
+        "advance.cookie.file" => "File",
+        "advance.cookie_file_source" => "File source",
+        "advance.cookie_file_custom" => "Custom cookies.txt",
+        "advance.cookie_file_auto_select" => "Auto select",
+        "advance.cookie_manager_row" => "Management",
+        "advance.manage_cookie" => "Manage Cookie",
+        "advance.cookie_manager_title" => "Cookie Manager",
+        "advance.add_cookie" => "Add Cookie",
+        "advance.cookie_manager_empty" => "No Cookie files have been added.",
+        "advance.cookie_manager_name" => "Name",
+        "advance.cookie_manager_updated" => "Updated",
+        "advance.cookie_manager_actions" => "Actions",
+        "advance.cookie_manager_refresh" => "Reacquire",
+        "advance.cookie_manager_delete" => "Delete",
+        "advance.file" => "File",
+        "youtube_login_rescue.short_note" => {
+            "Ouvrir une fenêtre de navigateur dédiée pour récupérer les cookies."
+        }
+        "youtube_login_rescue.title" => "Récupération des cookies",
+        "youtube_login_rescue.confirm_heading" => "Ouvrir une fenêtre de connexion dédiée",
+        "youtube_login_rescue.confirm_body" => {
+            "Une fenêtre {browser} indépendante ouvrira l'URL sans utiliser les données de votre navigateur personnel."
+        }
+        "youtube_login_rescue.target_url_label" => "URL du site web",
+        "youtube_login_rescue.target_url_hint" => "https://www.youtube.com/",
+        "youtube_login_rescue.clipboard_prefilled" => {
+            "L'URL a été remplie depuis le presse-papiers."
+        }
+        "youtube_login_rescue.drop_url_note" => {
+            "Collez une URL ou déposez un fichier .url / texte."
+        }
+        "youtube_login_rescue.paste_clipboard" => "Coller le presse-papiers",
+        "youtube_login_rescue.cookie_note" => {
+            "Connectez-vous dans cette fenêtre. Une fois les cookies trouvés, la fenêtre se fermera et ils seront appliqués automatiquement."
+        }
+        "youtube_login_rescue.no_browser_title" => "Aucun navigateur pris en charge trouvé",
+        "youtube_login_rescue.no_browser_body" => {
+            "La récupération des cookies nécessite actuellement Chrome, Brave ou Microsoft Edge. Vous pouvez toujours choisir un fichier cookies.txt manuellement."
+        }
+        "youtube_login_rescue.start" => "Démarrer",
+        "youtube_login_rescue.opening" => "Ouverture de {browser}...",
+        "youtube_login_rescue.waiting_for_cdp" => {
+            "En attente de la connexion de la fenêtre de connexion {browser}..."
+        }
+        "youtube_login_rescue.waiting_for_cookie" => {
+            "La fenêtre de connexion est connectée. En attente des cookies du site web..."
+        }
+        "youtube_login_rescue.cookie_exported" => "Le Cookie a été enregistré.",
+        "youtube_login_rescue.cookie_exported_note" => {
+            "Cookie {site} enregistré. Les téléchargements de ce site l'utiliseront automatiquement."
+        }
+        "youtube_login_rescue.do_not_close_note" => {
+            "Gardez le navigateur de connexion ouvert pendant cette vérification."
+        }
+        "youtube_login_rescue.cdp_ready" => "La fenêtre de connexion est connectée.",
+        "youtube_login_rescue.ready_next_step_note" => {
+            "Terminez la connexion à YouTube dans le navigateur. L'exportation des cookies sera ajoutée à l'étape suivante."
+        }
+        "youtube_login_rescue.close_login_window" => "Fermer la fenêtre de connexion",
+        "youtube_login_rescue.failed" => "Échec de la récupération des cookies",
+        "youtube_login_rescue.retry" => "Réessayer",
         "advance.no_cookies_txt_selected" => "Aucun cookies.txt sélectionné",
         "advance.browse" => "Parcourir",
         "advance.select_netscape_cookies_txt" => "Sélectionner le cookies.txt Netscape",
@@ -124,8 +237,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
             "Installez les outils requis maintenant, ou ignorez cette étape et configurez-les plus tard dans Options."
         }
-        "prepare.required" => "Requis",
-        "prepare.recommended" => "Recommandé",
         "prepare.optional" => "Facultatif",
         "prepare.missing" => "Manquant",
         "prepare.install_later" => "Installer plus tard",
@@ -142,33 +253,75 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "prepare.needs_attention" => "Attention requise",
         "prepare.req.app_folder.title" => "Dossier de l’application",
-        "prepare.req.app_folder.description" => "Le dossier portable doit être accessible en écriture pour les paramètres et les données de support.",
+        "prepare.req.app_folder.description" => {
+            "Le dossier portable doit être accessible en écriture pour les paramètres et les données de support."
+        }
         "prepare.req.tools_folder.title" => "Dossier des outils",
-        "prepare.req.tools_folder.description" => "Le déploiement des dépendances y stocke yt-dlp, FFmpeg et Deno.",
+        "prepare.req.tools_folder.description" => {
+            "Le déploiement des dépendances y stocke yt-dlp, FFmpeg et Deno."
+        }
         "prepare.req.deployment_temp.title" => "Temporaire de déploiement",
-        "prepare.req.deployment_temp.description" => "L’extraction de FFmpeg et Deno utilise ce dossier temporaire.",
+        "prepare.req.deployment_temp.description" => {
+            "L’extraction de FFmpeg et Deno utilise ce dossier temporaire."
+        }
         "prepare.req.download_cache.title" => "Cache de téléchargement",
-        "prepare.req.download_cache.description" => "Le mode cache de yt-dlp-gui y stocke le cache de yt-dlp.",
+        "prepare.req.download_cache.description" => {
+            "Le mode cache de yt-dlp-gui y stocke le cache de yt-dlp."
+        }
         "prepare.req.output_folder.title" => "Dossier de sortie",
-        "prepare.req.output_folder.description" => "Les vidéos, l’audio et les sous-titres sont enregistrés ici.",
-        "prepare.req.output_folder.recommendation" => "Choisissez un dossier de sortie valide depuis l’écran principal ou les options.",
+        "prepare.req.output_folder.description" => {
+            "Les vidéos, l’audio et les sous-titres sont enregistrés ici."
+        }
+        "prepare.req.output_folder.recommendation" => {
+            "Choisissez un dossier de sortie valide depuis l’écran principal ou les options."
+        }
         "prepare.req.config_file.title" => "Fichier de configuration",
-        "prepare.req.config_file.description" => "L’application doit pouvoir enregistrer l’état d’ignorance de Prepare et les chemins des outils.",
-        "prepare.req.generic_writable_recommendation" => "Choisissez un dossier accessible en écriture et vérifiez les autorisations.",
-        "prepare.req.config_not_folder" => "Le chemin de configuration pointe vers un dossier. Choisissez un chemin de fichier.",
+        "prepare.req.config_file.description" => {
+            "L’application doit pouvoir enregistrer l’état d’ignorance de Prepare et les chemins des outils."
+        }
+        "prepare.req.generic_writable_recommendation" => {
+            "Choisissez un dossier accessible en écriture et vérifiez les autorisations."
+        }
+        "prepare.req.config_not_folder" => {
+            "Le chemin de configuration pointe vers un dossier. Choisissez un chemin de fichier."
+        }
         "prepare.req.config_readonly" => "Le fichier de configuration est en lecture seule.",
-        "prepare.req.config_readonly_recommendation" => "Autorisez l’écriture dans le fichier de configuration ou choisissez un autre dossier d’application.",
-        "prepare.req.use_folder_path" => "Choisissez un chemin de dossier plutôt qu’un chemin de fichier.",
-        "prepare.req.move_portable_folder" => "Déplacez l’application vers un dossier portable accessible en écriture.",
-        "prepare.req.avoid_protected_folder" => "Ne placez pas l’application portable dans Program Files ni dans le dossier Windows. Déplacez-la vers D:\\Portable ou un dossier utilisateur.",
-        "prepare.req.move_non_synced_folder" => "Déplacez-la vers un dossier non synchronisé, par exemple D:\\Portable\\yt-dlp-gui-v2.",
-        "prepare.req.drive_parent_exists" => "Vérifiez que le lecteur et le dossier parent existent.",
-        "prepare.req.permission_denied" => "Déplacez l’application vers un dossier portable accessible en écriture. Si Bureau/Documents/Téléchargements échouent encore, l’accès contrôlé aux dossiers de Defender peut la bloquer.",
-        "prepare.req.file_in_use" => "Fermez le programme qui utilise peut-être ce dossier ou choisissez un autre dossier.",
-        "prepare.req.free_disk_space" => "Libérez de l’espace disque ou choisissez un autre disque.",
-        "prepare.req.path_too_long" => "Déplacez l’application vers un chemin plus court, par exemple D:\\Portable\\yt-dlp-gui-v2.",
-        "prepare.req.choose_writable_portable_folder" => "Choisissez un dossier portable clairement accessible en écriture, puis vérifiez à nouveau.",
-        "prepare.req.clear_write_test" => "Supprimez le fichier de test d’écriture restant, puis vérifiez à nouveau.",
+        "prepare.req.config_readonly_recommendation" => {
+            "Autorisez l’écriture dans le fichier de configuration ou choisissez un autre dossier d’application."
+        }
+        "prepare.req.use_folder_path" => {
+            "Choisissez un chemin de dossier plutôt qu’un chemin de fichier."
+        }
+        "prepare.req.move_portable_folder" => {
+            "Déplacez l’application vers un dossier portable accessible en écriture."
+        }
+        "prepare.req.avoid_protected_folder" => {
+            "Ne placez pas l’application portable dans Program Files ni dans le dossier Windows. Déplacez-la vers D:\\Portable ou un dossier utilisateur."
+        }
+        "prepare.req.move_non_synced_folder" => {
+            "Déplacez-la vers un dossier non synchronisé, par exemple D:\\Portable\\yt-dlp-gui-v2."
+        }
+        "prepare.req.drive_parent_exists" => {
+            "Vérifiez que le lecteur et le dossier parent existent."
+        }
+        "prepare.req.permission_denied" => {
+            "Déplacez l’application vers un dossier portable accessible en écriture. Si Bureau/Documents/Téléchargements échouent encore, l’accès contrôlé aux dossiers de Defender peut la bloquer."
+        }
+        "prepare.req.file_in_use" => {
+            "Fermez le programme qui utilise peut-être ce dossier ou choisissez un autre dossier."
+        }
+        "prepare.req.free_disk_space" => {
+            "Libérez de l’espace disque ou choisissez un autre disque."
+        }
+        "prepare.req.path_too_long" => {
+            "Déplacez l’application vers un chemin plus court, par exemple D:\\Portable\\yt-dlp-gui-v2."
+        }
+        "prepare.req.choose_writable_portable_folder" => {
+            "Choisissez un dossier portable clairement accessible en écriture, puis vérifiez à nouveau."
+        }
+        "prepare.req.clear_write_test" => {
+            "Supprimez le fichier de test d’écriture restant, puis vérifiez à nouveau."
+        }
         "options.this_url_contains_both_a_video_and_a_playlis" => {
             "Cette URL contient à la fois une vidéo et une playlist"
         }
@@ -316,9 +469,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tool_install.stage.installing" => "Installation",
         "tool_install.stage.completed" => "Terminé",
         "tool_install.stage.failed" => "Échec",
-        "prepare.severity.short.required" => "Requis",
-        "prepare.severity.short.recommended" => "Recommandé",
-        "prepare.severity.short.optional" => "Optionnel",
         "item.status.queued" => "En file",
         "item.status.running" => "En cours",
         "item.status.finished" => "Terminé",

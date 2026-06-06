@@ -23,6 +23,8 @@ use symphonia::core::meta::MetadataOptions;
 use symphonia::core::units::Time;
 use symphonia_adapter_libopus::OpusDecoder;
 
+use crate::infrastructure::yaml_store::{read_yaml_file, write_yaml_file};
+
 const INITIAL_CACHE_BUFFER_BYTES: u64 = 384 * 1024;
 const INITIAL_CACHE_WAIT_TIMEOUT: Duration = Duration::from_secs(20);
 const CACHE_WAIT_STEP: Duration = Duration::from_millis(40);
@@ -828,7 +830,7 @@ fn music_cache_paths(stream: &ResolvedMusicStream) -> Result<MusicCachePaths, St
     Ok(MusicCachePaths {
         media: dir.join(format!("audio.{ext}")),
         cover: dir.join("cover.img"),
-        manifest: dir.join("manifest.json"),
+        manifest: dir.join("manifest.yaml"),
         dir,
     })
 }
@@ -953,10 +955,7 @@ fn existing_cache_manifest_is_not_fresh(paths: &MusicCachePaths) -> bool {
     if !paths.media.is_file() {
         return false;
     }
-    let Ok(data) = fs::read_to_string(&paths.manifest) else {
-        return true;
-    };
-    let Ok(manifest) = serde_json::from_str::<MusicCacheManifest>(&data) else {
+    let Some(manifest) = read_yaml_file::<MusicCacheManifest>(&paths.manifest) else {
         return true;
     };
     !cache_manifest_updated_is_fresh(manifest.updated_unix_seconds)
@@ -970,10 +969,7 @@ fn cached_media_is_complete(
     if media_len == 0 {
         return false;
     }
-    let Ok(data) = fs::read_to_string(&paths.manifest) else {
-        return false;
-    };
-    let Ok(manifest) = serde_json::from_str::<MusicCacheManifest>(&data) else {
+    let Some(manifest) = read_yaml_file::<MusicCacheManifest>(&paths.manifest) else {
         return false;
     };
     if !cache_manifest_updated_is_fresh(manifest.updated_unix_seconds) {
@@ -1312,7 +1308,7 @@ fn download_cache_range(
         .map_err(|error| format!("Could not open music cache file: {error}"))?;
     file.seek(SeekFrom::Start(range_start))
         .map_err(|error| format!("Could not seek music cache file: {error}"))?;
-    if range_start == 0 && start_offset > 0 && status != 206 {
+    if range_start == 0 {
         file.set_len(0)
             .map_err(|error| format!("Could not reset music cache file: {error}"))?;
     }
@@ -1386,9 +1382,7 @@ fn write_cache_manifest(
         complete,
         updated_unix_seconds: unix_seconds_now(),
     };
-    let data = serde_json::to_vec_pretty(&manifest)
-        .map_err(|error| format!("Could not encode music cache manifest: {error}"))?;
-    fs::write(&paths.manifest, data)
+    write_yaml_file(&paths.manifest, &manifest)
         .map_err(|error| format!("Could not write music cache manifest: {error}"))
 }
 
@@ -1467,12 +1461,10 @@ fn manifest_ranges_for_existing_cache(
     if media_len == 0 {
         return Vec::new();
     }
-    if let Ok(data) = fs::read_to_string(&paths.manifest) {
-        if let Ok(manifest) = serde_json::from_str::<MusicCacheManifest>(&data) {
-            let ranges = normalize_ranges(manifest.ranges);
-            if !ranges.is_empty() {
-                return ranges;
-            }
+    if let Some(manifest) = read_yaml_file::<MusicCacheManifest>(&paths.manifest) {
+        let ranges = normalize_ranges(manifest.ranges);
+        if !ranges.is_empty() {
+            return ranges;
         }
     }
     if media_len > 0 {

@@ -1,6 +1,48 @@
 pub fn text<'a>(key: &'a str) -> &'a str {
     match key {
         "tab.advanced" => "Расширенные",
+        "tab.about" => "About",
+        "about.tools" => "Версии инструментов",
+        "about.current_version" => "Текущая",
+        "about.latest_version" => "Последняя",
+        "about.author" => "Автор",
+        "about.source" => "Источник",
+        "about.status" => "Статус",
+        "about.message" => "Сообщение",
+        "about.check_updates" => "Проверить обновления",
+        "about.update_all" => "Обновить всё",
+        "about.restart" => "Перезапустить",
+        "about.open_release" => "Открыть Release",
+        "about.install" => "Установить",
+        "about.update" => "Обновить",
+        "about.running" => "Идет проверка обновлений...",
+        "about.last_check" => "Последняя проверка:",
+        "about.relative.minutes" => "{count} мин",
+        "about.relative.hour" => "1 час",
+        "about.relative.hours" => "{count} ч",
+        "about.relative.day" => "1 день",
+        "about.relative.days" => "{count} дн.",
+        "about.never_checked" => "Обновления еще не проверялись",
+        "about.no_release_notes_loaded" => {
+            "Заметки к выпуску не загружены. Сначала проверьте обновления."
+        }
+        "about.ownership.managed_portable" => "Управляется v2",
+        "about.ownership.external" => "Внешний",
+        "about.ownership.missing" => "Отсутствует",
+        "about.ownership.unknown" => "Неизвестно",
+        "about.status.unknown" => "Не проверено",
+        "about.status.checking" => "Проверка",
+        "about.status.up_to_date" => "Актуально ✓",
+        "about.status.update_available" => "Доступно обновление ↑",
+        "about.status.missing" => "Отсутствует +",
+        "about.status.downloading" => "Загрузка",
+        "about.status.downloading_percent" => "Загрузка {percent}%",
+        "about.status.staged" => "Подготовлено",
+        "about.status.pending_restart" => "Ожидает перезапуска",
+        "about.status.applying" => "Применение",
+        "about.status.installed" => "Установлено",
+        "about.status.skipped" => "Пропущено",
+        "about.status.failed" => "Ошибка !",
         "tab.options" => "Параметры",
         "tab.log" => "Журнал",
         "main.url_hint" => "URL",
@@ -62,8 +104,75 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_cookies" => "Использовать cookies",
         "advance.enable_cookies" => "Включить cookies",
         "advance.cookie_source" => "Источник cookies",
+        "advance.cookie_source.auto" => "Автоматически по сайту",
         "advance.cookie_source.file" => "Использовать файл (cookies.txt)",
+        "advance.cookie_auto" => "Автоматически",
+        "advance.cookie_auto_note" => {
+            "Загрузки используют сохраненный Cookie, соответствующий URL."
+        }
+        "advance.cookie_rescue" => "Получение Cookie",
         "advance.cookie_file" => "Файл cookies",
+        "advance.get_cookie" => "Получить Cookie",
+        "advance.cookie" => "Cookie",
+        "advance.cookie.off" => "Do not use",
+        "advance.cookie.browser" => "Browser",
+        "advance.cookie.file" => "File",
+        "advance.cookie_file_source" => "File source",
+        "advance.cookie_file_custom" => "Custom cookies.txt",
+        "advance.cookie_file_auto_select" => "Auto select",
+        "advance.cookie_manager_row" => "Management",
+        "advance.manage_cookie" => "Manage Cookie",
+        "advance.cookie_manager_title" => "Cookie Manager",
+        "advance.add_cookie" => "Add Cookie",
+        "advance.cookie_manager_empty" => "No Cookie files have been added.",
+        "advance.cookie_manager_name" => "Name",
+        "advance.cookie_manager_updated" => "Updated",
+        "advance.cookie_manager_actions" => "Actions",
+        "advance.cookie_manager_refresh" => "Reacquire",
+        "advance.cookie_manager_delete" => "Delete",
+        "advance.file" => "File",
+        "youtube_login_rescue.short_note" => {
+            "Открыть отдельное окно браузера для получения cookies."
+        }
+        "youtube_login_rescue.title" => "Получение Cookie",
+        "youtube_login_rescue.confirm_heading" => "Открыть отдельное окно входа",
+        "youtube_login_rescue.confirm_body" => {
+            "Отдельное окно {browser} откроет URL без использования личных данных браузера."
+        }
+        "youtube_login_rescue.target_url_label" => "URL сайта",
+        "youtube_login_rescue.target_url_hint" => "https://www.youtube.com/",
+        "youtube_login_rescue.clipboard_prefilled" => "URL был вставлен из буфера обмена.",
+        "youtube_login_rescue.drop_url_note" => {
+            "Вставьте URL или перетащите файл .url / текстовый файл."
+        }
+        "youtube_login_rescue.paste_clipboard" => "Вставить из буфера",
+        "youtube_login_rescue.cookie_note" => {
+            "Войдите в систему в этом окне. Когда cookies будут найдены, окно закроется и они применятся автоматически."
+        }
+        "youtube_login_rescue.no_browser_title" => "Поддерживаемый браузер не найден",
+        "youtube_login_rescue.no_browser_body" => {
+            "Для получения cookies сейчас нужен Chrome, Brave или Microsoft Edge. Вы также можете выбрать cookies.txt вручную."
+        }
+        "youtube_login_rescue.start" => "Начать",
+        "youtube_login_rescue.opening" => "Открытие {browser}...",
+        "youtube_login_rescue.waiting_for_cdp" => "Ожидание подключения окна входа {browser}...",
+        "youtube_login_rescue.waiting_for_cookie" => {
+            "Окно входа подключено. Ожидание cookies сайта..."
+        }
+        "youtube_login_rescue.cookie_exported" => "Cookie сохранен.",
+        "youtube_login_rescue.cookie_exported_note" => {
+            "Cookie {site} сохранен. Загрузки с этого сайта будут использовать его автоматически."
+        }
+        "youtube_login_rescue.do_not_close_note" => {
+            "Не закрывайте браузер входа, пока выполняется эта проверка."
+        }
+        "youtube_login_rescue.cdp_ready" => "Окно входа подключено.",
+        "youtube_login_rescue.ready_next_step_note" => {
+            "Завершите вход в YouTube в браузере. Экспорт Cookie будет добавлен на следующем шаге."
+        }
+        "youtube_login_rescue.close_login_window" => "Закрыть окно входа",
+        "youtube_login_rescue.failed" => "Не удалось получить Cookie",
+        "youtube_login_rescue.retry" => "Повторить",
         "advance.no_cookies_txt_selected" => "cookies.txt не выбран",
         "advance.browse" => "Обзор",
         "advance.select_netscape_cookies_txt" => "Выбрать Netscape cookies.txt",
@@ -120,8 +229,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
             "Установите необходимые инструменты сейчас или пропустите и настройте их позже в параметрах."
         }
-        "prepare.required" => "Обязательно",
-        "prepare.recommended" => "Рекомендуется",
         "prepare.optional" => "Необязательно",
         "prepare.missing" => "Отсутствует",
         "prepare.install_later" => "Установить позже",
@@ -138,33 +245,67 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "prepare.needs_attention" => "Требует внимания",
         "prepare.req.app_folder.title" => "Папка приложения",
-        "prepare.req.app_folder.description" => "Папка портативной версии должна быть доступна для записи настроек и служебных данных.",
+        "prepare.req.app_folder.description" => {
+            "Папка портативной версии должна быть доступна для записи настроек и служебных данных."
+        }
         "prepare.req.tools_folder.title" => "Папка инструментов",
-        "prepare.req.tools_folder.description" => "Развёртывание зависимостей сохраняет здесь yt-dlp, FFmpeg и Deno.",
+        "prepare.req.tools_folder.description" => {
+            "Развёртывание зависимостей сохраняет здесь yt-dlp, FFmpeg и Deno."
+        }
         "prepare.req.deployment_temp.title" => "Временная папка развёртывания",
-        "prepare.req.deployment_temp.description" => "Для распаковки FFmpeg и Deno используется эта временная папка.",
+        "prepare.req.deployment_temp.description" => {
+            "Для распаковки FFmpeg и Deno используется эта временная папка."
+        }
         "prepare.req.download_cache.title" => "Кэш загрузок",
-        "prepare.req.download_cache.description" => "Режим кэша yt-dlp-gui сохраняет здесь кэш yt-dlp.",
+        "prepare.req.download_cache.description" => {
+            "Режим кэша yt-dlp-gui сохраняет здесь кэш yt-dlp."
+        }
         "prepare.req.output_folder.title" => "Папка вывода",
         "prepare.req.output_folder.description" => "Видео, аудио и субтитры сохраняются здесь.",
-        "prepare.req.output_folder.recommendation" => "Выберите допустимую папку вывода на главном экране или в параметрах.",
+        "prepare.req.output_folder.recommendation" => {
+            "Выберите допустимую папку вывода на главном экране или в параметрах."
+        }
         "prepare.req.config_file.title" => "Файл настроек",
-        "prepare.req.config_file.description" => "Приложение должно сохранять состояние пропуска Prepare и пути к инструментам.",
-        "prepare.req.generic_writable_recommendation" => "Выберите папку с правом записи и проверьте разрешения.",
-        "prepare.req.config_not_folder" => "Путь настроек указывает на папку. Выберите путь к файлу.",
+        "prepare.req.config_file.description" => {
+            "Приложение должно сохранять состояние пропуска Prepare и пути к инструментам."
+        }
+        "prepare.req.generic_writable_recommendation" => {
+            "Выберите папку с правом записи и проверьте разрешения."
+        }
+        "prepare.req.config_not_folder" => {
+            "Путь настроек указывает на папку. Выберите путь к файлу."
+        }
         "prepare.req.config_readonly" => "Файл настроек доступен только для чтения.",
-        "prepare.req.config_readonly_recommendation" => "Разрешите запись в файл настроек или выберите другую папку приложения.",
+        "prepare.req.config_readonly_recommendation" => {
+            "Разрешите запись в файл настроек или выберите другую папку приложения."
+        }
         "prepare.req.use_folder_path" => "Выберите путь к папке, а не к файлу.",
-        "prepare.req.move_portable_folder" => "Переместите приложение в портативную папку с правом записи.",
-        "prepare.req.avoid_protected_folder" => "Не размещайте портативное приложение в Program Files или папке Windows. Переместите его в D:\\Portable или папку пользователя.",
-        "prepare.req.move_non_synced_folder" => "Переместите его в несинхронизируемую папку, например D:\\Portable\\yt-dlp-gui-v2.",
+        "prepare.req.move_portable_folder" => {
+            "Переместите приложение в портативную папку с правом записи."
+        }
+        "prepare.req.avoid_protected_folder" => {
+            "Не размещайте портативное приложение в Program Files или папке Windows. Переместите его в D:\\Portable или папку пользователя."
+        }
+        "prepare.req.move_non_synced_folder" => {
+            "Переместите его в несинхронизируемую папку, например D:\\Portable\\yt-dlp-gui-v2."
+        }
         "prepare.req.drive_parent_exists" => "Убедитесь, что диск и родительская папка существуют.",
-        "prepare.req.permission_denied" => "Переместите приложение в портативную папку с правом записи. Если Рабочий стол/Документы/Загрузки всё равно не работают, возможно, блокирует контролируемый доступ к папкам Defender.",
-        "prepare.req.file_in_use" => "Закройте программу, которая может использовать эту папку, или выберите другую папку.",
+        "prepare.req.permission_denied" => {
+            "Переместите приложение в портативную папку с правом записи. Если Рабочий стол/Документы/Загрузки всё равно не работают, возможно, блокирует контролируемый доступ к папкам Defender."
+        }
+        "prepare.req.file_in_use" => {
+            "Закройте программу, которая может использовать эту папку, или выберите другую папку."
+        }
         "prepare.req.free_disk_space" => "Освободите место на диске или выберите другой диск.",
-        "prepare.req.path_too_long" => "Переместите приложение в более короткий путь, например D:\\Portable\\yt-dlp-gui-v2.",
-        "prepare.req.choose_writable_portable_folder" => "Выберите явно доступную для записи портативную папку и проверьте снова.",
-        "prepare.req.clear_write_test" => "Удалите оставшийся файл проверки записи и проверьте снова.",
+        "prepare.req.path_too_long" => {
+            "Переместите приложение в более короткий путь, например D:\\Portable\\yt-dlp-gui-v2."
+        }
+        "prepare.req.choose_writable_portable_folder" => {
+            "Выберите явно доступную для записи портативную папку и проверьте снова."
+        }
+        "prepare.req.clear_write_test" => {
+            "Удалите оставшийся файл проверки записи и проверьте снова."
+        }
         "options.this_url_contains_both_a_video_and_a_playlis" => {
             "Этот URL содержит и видео, и плейлист"
         }
@@ -304,9 +445,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tool_install.stage.installing" => "Установка",
         "tool_install.stage.completed" => "Завершено",
         "tool_install.stage.failed" => "Ошибка",
-        "prepare.severity.short.required" => "Обязательно",
-        "prepare.severity.short.recommended" => "Рекомендуется",
-        "prepare.severity.short.optional" => "Необязательно",
         "item.status.queued" => "В очереди",
         "item.status.running" => "Выполняется",
         "item.status.finished" => "Готово",

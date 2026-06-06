@@ -1,6 +1,9 @@
 IconKind,SVG File,HasPathData
 None,,no
 Loading,Loading.svg,yes
+Check,Check.svg,yes
+Close,Close.svg,yes
+DownloadCircle,DownloadCircle.svg,yes
 WindowClose,WindowClose.svg,yes
 WindowMinimize,WindowMinimize.svg,yes
 WindowMaximize,WindowMaximize.svg,yes

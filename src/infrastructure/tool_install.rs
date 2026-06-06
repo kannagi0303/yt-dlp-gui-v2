@@ -9,6 +9,8 @@ use serde::Deserialize;
 
 const USER_AGENT: &str = "yt-dlp-gui-v2";
 const TOOL_INSTALL_CANCELLED: &str = "Dependency deployment cancelled.";
+const TOOL_DOWNLOAD_RETRY_ATTEMPTS: usize = 3;
+const TOOL_DOWNLOAD_RETRY_BACKOFF_BASE_MS: u64 = 600;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DependencyTool {
@@ -535,6 +537,39 @@ fn download_file(
     cancel_token: &ToolInstallCancelToken,
     progress: &mut impl FnMut(ToolInstallProgress),
 ) -> Result<(), String> {
+    let mut last_error = None;
+    for attempt_index in 0..TOOL_DOWNLOAD_RETRY_ATTEMPTS {
+        match download_file_once(tool, url, destination, proxy_url, cancel_token, progress) {
+            Ok(()) => return Ok(()),
+            Err(error) => {
+                if error == TOOL_INSTALL_CANCELLED {
+                    return Err(error);
+                }
+                last_error = Some(error);
+                if attempt_index + 1 < TOOL_DOWNLOAD_RETRY_ATTEMPTS {
+                    std::thread::sleep(Duration::from_millis(
+                        TOOL_DOWNLOAD_RETRY_BACKOFF_BASE_MS * (attempt_index as u64 + 1),
+                    ));
+                }
+            }
+        }
+    }
+
+    Err(format!(
+        "Could not download {url} after {} attempts: {}",
+        TOOL_DOWNLOAD_RETRY_ATTEMPTS,
+        last_error.unwrap_or_else(|| "unknown download error".to_owned())
+    ))
+}
+
+fn download_file_once(
+    tool: DependencyTool,
+    url: &str,
+    destination: &Path,
+    proxy_url: Option<&str>,
+    cancel_token: &ToolInstallCancelToken,
+    progress: &mut impl FnMut(ToolInstallProgress),
+) -> Result<(), String> {
     cancel_token.check()?;
     progress(ToolInstallProgress {
         tool,
@@ -794,7 +829,11 @@ fn unique_temp_dir_name(tool: DependencyTool) -> String {
 }
 
 pub(crate) fn tool_install_cache_dir() -> PathBuf {
-    portable_root_dir().join("cache").join("tool-install")
+    portable_temp_cache_dir().join("tool-install")
+}
+
+pub(crate) fn portable_temp_cache_dir() -> PathBuf {
+    portable_root_dir().join("cache").join("temp")
 }
 
 pub(crate) fn portable_root_dir() -> PathBuf {

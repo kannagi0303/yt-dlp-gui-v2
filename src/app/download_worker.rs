@@ -10,6 +10,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
+use super::download_resilience::{
+    DownloadAttemptContext, DownloadAttemptFailure, DownloadErrorKind, DownloadResiliencePolicy,
+    RecoveryDecision,
+};
 use crate::domain::{QueueItemId, WorkflowKind, WorkflowRunId};
 use crate::infrastructure::{
     DownloadRequest, DownloadTargetKind, FINAL_OUTPUT_PATH_PREFIX, FileTimeMode, PreparedDownload,
@@ -37,6 +41,16 @@ pub(super) enum DownloadEvent {
         target_kind: DownloadTargetKind,
         command_line: String,
         success: bool,
+        detail: Option<String>,
+    },
+    RecoveryStep {
+        item_id: QueueItemId,
+        workflow_id: WorkflowRunId,
+        target_kind: DownloadTargetKind,
+        action: String,
+        detail: String,
+        recover_previous_failure: bool,
+        resolved_success: bool,
     },
     Progress {
         item_id: QueueItemId,
@@ -48,7 +62,7 @@ pub(super) enum DownloadEvent {
     Finished(DownloadResult),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum DownloadProgressSlot {
     Video,
     Audio,
@@ -67,6 +81,25 @@ pub(super) struct DownloadProgressDetail {
     pub time: Option<String>,
 }
 
+fn emit_download_tool_finished(
+    tx: &mpsc::Sender<DownloadEvent>,
+    item_id: QueueItemId,
+    workflow_id: WorkflowRunId,
+    target_kind: DownloadTargetKind,
+    command_line: String,
+    success: bool,
+    detail: Option<String>,
+) {
+    let _ = tx.send(DownloadEvent::ToolCommandFinished {
+        item_id,
+        workflow_id,
+        target_kind,
+        command_line,
+        success,
+        detail,
+    });
+}
+
 pub(super) fn run_download_worker(
     tool_paths: ToolPaths,
     request: DownloadRequest,
@@ -77,42 +110,115 @@ pub(super) fn run_download_worker(
     child_handle: Arc<Mutex<Option<Child>>>,
     cancel_requested: Arc<AtomicBool>,
 ) {
-    let first_attempt = run_download_attempt(
-        &tool_paths,
-        &request,
-        item_id,
-        workflow_id,
-        tx.clone(),
-        &child_handle,
-        &cancel_requested,
-    );
+    let policy = DownloadResiliencePolicy::default();
+    let mut context = DownloadAttemptContext::new();
+    let mut current_request = request.clone();
 
-    let result = match first_attempt {
-        Ok(output_path) => Ok(output_path),
-        Err(error) if should_log_subtitle_429_diagnostics(&request, &error) => {
-            log_subtitle_429_diagnostics(&request, &error);
-            Err(error)
+    let result = loop {
+        let attempt = run_download_attempt(
+            &tool_paths,
+            &current_request,
+            item_id,
+            workflow_id,
+            tx.clone(),
+            &child_handle,
+            &cancel_requested,
+        );
+
+        let failure = match attempt {
+            Ok(output_path) => break Ok(output_path),
+            Err(failure) => failure,
+        };
+
+        if failure.kind == DownloadErrorKind::Cancelled {
+            break Err(failure.message);
         }
-        Err(error) if request_has_thumbnail(&request) && should_retry_without_thumbnail(&error) => {
-            eprintln!("[download] retry without thumbnail: {error}");
-            let mut retry_request = request.clone();
-            retry_request.embed_thumbnail = false;
-            retry_request.write_thumbnail = false;
-            if cancel_requested.load(Ordering::Relaxed) {
-                Err(DOWNLOAD_CANCELLED_MESSAGE.to_owned())
-            } else {
-                run_download_attempt(
-                    &tool_paths,
-                    &retry_request,
+
+        if should_log_subtitle_429_diagnostics(&current_request, &failure.message) {
+            log_subtitle_429_diagnostics(&current_request, &failure.message);
+        }
+
+        let decision = policy.decide(
+            failure.kind,
+            &context,
+            request_has_thumbnail(&current_request),
+            failure.recovered_output_path.is_some(),
+            format_fallback_request(&current_request).is_some(),
+        );
+
+        match decision {
+            RecoveryDecision::RetryWithoutThumbnail { action, detail } => {
+                eprintln!("[download] {action}: {}", failure.message);
+                emit_recovery_step(
+                    &tx,
                     item_id,
                     workflow_id,
-                    tx.clone(),
-                    &child_handle,
-                    &cancel_requested,
-                )
+                    current_request.target_kind,
+                    action,
+                    detail,
+                    true,
+                    false,
+                );
+                context.mark_thumbnail_retry();
+                current_request.embed_thumbnail = false;
+                current_request.write_thumbnail = false;
+                if cancel_requested.load(Ordering::Relaxed) {
+                    break Err(DOWNLOAD_CANCELLED_MESSAGE.to_owned());
+                }
             }
+            RecoveryDecision::RetryWithFormatFallback { action, detail } => {
+                let Some(fallback_request) = format_fallback_request(&current_request) else {
+                    break Err(failure.message);
+                };
+                eprintln!("[download] {action}: {}", failure.message);
+                emit_recovery_step(
+                    &tx,
+                    item_id,
+                    workflow_id,
+                    current_request.target_kind,
+                    action,
+                    detail,
+                    true,
+                    false,
+                );
+                context.mark_format_fallback();
+                current_request = fallback_request;
+                if cancel_requested.load(Ordering::Relaxed) {
+                    break Err(DOWNLOAD_CANCELLED_MESSAGE.to_owned());
+                }
+            }
+            RecoveryDecision::KeepMainOutput { action, detail } => {
+                let Some(output_path) = failure.recovered_output_path else {
+                    break Err(failure.message);
+                };
+                eprintln!("[download] {action}: {}", failure.message);
+                emit_recovery_step(
+                    &tx,
+                    item_id,
+                    workflow_id,
+                    current_request.target_kind,
+                    action,
+                    detail,
+                    true,
+                    true,
+                );
+                break Ok(output_path);
+            }
+            RecoveryDecision::LogOnly { action, detail } => {
+                emit_recovery_step(
+                    &tx,
+                    item_id,
+                    workflow_id,
+                    current_request.target_kind,
+                    action,
+                    detail,
+                    false,
+                    false,
+                );
+                break Err(failure.message);
+            }
+            RecoveryDecision::DoNotRecover => break Err(failure.message),
         }
-        Err(error) => Err(error),
     };
 
     let _ = tx.send(DownloadEvent::Finished(DownloadResult {
@@ -122,6 +228,27 @@ pub(super) fn run_download_worker(
         target_kind: request.target_kind,
         result,
     }));
+}
+
+fn emit_recovery_step(
+    tx: &mpsc::Sender<DownloadEvent>,
+    item_id: QueueItemId,
+    workflow_id: WorkflowRunId,
+    target_kind: DownloadTargetKind,
+    action: &str,
+    detail: &str,
+    recover_previous_failure: bool,
+    resolved_success: bool,
+) {
+    let _ = tx.send(DownloadEvent::RecoveryStep {
+        item_id,
+        workflow_id,
+        target_kind,
+        action: action.to_owned(),
+        detail: detail.to_owned(),
+        recover_previous_failure,
+        resolved_success,
+    });
 }
 
 fn should_log_subtitle_429_diagnostics(request: &DownloadRequest, error: &str) -> bool {
@@ -234,8 +361,10 @@ fn run_download_attempt(
     tx: mpsc::Sender<DownloadEvent>,
     child_handle: &Arc<Mutex<Option<Child>>>,
     cancel_requested: &Arc<AtomicBool>,
-) -> Result<String, String> {
-    let prepared = tool_paths.prepare_download(request)?;
+) -> Result<String, DownloadAttemptFailure> {
+    let prepared = tool_paths
+        .prepare_download(request)
+        .map_err(DownloadAttemptFailure::from_tool_setup_error)?;
 
     println!("[yt-dlp] output: {}", prepared.output_path.display());
     println!("[yt-dlp] command: {}", prepared.command_line);
@@ -246,9 +375,12 @@ fn run_download_attempt(
         command_line,
     } = prepared;
 
-    let mut child = command
-        .spawn()
-        .map_err(|error| format!("Could not start yt-dlp: {error}"))?;
+    let mut child = command.spawn().map_err(|error| {
+        DownloadAttemptFailure::new(
+            DownloadErrorKind::ToolMissingOrBroken,
+            format!("Could not start yt-dlp: {error}"),
+        )
+    })?;
 
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
@@ -280,36 +412,50 @@ fn run_download_attempt(
         .unwrap_or_default();
 
     if cancel_requested.load(Ordering::Relaxed) {
-        let _ = tx.send(DownloadEvent::ToolCommandFinished {
+        emit_download_tool_finished(
+            &tx,
             item_id,
             workflow_id,
-            target_kind: request.target_kind,
-            command_line: command_line.clone(),
-            success: false,
-        });
-        return Err(DOWNLOAD_CANCELLED_MESSAGE.to_owned());
+            request.target_kind,
+            command_line.clone(),
+            false,
+            Some(DOWNLOAD_CANCELLED_MESSAGE.to_owned()),
+        );
+        return Err(DownloadAttemptFailure::new(
+            DownloadErrorKind::Cancelled,
+            DOWNLOAD_CANCELLED_MESSAGE,
+        ));
     }
 
     match status {
         Some(Ok(status)) if status.success() => {
             let result = finalize_download_output(tool_paths, request, &output_path, &stdout_lines);
-            let _ = tx.send(DownloadEvent::ToolCommandFinished {
+            let success = result.is_ok();
+            emit_download_tool_finished(
+                &tx,
                 item_id,
                 workflow_id,
-                target_kind: request.target_kind,
+                request.target_kind,
                 command_line,
-                success: result.is_ok(),
-            });
-            result
+                success,
+                result.as_ref().err().cloned(),
+            );
+            result.map_err(|error| {
+                let failure = DownloadAttemptFailure::from_attempt_output(
+                    &stdout_lines,
+                    &stderr_lines,
+                    error,
+                );
+                attach_recovered_output_path(
+                    tool_paths,
+                    request,
+                    &output_path,
+                    &stdout_lines,
+                    failure,
+                )
+            })
         }
         Some(Ok(status)) => {
-            let _ = tx.send(DownloadEvent::ToolCommandFinished {
-                item_id,
-                workflow_id,
-                target_kind: request.target_kind,
-                command_line: command_line.clone(),
-                success: false,
-            });
             let detail = stderr_lines
                 .iter()
                 .rev()
@@ -317,29 +463,81 @@ fn run_download_attempt(
                 .cloned()
                 .unwrap_or_else(|| format!("exit code {:?}", status.code()));
             let detail = humanize_download_error(request, &detail);
-            Err(format!("yt-dlp download failed: {detail}"))
+            let message = format!("yt-dlp download failed: {detail}");
+            emit_download_tool_finished(
+                &tx,
+                item_id,
+                workflow_id,
+                request.target_kind,
+                command_line.clone(),
+                false,
+                Some(message.clone()),
+            );
+            let failure =
+                DownloadAttemptFailure::from_attempt_output(&stdout_lines, &stderr_lines, message);
+            Err(attach_recovered_output_path(
+                tool_paths,
+                request,
+                &output_path,
+                &stdout_lines,
+                failure,
+            ))
         }
         Some(Err(error)) => {
-            let _ = tx.send(DownloadEvent::ToolCommandFinished {
+            let message = format!("Could not wait for yt-dlp to finish: {error}");
+            emit_download_tool_finished(
+                &tx,
                 item_id,
                 workflow_id,
-                target_kind: request.target_kind,
-                command_line: command_line.clone(),
-                success: false,
-            });
-            Err(format!("Could not wait for yt-dlp to finish: {error}"))
+                request.target_kind,
+                command_line.clone(),
+                false,
+                Some(message.clone()),
+            );
+            Err(DownloadAttemptFailure::new(
+                DownloadErrorKind::Unknown,
+                message,
+            ))
         }
         None => {
-            let _ = tx.send(DownloadEvent::ToolCommandFinished {
+            let message = "Could not wait for yt-dlp to finish: child process missing".to_owned();
+            emit_download_tool_finished(
+                &tx,
                 item_id,
                 workflow_id,
-                target_kind: request.target_kind,
+                request.target_kind,
                 command_line,
-                success: false,
-            });
-            Err("Could not wait for yt-dlp to finish: child process missing".to_owned())
+                false,
+                Some(message.clone()),
+            );
+            Err(DownloadAttemptFailure::new(
+                DownloadErrorKind::Unknown,
+                message,
+            ))
         }
     }
+}
+
+fn attach_recovered_output_path(
+    tool_paths: &ToolPaths,
+    request: &DownloadRequest,
+    output_path: &Path,
+    stdout_lines: &[String],
+    failure: DownloadAttemptFailure,
+) -> DownloadAttemptFailure {
+    if failure.kind != DownloadErrorKind::PostprocessMetadataFailure
+        || request.target_kind == DownloadTargetKind::Subtitle
+    {
+        return failure;
+    }
+
+    let actual_output_path = resolve_completed_output_path(output_path, stdout_lines);
+    if !actual_output_path.is_file() {
+        return failure;
+    }
+
+    apply_file_time_mode(tool_paths, request, &actual_output_path, stdout_lines);
+    failure.with_recovered_output_path(actual_output_path.display().to_string())
 }
 
 pub(super) fn request_download_stop(
@@ -827,6 +1025,7 @@ struct DownloadProgressContext {
     video_selector: String,
     audio_selector: String,
     shared_av_progress: bool,
+    format_selector: String,
     section_duration_seconds: Option<f32>,
 }
 
@@ -838,6 +1037,7 @@ impl DownloadProgressContext {
             audio_selector: request.audio_selector.clone(),
             shared_av_progress: request.target_kind == DownloadTargetKind::Normal
                 && request.is_muxed_video,
+            format_selector: request.format_selector.clone(),
             section_duration_seconds: parse_section_duration_seconds(&request.download_sections),
         }
     }
@@ -872,6 +1072,7 @@ fn read_download_stream(
 ) -> Vec<String> {
     let mut reader = BufReader::new(stream);
     let mut current_slot = context.initial_slot();
+    let mut progress_state = DownloadProgressEmitState::default();
     let mut lines = Vec::new();
     let mut pending = Vec::new();
     let mut chunk = [0_u8; 4096];
@@ -895,6 +1096,7 @@ fn read_download_stream(
                     &tx,
                     &context,
                     &mut current_slot,
+                    &mut progress_state,
                     &mut lines,
                 );
                 pending.clear();
@@ -913,6 +1115,7 @@ fn read_download_stream(
             &tx,
             &context,
             &mut current_slot,
+            &mut progress_state,
             &mut lines,
         );
     }
@@ -924,11 +1127,85 @@ fn request_has_thumbnail(request: &DownloadRequest) -> bool {
     request.write_thumbnail
 }
 
-fn should_retry_without_thumbnail(error: &str) -> bool {
-    let normalized = error.to_ascii_lowercase();
-    normalized.contains("extracted extension")
-        && normalized.contains("unusual")
-        && normalized.contains("skipped for safety reasons")
+fn format_fallback_request(request: &DownloadRequest) -> Option<DownloadRequest> {
+    if request.target_kind == DownloadTargetKind::Subtitle {
+        return None;
+    }
+
+    let fallback_selector = fallback_format_selector(request.target_kind)?;
+    if request.format_selector.trim() == fallback_selector {
+        return None;
+    }
+
+    let mut fallback = request.clone();
+    fallback.format_selector = fallback_selector.to_owned();
+    fallback.video_selector.clear();
+    fallback.audio_selector.clear();
+    fallback.is_muxed_video = request.target_kind == DownloadTargetKind::Normal;
+    Some(fallback)
+}
+
+fn fallback_format_selector(target_kind: DownloadTargetKind) -> Option<&'static str> {
+    match target_kind {
+        DownloadTargetKind::Normal => Some("bestvideo*+bestaudio/best"),
+        DownloadTargetKind::Video => {
+            Some("bestvideo*[vcodec!=none]/bestvideo/best[vcodec!=none]/best")
+        }
+        DownloadTargetKind::Audio => Some("bestaudio/best[acodec!=none]"),
+        DownloadTargetKind::Subtitle => None,
+    }
+}
+
+#[derive(Default)]
+struct DownloadProgressEmitState {
+    video: SlotProgressEmitState,
+    audio: SlotProgressEmitState,
+    subtitle: SlotProgressEmitState,
+    both: SlotProgressEmitState,
+}
+
+#[derive(Default)]
+struct SlotProgressEmitState {
+    percent: Option<f32>,
+}
+
+impl DownloadProgressEmitState {
+    fn should_emit(&mut self, slot: DownloadProgressSlot, percent: f32) -> bool {
+        if !percent.is_finite() {
+            return false;
+        }
+        let percent = percent.clamp(0.0, 100.0);
+        let slot_state = match slot {
+            DownloadProgressSlot::Video => &mut self.video,
+            DownloadProgressSlot::Audio => &mut self.audio,
+            DownloadProgressSlot::Subtitle => &mut self.subtitle,
+            DownloadProgressSlot::Both => &mut self.both,
+        };
+        slot_state.percent = Some(percent);
+        true
+    }
+}
+
+fn emit_download_progress(
+    tx: &mpsc::Sender<DownloadEvent>,
+    item_id: QueueItemId,
+    workflow_id: WorkflowRunId,
+    slot: DownloadProgressSlot,
+    percent: f32,
+    detail: Option<DownloadProgressDetail>,
+    progress_state: &mut DownloadProgressEmitState,
+) {
+    let percent = percent.clamp(0.0, 100.0);
+    if !progress_state.should_emit(slot, percent) {
+        return;
+    }
+    let _ = tx.send(DownloadEvent::Progress {
+        item_id,
+        workflow_id,
+        slot,
+        percent,
+        detail,
+    });
 }
 
 fn process_download_line(
@@ -939,6 +1216,7 @@ fn process_download_line(
     tx: &mpsc::Sender<DownloadEvent>,
     context: &DownloadProgressContext,
     current_slot: &mut DownloadProgressSlot,
+    progress_state: &mut DownloadProgressEmitState,
     lines: &mut Vec<String>,
 ) {
     let line = String::from_utf8_lossy(bytes).trim().to_owned();
@@ -960,28 +1238,141 @@ fn process_download_line(
 
     if let Some(slot) = detect_download_slot(&line, context) {
         *current_slot = slot;
-        let _ = tx.send(DownloadEvent::Progress {
+        emit_download_progress(tx, item_id, workflow_id, slot, 1.0, None, progress_state);
+    }
+
+    if let Some(progress) = parse_yt_dlp_progress_detail(&line) {
+        let slot = if progress.format_id.is_some() {
+            match download_slot_for_format_id(progress.format_id.as_deref(), context) {
+                Some(slot) => {
+                    *current_slot = slot;
+                    slot
+                }
+                None if context.target_kind == DownloadTargetKind::Subtitle => {
+                    DownloadProgressSlot::Subtitle
+                }
+                None => {
+                    // yt-dlp may report auxiliary downloads such as subtitles or thumbnails
+                    // with format_id=NA. Those tiny files can hit 100% before the real
+                    // video/audio streams start, so never let them advance the media rows.
+                    return;
+                }
+            }
+        } else {
+            *current_slot
+        };
+        emit_download_progress(
+            tx,
             item_id,
             workflow_id,
             slot,
-            percent: 1.0,
-            detail: None,
-        });
+            progress.percent,
+            progress.detail,
+            progress_state,
+        );
+        return;
     }
 
-    let progress = parse_yt_dlp_progress_detail(&line)
-        .or_else(|| parse_default_yt_dlp_progress_percent(&line).map(|percent| (percent, None)))
+    let progress = parse_default_yt_dlp_progress_percent(&line)
+        .map(|percent| (percent, None))
         .or_else(|| parse_ffmpeg_section_progress_detail(&line, context.section_duration_seconds));
 
     if let Some((percent, detail)) = progress {
-        let _ = tx.send(DownloadEvent::Progress {
+        emit_download_progress(
+            tx,
             item_id,
             workflow_id,
-            slot: *current_slot,
+            *current_slot,
             percent,
             detail,
-        });
+            progress_state,
+        );
     }
+}
+
+fn download_slot_for_format_id(
+    format_id: Option<&str>,
+    context: &DownloadProgressContext,
+) -> Option<DownloadProgressSlot> {
+    let format_id = format_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .filter(|value| !matches!(*value, "NA" | "N/A" | "None" | "none" | "null"))?;
+
+    let video_selector = context.video_selector.trim();
+    let audio_selector = context.audio_selector.trim();
+
+    if context.shared_av_progress
+        && (!video_selector.is_empty() && format_id == video_selector
+            || !audio_selector.is_empty() && format_id == audio_selector
+            || format_selector_contains_id(&context.format_selector, format_id))
+    {
+        return Some(DownloadProgressSlot::Both);
+    }
+    if !video_selector.is_empty() && format_id == video_selector {
+        return Some(DownloadProgressSlot::Video);
+    }
+    if !audio_selector.is_empty() && format_id == audio_selector {
+        return Some(DownloadProgressSlot::Audio);
+    }
+
+    if video_selector.is_empty() && audio_selector.is_empty() {
+        return fallback_slot_for_generic_selector(context.target_kind);
+    }
+
+    // Keep progress routing resilient even if the display selectors and the exact
+    // yt-dlp format selector drift apart. The command may still be an explicit
+    // split selector such as "313+251", and yt-dlp reports those concrete ids in
+    // the progress template. In that case, the first selector is the video side
+    // and the second selector is the audio side.
+    if let Some((video_id, audio_id)) = split_explicit_av_format_selector(&context.format_selector)
+    {
+        if format_id == video_id {
+            return Some(DownloadProgressSlot::Video);
+        }
+        if format_id == audio_id {
+            return Some(DownloadProgressSlot::Audio);
+        }
+    }
+
+    None
+}
+
+fn fallback_slot_for_generic_selector(
+    target_kind: DownloadTargetKind,
+) -> Option<DownloadProgressSlot> {
+    match target_kind {
+        DownloadTargetKind::Normal => Some(DownloadProgressSlot::Both),
+        DownloadTargetKind::Video => Some(DownloadProgressSlot::Video),
+        DownloadTargetKind::Audio => Some(DownloadProgressSlot::Audio),
+        DownloadTargetKind::Subtitle => None,
+    }
+}
+
+fn split_explicit_av_format_selector(selector: &str) -> Option<(&str, &str)> {
+    let mut parts = selector
+        .split('+')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(primary_format_selector_token);
+    let video = parts.next()?;
+    let audio = parts.next()?;
+    if parts.next().is_some() || video.is_empty() || audio.is_empty() {
+        return None;
+    }
+    Some((video, audio))
+}
+
+fn format_selector_contains_id(selector: &str, format_id: &str) -> bool {
+    selector
+        .split('+')
+        .map(str::trim)
+        .map(primary_format_selector_token)
+        .any(|part| part == format_id)
+}
+
+fn primary_format_selector_token(selector: &str) -> &str {
+    selector.split('/').next().unwrap_or(selector).trim()
 }
 
 fn detect_download_slot(
@@ -1016,21 +1407,28 @@ fn detect_download_slot(
     None
 }
 
-fn parse_yt_dlp_progress_detail(line: &str) -> Option<(f32, Option<DownloadProgressDetail>)> {
+struct ParsedYtDlpProgress {
+    format_id: Option<String>,
+    percent: f32,
+    detail: Option<DownloadProgressDetail>,
+}
+
+fn parse_yt_dlp_progress_detail(line: &str) -> Option<ParsedYtDlpProgress> {
     if !line.starts_with("[yt-dlp],") && !line.starts_with("[direct-subtitle],") {
         return None;
     }
 
-    let mut parts = line.split(',');
-    let _prefix = parts.next()?;
-    let percent_text = parts.next()?.trim();
-    let eta_text = parts.next().map(str::trim).unwrap_or_default();
-    let downloaded_text = parts.next().map(str::trim).unwrap_or_default();
-    let total_text = parts.next().map(str::trim).unwrap_or_default();
-    let speed_text = parts.next().map(str::trim).unwrap_or_default();
-    let elapsed_text = parts.next().map(str::trim).unwrap_or_default();
+    let fields = line.split(',').skip(1).map(str::trim).collect::<Vec<_>>();
+    let (format_id, percent_index) = parse_progress_template_format_field(&fields)?;
 
-    let percent = percent_text.trim_end_matches('%').parse::<f32>().ok()?;
+    let percent_text = fields.get(percent_index).copied().unwrap_or_default();
+    let eta_text = fields.get(percent_index + 1).copied().unwrap_or_default();
+    let downloaded_text = fields.get(percent_index + 2).copied().unwrap_or_default();
+    let total_text = fields.get(percent_index + 3).copied().unwrap_or_default();
+    let speed_text = fields.get(percent_index + 4).copied().unwrap_or_default();
+    let elapsed_text = fields.get(percent_index + 5).copied().unwrap_or_default();
+
+    let percent = parse_progress_percent_text(percent_text)?;
     let elapsed =
         normalize_progress_text(elapsed_text).or_else(|| normalize_progress_text(eta_text));
     let detail = DownloadProgressDetail {
@@ -1041,7 +1439,32 @@ fn parse_yt_dlp_progress_detail(line: &str) -> Option<(f32, Option<DownloadProgr
         ..Default::default()
     };
 
-    Some((percent, Some(detail)))
+    Some(ParsedYtDlpProgress {
+        format_id,
+        percent,
+        detail: Some(detail),
+    })
+}
+
+fn parse_progress_template_format_field(fields: &[&str]) -> Option<(Option<String>, usize)> {
+    let first = fields.first().copied()?;
+
+    // Normal video downloads include an explicit format-id field:
+    // [yt-dlp],%(info.format_id)s,%(progress._percent_str)s,...
+    // Format ids are often numeric (313, 251, ...), so do not detect the
+    // presence of the field by checking whether the first token parses as a
+    // number. That misreads format id 313 as 313% and immediately fills the UI
+    // progress bar. The older audio-only template has one fewer field and starts
+    // directly with the percent text.
+    if fields.len() >= 7 {
+        return Some((Some(first.to_owned()), 1));
+    }
+
+    Some((None, 0))
+}
+
+fn parse_progress_percent_text(value: &str) -> Option<f32> {
+    value.trim().trim_end_matches('%').parse::<f32>().ok()
 }
 
 fn parse_default_yt_dlp_progress_percent(line: &str) -> Option<f32> {
@@ -1164,4 +1587,93 @@ fn parse_progress_timestamp_seconds(value: &str) -> Option<f32> {
     let minutes = parts[1].parse::<f32>().ok()?;
     let seconds = parts[2].parse::<f32>().ok()?;
     Some(hours * 3600.0 + minutes * 60.0 + seconds)
+}
+
+#[cfg(test)]
+mod progress_parser_tests {
+    use super::*;
+
+    #[test]
+    fn parses_numeric_format_id_without_treating_it_as_percent() {
+        let progress = parse_yt_dlp_progress_detail(
+            "[yt-dlp],313,  0.0%,10:48,1024,311411571,480475.14218592684,648",
+        )
+        .expect("progress template line should parse");
+
+        assert_eq!(progress.format_id.as_deref(), Some("313"));
+        assert_eq!(progress.percent, 0.0);
+        let detail = progress.detail.expect("detail should be preserved");
+        assert_eq!(detail.downloaded.as_deref(), Some("1.00 KiB"));
+    }
+
+    #[test]
+    fn parses_audio_format_id_as_format_not_percent() {
+        let progress = parse_yt_dlp_progress_detail(
+            "[yt-dlp],251, 53.1%,00:00,2096128,3947431,64250621.58285831,0",
+        )
+        .expect("audio progress template line should parse");
+
+        assert_eq!(progress.format_id.as_deref(), Some("251"));
+        assert!((progress.percent - 53.1).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn parses_legacy_template_without_format_id() {
+        let progress = parse_yt_dlp_progress_detail("[yt-dlp], 12.5%,00:05,1024,8192,2048,5")
+            .expect("legacy progress template line should parse");
+
+        assert_eq!(progress.format_id, None);
+        assert!((progress.percent - 12.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn treats_na_as_non_media_format_id_for_routing() {
+        let context = DownloadProgressContext {
+            target_kind: DownloadTargetKind::Normal,
+            video_selector: "313".to_owned(),
+            audio_selector: "251".to_owned(),
+            shared_av_progress: false,
+            format_selector: "313+251".to_owned(),
+            section_duration_seconds: None,
+        };
+
+        assert_eq!(
+            download_slot_for_format_id(Some("313"), &context),
+            Some(DownloadProgressSlot::Video)
+        );
+        assert_eq!(
+            download_slot_for_format_id(Some("251"), &context),
+            Some(DownloadProgressSlot::Audio)
+        );
+        assert_eq!(download_slot_for_format_id(Some("NA"), &context), None);
+    }
+
+    #[test]
+    fn routes_generic_fallback_progress_to_target_slot() {
+        let audio_context = DownloadProgressContext {
+            target_kind: DownloadTargetKind::Audio,
+            video_selector: String::new(),
+            audio_selector: String::new(),
+            shared_av_progress: false,
+            format_selector: "bestaudio/best[acodec!=none]".to_owned(),
+            section_duration_seconds: None,
+        };
+        assert_eq!(
+            download_slot_for_format_id(Some("251"), &audio_context),
+            Some(DownloadProgressSlot::Audio)
+        );
+
+        let normal_context = DownloadProgressContext {
+            target_kind: DownloadTargetKind::Normal,
+            video_selector: String::new(),
+            audio_selector: String::new(),
+            shared_av_progress: true,
+            format_selector: "bestvideo*+bestaudio/best".to_owned(),
+            section_duration_seconds: None,
+        };
+        assert_eq!(
+            download_slot_for_format_id(Some("399"), &normal_context),
+            Some(DownloadProgressSlot::Both)
+        );
+    }
 }

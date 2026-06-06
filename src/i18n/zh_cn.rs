@@ -1,6 +1,46 @@
 pub fn text<'a>(key: &'a str) -> &'a str {
     match key {
         "tab.advanced" => "高级",
+        "tab.about" => "关于",
+        "about.tools" => "工具版本",
+        "about.current_version" => "当前版本",
+        "about.latest_version" => "最新版本",
+        "about.author" => "作者",
+        "about.source" => "来源",
+        "about.status" => "状态",
+        "about.message" => "信息",
+        "about.check_updates" => "检查更新",
+        "about.update_all" => "全部更新",
+        "about.restart" => "重启",
+        "about.open_release" => "打开 Release",
+        "about.install" => "安装",
+        "about.update" => "更新",
+        "about.running" => "正在检查更新...",
+        "about.last_check" => "上次检查：",
+        "about.relative.minutes" => "{count} 分钟",
+        "about.relative.hour" => "1 小时",
+        "about.relative.hours" => "{count} 小时",
+        "about.relative.day" => "1 天",
+        "about.relative.days" => "{count} 天",
+        "about.never_checked" => "尚未检查更新",
+        "about.no_release_notes_loaded" => "尚未载入更新内容，请先检查更新。",
+        "about.ownership.managed_portable" => "v2 管理",
+        "about.ownership.external" => "外部",
+        "about.ownership.missing" => "未安装",
+        "about.ownership.unknown" => "未知",
+        "about.status.unknown" => "未检查",
+        "about.status.checking" => "检查中",
+        "about.status.up_to_date" => "最新 ✓",
+        "about.status.update_available" => "可更新 ↑",
+        "about.status.missing" => "未安装 +",
+        "about.status.downloading" => "下载中",
+        "about.status.downloading_percent" => "下载中 {percent}%",
+        "about.status.staged" => "已暂存",
+        "about.status.pending_restart" => "等待重启",
+        "about.status.applying" => "应用中",
+        "about.status.installed" => "已安装",
+        "about.status.skipped" => "已跳过",
+        "about.status.failed" => "失败 !",
         "tab.options" => "选项",
         "tab.log" => "记录",
         "main.url_hint" => "URL",
@@ -60,8 +100,66 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_cookies" => "使用 Cookie",
         "advance.enable_cookies" => "启用 Cookie",
         "advance.cookie_source" => "Cookie 来源",
+        "advance.cookie_source.auto" => "按网站自动套用",
         "advance.cookie_source.file" => "使用文件（cookies.txt）",
+        "advance.cookie_auto" => "自动",
+        "advance.cookie_auto_note" => "下载时会按网址套用已保存的网站 Cookie。",
+        "advance.cookie_rescue" => "Cookie 救援",
         "advance.cookie_file" => "Cookie 文件",
+        "advance.get_cookie" => "获取 Cookie",
+        "advance.cookie" => "Cookie",
+        "advance.cookie.off" => "不使用",
+        "advance.cookie.browser" => "浏览器",
+        "advance.cookie.file" => "文件",
+        "advance.cookie_file_source" => "文件来源",
+        "advance.cookie_file_custom" => "自定义 cookies.txt",
+        "advance.cookie_file_auto_select" => "自动选择",
+        "advance.cookie_manager_row" => "管理",
+        "advance.manage_cookie" => "管理 Cookie",
+        "advance.cookie_manager_title" => "Cookie 管理",
+        "advance.add_cookie" => "新增 Cookie",
+        "advance.cookie_manager_empty" => "尚未新增 Cookie 文件。",
+        "advance.cookie_manager_name" => "名称",
+        "advance.cookie_manager_updated" => "更新时间",
+        "advance.cookie_manager_actions" => "操作",
+        "advance.cookie_manager_refresh" => "重新获取",
+        "advance.cookie_manager_delete" => "删除",
+        "advance.file" => "文件",
+        "youtube_login_rescue.short_note" => "开启专用浏览器窗口取得 Cookie。",
+        "youtube_login_rescue.title" => "Cookie 救援",
+        "youtube_login_rescue.confirm_heading" => "开启专用浏览器登录窗口",
+        "youtube_login_rescue.confirm_body" => {
+            "接下来会开启 {browser} 的专用临时登录环境。
+请在真正的浏览器窗口中登录；v2 只会保存目标网站的 Cookie。"
+        }
+        "youtube_login_rescue.target_url_label" => "网站网址",
+        "youtube_login_rescue.target_url_hint" => "https://www.youtube.com/",
+        "youtube_login_rescue.clipboard_prefilled" => "已从剪贴板带入网址。",
+        "youtube_login_rescue.drop_url_note" => {
+            "可以粘贴网址，或拖放 .url 快捷方式 / 文本文件到这里。"
+        }
+        "youtube_login_rescue.paste_clipboard" => "粘贴剪贴板",
+        "youtube_login_rescue.cookie_note" => "检测到登录 Cookie 后，登录窗口会自动关闭。",
+        "youtube_login_rescue.no_browser_title" => "找不到可用的浏览器",
+        "youtube_login_rescue.no_browser_body" => {
+            "Cookie 救援目前需要 Chrome、Brave 或 Microsoft Edge。你也可以手动选择 cookies.txt。"
+        }
+        "youtube_login_rescue.start" => "开始",
+        "youtube_login_rescue.opening" => "正在打开 {browser}...",
+        "youtube_login_rescue.waiting_for_cdp" => "等待 {browser} 登录窗口连接...",
+        "youtube_login_rescue.waiting_for_cookie" => "登录窗口已连接，等待网站 Cookie...",
+        "youtube_login_rescue.cookie_exported" => "Cookie 已保存。",
+        "youtube_login_rescue.cookie_exported_note" => {
+            "已保存 {site} Cookie。下载该网站时会自动套用。"
+        }
+        "youtube_login_rescue.do_not_close_note" => "检查期间请先不要关闭登录浏览器。",
+        "youtube_login_rescue.cdp_ready" => "登录窗口已连接。",
+        "youtube_login_rescue.ready_next_step_note" => {
+            "请在浏览器中完成 YouTube 登录。Cookie 导出会在下一步加入。"
+        }
+        "youtube_login_rescue.close_login_window" => "关闭登录窗口",
+        "youtube_login_rescue.failed" => "Cookie 救援失败",
+        "youtube_login_rescue.retry" => "重试",
         "advance.no_cookies_txt_selected" => "尚未选择 cookies.txt",
         "advance.browse" => "选择文件",
         "advance.select_netscape_cookies_txt" => "选择 Netscape cookies.txt",
@@ -114,8 +212,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
             "现在安装必要工具，或先跳过，稍后在选项中处理。"
         }
-        "prepare.required" => "必需",
-        "prepare.recommended" => "建议",
         "prepare.optional" => "可选",
         "prepare.missing" => "未安装",
         "prepare.install_later" => "需要时再安装",
@@ -132,11 +228,15 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.req.app_folder.title" => "应用程序文件夹",
         "prepare.req.app_folder.description" => "便携版文件夹必须可写入，才能保存设置和支持数据。",
         "prepare.req.tools_folder.title" => "工具文件夹",
-        "prepare.req.tools_folder.description" => "依赖工具会将 yt-dlp、FFmpeg 和 Deno 部署到这里。",
+        "prepare.req.tools_folder.description" => {
+            "依赖工具会将 yt-dlp、FFmpeg 和 Deno 部署到这里。"
+        }
         "prepare.req.deployment_temp.title" => "部署临时文件夹",
         "prepare.req.deployment_temp.description" => "FFmpeg 和 Deno 解压时会使用这个临时文件夹。",
         "prepare.req.download_cache.title" => "下载缓存",
-        "prepare.req.download_cache.description" => "yt-dlp-gui 缓存模式会把 yt-dlp 缓存存放在这里。",
+        "prepare.req.download_cache.description" => {
+            "yt-dlp-gui 缓存模式会把 yt-dlp 缓存存放在这里。"
+        }
         "prepare.req.output_folder.title" => "输出文件夹",
         "prepare.req.output_folder.description" => "视频、音频和字幕会保存在这里。",
         "prepare.req.output_folder.recommendation" => "请从主界面或选项中选择有效的输出文件夹。",
@@ -145,17 +245,27 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.req.generic_writable_recommendation" => "请选择可写入的文件夹，并检查权限。",
         "prepare.req.config_not_folder" => "配置文件路径指向文件夹，请改用文件路径。",
         "prepare.req.config_readonly" => "配置文件是只读的。",
-        "prepare.req.config_readonly_recommendation" => "请允许写入配置文件，或改用其他应用程序文件夹。",
+        "prepare.req.config_readonly_recommendation" => {
+            "请允许写入配置文件，或改用其他应用程序文件夹。"
+        }
         "prepare.req.use_folder_path" => "请选择文件夹路径，而不是文件路径。",
         "prepare.req.move_portable_folder" => "请将程序移到可写入的便携文件夹。",
-        "prepare.req.avoid_protected_folder" => "不要把便携版程序放在 Program Files 或 Windows 目录下。请移到 D:\\Portable 或用户文件夹。",
-        "prepare.req.move_non_synced_folder" => "请移到非同步文件夹，例如 D:\\Portable\\yt-dlp-gui-v2。",
+        "prepare.req.avoid_protected_folder" => {
+            "不要把便携版程序放在 Program Files 或 Windows 目录下。请移到 D:\\Portable 或用户文件夹。"
+        }
+        "prepare.req.move_non_synced_folder" => {
+            "请移到非同步文件夹，例如 D:\\Portable\\yt-dlp-gui-v2。"
+        }
         "prepare.req.drive_parent_exists" => "请确认磁盘和上级文件夹存在。",
-        "prepare.req.permission_denied" => "请将程序移到可写入的便携文件夹。若桌面、文档或下载仍失败，可能是 Defender 的受控文件夹访问正在阻挡。",
+        "prepare.req.permission_denied" => {
+            "请将程序移到可写入的便携文件夹。若桌面、文档或下载仍失败，可能是 Defender 的受控文件夹访问正在阻挡。"
+        }
         "prepare.req.file_in_use" => "请关闭可能正在使用这个文件夹的程序，或选择其他文件夹。",
         "prepare.req.free_disk_space" => "请释放磁盘空间，或选择其他磁盘。",
         "prepare.req.path_too_long" => "请将程序移到较短的路径，例如 D:\\Portable\\yt-dlp-gui-v2。",
-        "prepare.req.choose_writable_portable_folder" => "请选择明确可写入的便携文件夹，然后重新检查。",
+        "prepare.req.choose_writable_portable_folder" => {
+            "请选择明确可写入的便携文件夹，然后重新检查。"
+        }
         "prepare.req.clear_write_test" => "请移除残留的写入测试文件，然后重新检查。",
         "options.this_url_contains_both_a_video_and_a_playlis" => "这个网址同时包含视频和播放列表",
         "options.detected" => "检测到 ",
@@ -284,9 +394,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tool_install.stage.installing" => "安装中",
         "tool_install.stage.completed" => "已完成",
         "tool_install.stage.failed" => "失败",
-        "prepare.severity.short.required" => "必须",
-        "prepare.severity.short.recommended" => "建议",
-        "prepare.severity.short.optional" => "可选",
         "item.status.queued" => "待下载",
         "item.status.running" => "下载中",
         "item.status.finished" => "完成",

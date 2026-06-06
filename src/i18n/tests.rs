@@ -124,6 +124,42 @@ fn i18n_keys() {
     }
 }
 
+#[test]
+fn i18n_locale_values_are_not_empty() {
+    let locale_sources = [
+        ("ar_ma.rs", include_str!("ar_ma.rs")),
+        ("de_de.rs", include_str!("de_de.rs")),
+        ("el_gr.rs", include_str!("el_gr.rs")),
+        ("en_us.rs", include_str!("en_us.rs")),
+        ("es_es.rs", include_str!("es_es.rs")),
+        ("fr_fr.rs", include_str!("fr_fr.rs")),
+        ("it_it.rs", include_str!("it_it.rs")),
+        ("ja_jp.rs", include_str!("ja_jp.rs")),
+        ("ko_kr.rs", include_str!("ko_kr.rs")),
+        ("pl_pl.rs", include_str!("pl_pl.rs")),
+        ("pt_br.rs", include_str!("pt_br.rs")),
+        ("ru_ru.rs", include_str!("ru_ru.rs")),
+        ("uk_ua.rs", include_str!("uk_ua.rs")),
+        ("zh_cn.rs", include_str!("zh_cn.rs")),
+        ("zh_tw.rs", include_str!("zh_tw.rs")),
+    ];
+
+    let mut empty_entries = Vec::new();
+    for (locale_name, source) in locale_sources {
+        for (index, line) in source.lines().enumerate() {
+            if line.contains("=> \"\"") {
+                empty_entries.push(format!("{locale_name}:{}", index + 1));
+            }
+        }
+    }
+
+    assert!(
+        empty_entries.is_empty(),
+        "locale entries must not be empty:\n{}",
+        empty_entries.join("\n")
+    );
+}
+
 fn collect_rs_files(dir: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -142,7 +178,7 @@ fn collect_rs_files(dir: &std::path::Path, files: &mut Vec<std::path::PathBuf>) 
     }
 }
 
-fn collect_literal_i18n_calls(
+fn collect_first_literal_i18n_calls(
     source: &str,
     call_prefix: &str,
     keys: &[&str],
@@ -151,25 +187,33 @@ fn collect_literal_i18n_calls(
 ) {
     let mut search_start = 0;
     while let Some(offset) = source[search_start..].find(call_prefix) {
-        let literal_start = search_start + offset + call_prefix.len();
-        let Some(literal_end_offset) = source[literal_start..].find('"') else {
+        let args_start = search_start + offset + call_prefix.len();
+        let after_whitespace = source[args_start..].trim_start();
+        let literal_start = args_start + source[args_start..].len() - after_whitespace.len();
+        if !source[literal_start..].starts_with('"') {
+            search_start = args_start;
+            continue;
+        }
+        let key_start = literal_start + 1;
+        let Some(literal_end_offset) = source[key_start..].find('"') else {
             break;
         };
-        let key = &source[literal_start..literal_start + literal_end_offset];
+        let key = &source[key_start..key_start + literal_end_offset];
         if !keys.contains(&key) {
-            let line = source[..literal_start].lines().count();
+            let line = source[..key_start].lines().count();
             missing.push(format!("{relative_path}:{line}: {key}"));
         }
-        search_start = literal_start + literal_end_offset + 1;
+        search_start = key_start + literal_end_offset + 1;
     }
 }
 
 // Direct literal i18n calls must reference keys that exist in en_us.rs.
-// This prevents mistakes such as `state.tr("Add")`, which would show the raw
-// English text in non-English UI instead of translating through `action.add`.
+// This prevents mistakes such as `state.ui_i18n_text_for_key("Add")`, which
+// would show the raw English text in non-English UI instead of translating
+// through a real key like `action.add`.
 //
-// During the zone-by-zone migration, both legacy .tr/.trf and new .ui_tr/.ui_trf
-// calls are accepted, but they all must point to canonical locale keys.
+// Retired short wrappers are still scanned so a future reintroduction cannot
+// silently hide undefined keys from the release-locale coverage checks.
 #[test]
 fn i18n_used_keys() {
     let keys = locale_keys(include_str!("en_us.rs"));
@@ -187,10 +231,24 @@ fn i18n_used_keys() {
             .unwrap_or(path.as_path())
             .display()
             .to_string();
-        collect_literal_i18n_calls(&source, ".ui_tr(\"", &keys, &relative_path, &mut missing);
-        collect_literal_i18n_calls(&source, ".ui_trf(\"", &keys, &relative_path, &mut missing);
-        collect_literal_i18n_calls(&source, ".tr(\"", &keys, &relative_path, &mut missing);
-        collect_literal_i18n_calls(&source, ".trf(\"", &keys, &relative_path, &mut missing);
+        collect_first_literal_i18n_calls(
+            &source,
+            ".ui_i18n_text_for_key(",
+            &keys,
+            &relative_path,
+            &mut missing,
+        );
+        collect_first_literal_i18n_calls(
+            &source,
+            ".ui_i18n_text_with_replacements(",
+            &keys,
+            &relative_path,
+            &mut missing,
+        );
+        collect_first_literal_i18n_calls(&source, ".ui_tr(", &keys, &relative_path, &mut missing);
+        collect_first_literal_i18n_calls(&source, ".ui_trf(", &keys, &relative_path, &mut missing);
+        collect_first_literal_i18n_calls(&source, ".tr(", &keys, &relative_path, &mut missing);
+        collect_first_literal_i18n_calls(&source, ".trf(", &keys, &relative_path, &mut missing);
     }
 
     assert!(

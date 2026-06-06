@@ -1,22 +1,97 @@
-mod advance_tab;
+// Shared shell and layout helpers.
 mod common;
+mod measure;
+mod semantic_ui_metrics;
+mod settings_detail_template;
+mod titlebar;
+
+// Generic views and reusable page widgets.
+mod about_tab;
+mod about_tab_controls;
+mod about_tab_template;
 mod compact_row;
 mod format_picker;
+mod format_picker_content;
+mod format_picker_filters;
+mod format_picker_header;
+mod format_picker_section;
+mod format_picker_selection;
+mod format_picker_subtitle;
+mod format_picker_table;
+mod format_picker_template;
 mod item_card;
-mod main_tab;
-mod measure;
-mod options_tab;
+mod item_card_compact;
+mod item_card_output_actions;
+mod item_card_template;
 mod prepare_tab;
-mod processing_tab;
+mod prepare_tab_template;
 mod single_mode;
-mod titlebar;
+mod single_mode_format_rows;
+mod single_mode_preview;
+mod single_mode_template;
+
+// Processing / log viewer.
+mod processing_command_viewer;
+mod processing_conversion;
+mod processing_conversion_template;
+mod processing_log_table;
+mod processing_log_viewer;
+mod processing_tab;
+mod processing_tab_template;
+
+// Main tab template and role controls.
+mod main_tab;
+mod main_tab_controls;
+mod main_tab_dependency_notice;
+mod main_tab_monitor_control;
+mod main_tab_music_controls;
+mod main_tab_music_lyrics;
+mod main_tab_music_panel;
+mod main_tab_output_actions;
+mod main_tab_template;
+mod main_tab_text_fields;
+mod main_tab_url_action;
+
+// Options tab sections.
+mod options_behavior;
+mod options_cache;
+mod options_language;
+mod options_layout;
+mod options_prompts;
+mod options_tab;
+mod options_tab_template;
+mod options_tool_paths;
+mod options_window;
+
+// Advance tab sections.
+mod advance_command_previews;
+mod advance_conversion;
+mod advance_conversion_template;
+mod advance_cookie_manager;
+mod advance_cookie_manager_template;
+mod advance_cookie_rescue;
+mod advance_download_controls;
+mod advance_network;
+mod advance_post_processing;
+mod advance_source;
+mod advance_tab;
+mod advance_tab_template;
+
+// XAML-like template layer.
+mod xaml_layout_contracts;
+mod xaml_rect_template;
+mod xaml_taffy_styles;
+mod xaml_template_renderer;
+mod xaml_ui_nodes;
 
 use eframe::egui::{self, CentralPanel, Ui};
 
 use crate::app::state::{AppState, AppTab};
 
 pub fn render_app(root_ui: &mut Ui, state: &mut AppState) {
-    let prompt_open = state.youtube_playlist_prompt.is_some() || state.music_download_prompt_open();
+    let prompt_open = state.youtube_playlist_prompt.is_some()
+        || state.music_download_prompt_open()
+        || state.youtube_login_rescue_dialog_visible();
     if state.active_tab == AppTab::Prepare && !state.should_show_prepare_tab() {
         state.active_tab = AppTab::Main;
     }
@@ -46,6 +121,7 @@ pub fn render_app(root_ui: &mut Ui, state: &mut AppState) {
                         if state.should_show_prepare_tab() {
                             match state.active_tab {
                                 AppTab::Options => options_tab::render_options_tab(ui, state),
+                                AppTab::About => about_tab::render_about_tab(ui, state),
                                 AppTab::Log if state.config.show_log_tab => {
                                     processing_tab::render_log_tab(ui, state);
                                 }
@@ -60,6 +136,7 @@ pub fn render_app(root_ui: &mut Ui, state: &mut AppState) {
                                 AppTab::Main => main_tab::render_main_tab(ui, state),
                                 AppTab::Advance => advance_tab::render_advance_tab(ui, state),
                                 AppTab::Options => options_tab::render_options_tab(ui, state),
+                                AppTab::About => about_tab::render_about_tab(ui, state),
                                 AppTab::Log => {
                                     if state.config.show_log_tab {
                                         processing_tab::render_log_tab(ui, state);
@@ -79,6 +156,7 @@ pub fn render_app(root_ui: &mut Ui, state: &mut AppState) {
                 });
         });
 
-    options_tab::render_youtube_playlist_prompt(root_ui.ctx(), state);
-    options_tab::render_music_download_prompt(root_ui.ctx(), state);
+    options_prompts::render_youtube_playlist_prompt(root_ui.ctx(), state);
+    options_prompts::render_music_download_prompt(root_ui.ctx(), state);
+    advance_cookie_rescue::render_youtube_login_rescue_dialog(root_ui.ctx(), state);
 }

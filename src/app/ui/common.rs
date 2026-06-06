@@ -1,16 +1,14 @@
 use eframe::egui::{self, Align, RichText, Sense, TextStyle, TextWrapMode, Ui, WidgetText};
-use egui_taffy::taffy::prelude::{auto, length, percent};
 use egui_taffy::{Tui, TuiBuilderLogic as _, taffy, tui};
 
 use crate::app::widgets::icon::{AppIcon, icon_image, standard_icon_color};
 
-use super::measure::{WidthRange, text_width};
+use super::{semantic_ui_metrics, xaml_layout_contracts, xaml_taffy_styles};
 
 pub(super) struct UiText;
-pub(super) const ITEM_TITLE_FONT_SIZE: f32 = 14.0;
-
 impl UiText {
     pub(super) const TAB_ADVANCE: &'static str = "tab.advanced";
+    pub(super) const TAB_ABOUT: &'static str = "tab.about";
     pub(super) const TAB_OPTIONS: &'static str = "tab.options";
     pub(super) const TAB_LOG: &'static str = "tab.log";
     pub(super) const URL_HINT: &'static str = "main.url_hint";
@@ -44,25 +42,8 @@ impl UiText {
     pub(super) const FILTER_SAMPLE_RATE: &'static str = "picker.filter.sample_rate";
 }
 
-pub(super) fn natural_button_width(ui: &Ui, label: &str) -> f32 {
-    let padding = ui.spacing().button_padding.x * 2.0;
-    let guard_width = 4.0;
-    let min_width = ui.spacing().interact_size.x;
-    WidthRange::new(min_width, f32::INFINITY)
-        .clamp(text_width(ui, label, TextStyle::Button) + padding + guard_width)
-}
-
-pub(super) fn icon_button_text_size(ui: &Ui) -> f32 {
-    ui.spacing().interact_size.y * 0.72
-}
-
-pub(super) fn natural_icon_button_width(ui: &Ui, label: &str) -> f32 {
-    let icon_size = icon_button_text_size(ui);
-    natural_button_width(ui, label) + icon_size + ui.spacing().icon_spacing
-}
-
 pub(super) fn icon_text_button(ui: &Ui, icon: AppIcon, label: &str) -> egui::Button<'static> {
-    let size = icon_button_text_size(ui);
+    let size = semantic_ui_metrics::standard_icon_size_from_current_control_metrics(ui);
     egui::Button::image_and_text(
         icon_image(icon, size, standard_icon_color(ui)),
         RichText::new(label).size(size),
@@ -75,7 +56,7 @@ pub(super) fn text_trailing_icon_button(
     icon: AppIcon,
 ) -> impl egui::Widget + 'static {
     let label = label.to_owned();
-    let icon_size = icon_button_text_size(ui);
+    let icon_size = semantic_ui_metrics::standard_icon_size_from_current_control_metrics(ui);
     move |ui: &mut Ui| {
         let galley = WidgetText::from(label.clone()).into_galley(
             ui,
@@ -118,26 +99,16 @@ pub(super) fn text_trailing_icon_button(
 }
 
 pub(super) fn shared_item_label_width(ui: &Ui) -> f32 {
-    let labels = [
-        UiText::VIDEO,
-        UiText::AUDIO,
-        UiText::SUBTITLE,
-        UiText::SECTION,
-        UiText::FILE_NAME,
-    ];
-    let text_width = labels
-        .into_iter()
-        .map(|label| {
-            WidgetText::from(label).into_galley(
-                ui,
-                Some(TextWrapMode::Extend),
-                f32::INFINITY,
-                TextStyle::Body,
-            )
-        })
-        .map(|galley| galley.size().x)
-        .fold(0.0, f32::max);
-    text_width + ui.spacing().item_spacing.x * 2.0
+    semantic_ui_metrics::settings_form_label_column_width_for_visible_texts(
+        ui,
+        &[
+            UiText::VIDEO,
+            UiText::AUDIO,
+            UiText::SUBTITLE,
+            UiText::SECTION,
+            UiText::FILE_NAME,
+        ],
+    )
 }
 
 pub(super) fn cell_label(ui: &mut Ui, text: &str) {
@@ -169,16 +140,37 @@ pub(super) fn form_row_label(
     label: &str,
     add_contents: impl FnOnce(&mut Ui),
 ) {
+    let row = semantic_ui_metrics::xaml_settings_form_single_line_row_contract_from_current_control_metrics(ui);
+    form_row_label_with_xaml_contract(ui, row, label_width, label, add_contents);
+}
+
+fn form_row_label_with_xaml_contract(
+    ui: &mut Ui,
+    row: xaml_layout_contracts::SingleLineControlRowContract,
+    label_width: f32,
+    label: &str,
+    add_contents: impl FnOnce(&mut Ui),
+) {
     ui.horizontal(|ui| {
+        let label_element = semantic_ui_metrics::xaml_label_ui_element_from_row_contract_and_width(
+            row,
+            label_width,
+        );
+        let label_size = row.measure_auto_width_ui_element(label_element);
         ui.allocate_ui_with_layout(
-            egui::vec2(label_width, ui.spacing().interact_size.y),
+            egui::vec2(label_size.width, label_size.height),
             egui::Layout::right_to_left(Align::Center),
             |ui| {
                 ui.label(label);
             },
         );
         ui.vertical(|ui| {
-            ui.set_width(ui.available_width());
+            let value_element =
+                semantic_ui_metrics::xaml_single_line_text_input_ui_element_from_row_contract(row);
+            let value_size =
+                row.measure_stretch_width_ui_element(value_element, ui.available_width());
+            ui.set_width(value_size.width);
+            ui.set_min_height(value_size.height);
             add_contents(ui);
         });
     });
@@ -189,9 +181,8 @@ pub(super) fn settings_scroll_content(ui: &mut Ui, add_contents: impl FnOnce(&mu
 }
 
 pub(super) fn scroll_content_with_right_gap(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui)) {
-    const RIGHT_SCROLL_GAP: f32 = 10.0;
-
-    let content_width = (ui.available_width() - RIGHT_SCROLL_GAP).max(0.0);
+    let trailing_safe_gap = semantic_ui_metrics::settings_scroll_content_trailing_safe_gap(ui);
+    let content_width = (ui.available_width() - trailing_safe_gap).max(0.0);
     ui.horizontal_top(|ui| {
         ui.allocate_ui_with_layout(
             egui::vec2(content_width, 0.0),
@@ -201,24 +192,8 @@ pub(super) fn scroll_content_with_right_gap(ui: &mut Ui, add_contents: impl FnOn
                 add_contents(ui);
             },
         );
-        ui.add_space(RIGHT_SCROLL_GAP);
+        ui.add_space(trailing_safe_gap);
     });
-}
-
-pub(super) fn measure_label_width(ui: &Ui, labels: &[&str]) -> f32 {
-    labels
-        .iter()
-        .map(|label| {
-            WidgetText::from(*label).into_galley(
-                ui,
-                Some(TextWrapMode::Extend),
-                f32::INFINITY,
-                TextStyle::Body,
-            )
-        })
-        .map(|galley| galley.size().x)
-        .fold(0.0, f32::max)
-        + ui.spacing().item_spacing.x * 2.0
 }
 
 pub(super) fn settings_taffy_scroll_content(
@@ -241,17 +216,26 @@ pub(super) fn settings_taffy_section(
     add_contents: impl FnOnce(&mut Tui),
 ) {
     let title = title.to_owned();
-    settings_taffy_spacer(tui, 2.0);
+    settings_taffy_spacer(
+        tui,
+        semantic_ui_metrics::settings_form_section_before_title_vertical_spacing(),
+    );
     tui.style(settings_taffy_auto_row_style()).ui(move |ui| {
         ui.label(RichText::new(title.as_str()).strong());
     });
     tui.style(settings_taffy_auto_row_style()).ui(|ui| {
         ui.separator();
     });
-    settings_taffy_spacer(tui, 2.0);
+    settings_taffy_spacer(
+        tui,
+        semantic_ui_metrics::settings_form_section_after_separator_vertical_spacing(),
+    );
     tui.style(settings_taffy_section_body_style())
         .add(add_contents);
-    settings_taffy_spacer(tui, 8.0);
+    settings_taffy_spacer(
+        tui,
+        semantic_ui_metrics::settings_form_section_after_body_vertical_spacing(),
+    );
 }
 
 pub(super) fn settings_taffy_form_row(
@@ -262,106 +246,47 @@ pub(super) fn settings_taffy_form_row(
 ) {
     let label = label.to_owned();
     tui.style(settings_taffy_auto_row_style()).ui(move |ui| {
-        form_row_label(ui, label_width, label.as_str(), |ui| {
-            ui.set_width(ui.available_width());
+        let row = semantic_ui_metrics::xaml_settings_form_single_line_row_contract_from_current_control_metrics(ui);
+        let vertical_gap = semantic_ui_metrics::settings_form_row_vertical_spacing_from_current_text_metrics(ui);
+        ui.set_min_height(
+            semantic_ui_metrics::xaml_settings_form_row_minimum_height_from_row_contract_and_vertical_spacing(
+                row,
+                vertical_gap,
+            ),
+        );
+        ui.add_space(vertical_gap);
+        form_row_label_with_xaml_contract(ui, row, label_width, label.as_str(), |ui| {
             add_contents(ui);
         });
+        ui.add_space(vertical_gap);
     });
 }
 
 fn settings_taffy_root_style() -> taffy::Style {
-    taffy::Style {
-        display: taffy::Display::Flex,
-        flex_direction: taffy::FlexDirection::Column,
-        align_items: Some(taffy::AlignItems::Stretch),
-        size: taffy::Size {
-            width: percent(1.0),
-            height: auto(),
-        },
-        min_size: taffy::Size {
-            width: percent(1.0),
-            height: length(0.0),
-        },
-        max_size: taffy::Size {
-            width: percent(1.0),
-            height: auto(),
-        },
-        gap: length(0.0),
-        padding: length(0.0),
-        margin: length(0.0),
-        ..Default::default()
-    }
+    xaml_taffy_styles::xaml_vertical_auto_root_style()
 }
 
 fn settings_taffy_section_body_style() -> taffy::Style {
-    taffy::Style {
-        display: taffy::Display::Flex,
-        flex_direction: taffy::FlexDirection::Column,
-        align_items: Some(taffy::AlignItems::Stretch),
-        size: taffy::Size {
-            width: percent(1.0),
-            height: auto(),
-        },
-        min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
-        },
-        gap: length(0.0),
-        padding: length(0.0),
-        margin: length(0.0),
-        ..Default::default()
-    }
+    xaml_taffy_styles::xaml_vertical_auto_section_style()
 }
 
 fn settings_taffy_auto_row_style() -> taffy::Style {
-    taffy::Style {
-        display: taffy::Display::Block,
-        size: taffy::Size {
-            width: percent(1.0),
-            height: auto(),
-        },
-        min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
-        },
-        padding: length(0.0),
-        margin: length(0.0),
-        ..Default::default()
-    }
+    xaml_taffy_styles::xaml_auto_height_block_style()
 }
 
 fn settings_taffy_spacer(tui: &mut Tui, height: f32) {
     if height <= 0.0 {
         return;
     }
-    tui.style(taffy::Style {
-        display: taffy::Display::Block,
-        size: taffy::Size {
-            width: percent(1.0),
-            height: length(height),
-        },
-        min_size: taffy::Size {
-            width: length(0.0),
-            height: length(height),
-        },
-        max_size: taffy::Size {
-            width: percent(1.0),
-            height: length(height),
-        },
-        flex_grow: 0.0,
-        flex_shrink: 0.0,
-        padding: length(0.0),
-        margin: length(0.0),
-        ..Default::default()
-    })
-    .ui(|_| {});
+    tui.style(xaml_taffy_styles::xaml_fixed_height_block_style(height))
+        .ui(|_| {});
 }
 
 pub(super) fn settings_section(ui: &mut Ui, title: &str, add_contents: impl FnOnce(&mut Ui)) {
-    ui.add_space(2.0);
+    ui.add_space(semantic_ui_metrics::settings_form_section_before_title_vertical_spacing());
     ui.label(RichText::new(title).strong());
     ui.separator();
-    ui.add_space(2.0);
+    ui.add_space(semantic_ui_metrics::settings_form_section_after_separator_vertical_spacing());
     add_contents(ui);
-    ui.add_space(8.0);
+    ui.add_space(semantic_ui_metrics::settings_form_section_after_body_vertical_spacing());
 }

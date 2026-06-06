@@ -1,6 +1,48 @@
 pub fn text<'a>(key: &'a str) -> &'a str {
     match key {
         "tab.advanced" => "詳細",
+        "tab.about" => "情報",
+        "about.tools" => "ツール版本",
+        "about.current_version" => "現在の版本",
+        "about.latest_version" => "最新版本",
+        "about.author" => "作者",
+        "about.source" => "取得元",
+        "about.status" => "状態",
+        "about.message" => "メッセージ",
+        "about.check_updates" => "更新確認",
+        "about.update_all" => "すべて更新",
+        "about.restart" => "再起動",
+        "about.open_release" => "Release を開く",
+        "about.install" => "インストール",
+        "about.update" => "更新",
+        "about.running" => "更新確認中...",
+        "about.last_check" => "前回確認：",
+        "about.relative.minutes" => "{count} 分",
+        "about.relative.hour" => "1 時間",
+        "about.relative.hours" => "{count} 時間",
+        "about.relative.day" => "1 日",
+        "about.relative.days" => "{count} 日",
+        "about.never_checked" => "まだ更新確認していません",
+        "about.no_release_notes_loaded" => {
+            "更新内容はまだ読み込まれていません。先に更新確認を実行してください。"
+        }
+        "about.ownership.managed_portable" => "v2 管理",
+        "about.ownership.external" => "外部",
+        "about.ownership.missing" => "未インストール",
+        "about.ownership.unknown" => "不明",
+        "about.status.unknown" => "未確認",
+        "about.status.checking" => "確認中",
+        "about.status.up_to_date" => "最新 ✓",
+        "about.status.update_available" => "更新可 ↑",
+        "about.status.missing" => "未インストール +",
+        "about.status.downloading" => "ダウンロード中",
+        "about.status.downloading_percent" => "ダウンロード中 {percent}%",
+        "about.status.staged" => "準備済み",
+        "about.status.pending_restart" => "再起動待ち",
+        "about.status.applying" => "適用中",
+        "about.status.installed" => "インストール済み",
+        "about.status.skipped" => "スキップ済み",
+        "about.status.failed" => "失敗 !",
         "tab.options" => "設定",
         "tab.log" => "ログ",
         "main.url_hint" => "URL",
@@ -62,8 +104,71 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_cookies" => "Cookieを使用",
         "advance.enable_cookies" => "Cookieを有効化",
         "advance.cookie_source" => "Cookieソース",
+        "advance.cookie_source.auto" => "サイトごとに自動適用",
         "advance.cookie_source.file" => "ファイルを使う（cookies.txt）",
+        "advance.cookie_auto" => "自動",
+        "advance.cookie_auto_note" => "ダウンロード時にURLに合う保存済みCookieを使います。",
+        "advance.cookie_rescue" => "Cookie",
         "advance.cookie_file" => "Cookieファイル",
+        "advance.get_cookie" => "Cookieを取得",
+        "advance.cookie" => "Cookie",
+        "advance.cookie.off" => "Do not use",
+        "advance.cookie.browser" => "Browser",
+        "advance.cookie.file" => "File",
+        "advance.cookie_file_source" => "File source",
+        "advance.cookie_file_custom" => "Custom cookies.txt",
+        "advance.cookie_file_auto_select" => "Auto select",
+        "advance.cookie_manager_row" => "Management",
+        "advance.manage_cookie" => "Manage Cookie",
+        "advance.cookie_manager_title" => "Cookie Manager",
+        "advance.add_cookie" => "Add Cookie",
+        "advance.cookie_manager_empty" => "No Cookie files have been added.",
+        "advance.cookie_manager_name" => "Name",
+        "advance.cookie_manager_updated" => "Updated",
+        "advance.cookie_manager_actions" => "Actions",
+        "advance.cookie_manager_refresh" => "Reacquire",
+        "advance.cookie_manager_delete" => "Delete",
+        "advance.file" => "File",
+        "youtube_login_rescue.short_note" => {
+            "専用ブラウザーウィンドウを開いて Cookie を取得します。"
+        }
+        "youtube_login_rescue.title" => "Cookieを取得",
+        "youtube_login_rescue.confirm_heading" => "専用ブラウザーのログインウィンドウを開く",
+        "youtube_login_rescue.confirm_body" => {
+            "独立した {browser} でURLを開きます。普段のブラウザデータは読みません。"
+        }
+        "youtube_login_rescue.target_url_label" => "Web サイト URL",
+        "youtube_login_rescue.target_url_hint" => "https://www.youtube.com/",
+        "youtube_login_rescue.clipboard_prefilled" => "クリップボードから URL を入力しました。",
+        "youtube_login_rescue.drop_url_note" => {
+            "URL の貼り付け、または .url / テキストをドロップできます。"
+        }
+        "youtube_login_rescue.paste_clipboard" => "クリップボードを貼り付け",
+        "youtube_login_rescue.cookie_note" => "ログイン操作を行うと、自動で閉じて適用します。",
+        "youtube_login_rescue.no_browser_title" => "対応ブラウザーが見つかりません",
+        "youtube_login_rescue.no_browser_body" => {
+            "Cookie取得には Chrome、Brave、Microsoft Edge のいずれかが必要です。cookies.txt を手動で選択することもできます。"
+        }
+        "youtube_login_rescue.start" => "開始",
+        "youtube_login_rescue.opening" => "{browser}を開いています...",
+        "youtube_login_rescue.waiting_for_cdp" => "{browser} のログインウィンドウ接続を待機中...",
+        "youtube_login_rescue.waiting_for_cookie" => {
+            "ログインウィンドウに接続しました。サイト Cookie を待機中..."
+        }
+        "youtube_login_rescue.cookie_exported" => "Cookieを保存しました。",
+        "youtube_login_rescue.cookie_exported_note" => {
+            "{site} の Cookie を保存しました。そのサイトのダウンロード時に自動で使います。"
+        }
+        "youtube_login_rescue.do_not_close_note" => {
+            "確認中はログインブラウザーを閉じないでください。"
+        }
+        "youtube_login_rescue.cdp_ready" => "ログインウィンドウに接続しました。",
+        "youtube_login_rescue.ready_next_step_note" => {
+            "ブラウザーでYouTubeへのログインを完了してください。Cookieの書き出しは次の段階で追加します。"
+        }
+        "youtube_login_rescue.close_login_window" => "ログインウィンドウを閉じる",
+        "youtube_login_rescue.failed" => "Cookieの取得に失敗しました",
+        "youtube_login_rescue.retry" => "再試行",
         "advance.no_cookies_txt_selected" => "cookies.txtが未選択です",
         "advance.browse" => "選択",
         "advance.select_netscape_cookies_txt" => "Netscape cookies.txtを選択",
@@ -118,8 +223,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
             "必要なツールをインストールします。スキップして後で設定から処理できます。"
         }
-        "prepare.required" => "必須",
-        "prepare.recommended" => "推奨",
         "prepare.optional" => "任意",
         "prepare.missing" => "未インストール",
         "prepare.install_later" => "必要時にインストール",
@@ -134,33 +237,69 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.another_tool_is_already_being_installed" => "他のツールをインストール中です。",
         "prepare.needs_attention" => "対応が必要",
         "prepare.req.app_folder.title" => "アプリフォルダー",
-        "prepare.req.app_folder.description" => "設定とサポートデータを保存するため、ポータブルフォルダーは書き込み可能である必要があります。",
+        "prepare.req.app_folder.description" => {
+            "設定とサポートデータを保存するため、ポータブルフォルダーは書き込み可能である必要があります。"
+        }
         "prepare.req.tools_folder.title" => "ツールフォルダー",
-        "prepare.req.tools_folder.description" => "依存ツールの配置先として、yt-dlp、FFmpeg、Deno がここに保存されます。",
+        "prepare.req.tools_folder.description" => {
+            "依存ツールの配置先として、yt-dlp、FFmpeg、Deno がここに保存されます。"
+        }
         "prepare.req.deployment_temp.title" => "配置用一時フォルダー",
-        "prepare.req.deployment_temp.description" => "FFmpeg と Deno の展開時にこの一時フォルダーを使用します。",
+        "prepare.req.deployment_temp.description" => {
+            "FFmpeg と Deno の展開時にこの一時フォルダーを使用します。"
+        }
         "prepare.req.download_cache.title" => "ダウンロードキャッシュ",
-        "prepare.req.download_cache.description" => "yt-dlp-gui のキャッシュモードでは、yt-dlp のキャッシュをここに保存します。",
+        "prepare.req.download_cache.description" => {
+            "yt-dlp-gui のキャッシュモードでは、yt-dlp のキャッシュをここに保存します。"
+        }
         "prepare.req.output_folder.title" => "出力フォルダー",
         "prepare.req.output_folder.description" => "動画、音声、字幕はここに保存されます。",
-        "prepare.req.output_folder.recommendation" => "メイン画面またはオプションから有効な出力フォルダーを選んでください。",
+        "prepare.req.output_folder.recommendation" => {
+            "メイン画面またはオプションから有効な出力フォルダーを選んでください。"
+        }
         "prepare.req.config_file.title" => "設定ファイル",
-        "prepare.req.config_file.description" => "Prepare のスキップ状態とツールパス設定を保存できる必要があります。",
-        "prepare.req.generic_writable_recommendation" => "書き込み可能なフォルダーを選び、権限を確認してください。",
-        "prepare.req.config_not_folder" => "設定ファイルのパスがフォルダーを指しています。ファイルパスを選んでください。",
+        "prepare.req.config_file.description" => {
+            "Prepare のスキップ状態とツールパス設定を保存できる必要があります。"
+        }
+        "prepare.req.generic_writable_recommendation" => {
+            "書き込み可能なフォルダーを選び、権限を確認してください。"
+        }
+        "prepare.req.config_not_folder" => {
+            "設定ファイルのパスがフォルダーを指しています。ファイルパスを選んでください。"
+        }
         "prepare.req.config_readonly" => "設定ファイルは読み取り専用です。",
-        "prepare.req.config_readonly_recommendation" => "設定ファイルへの書き込みを許可するか、別のアプリフォルダーを選んでください。",
+        "prepare.req.config_readonly_recommendation" => {
+            "設定ファイルへの書き込みを許可するか、別のアプリフォルダーを選んでください。"
+        }
         "prepare.req.use_folder_path" => "ファイルパスではなくフォルダーパスを選んでください。",
-        "prepare.req.move_portable_folder" => "アプリを書き込み可能なポータブルフォルダーへ移動してください。",
-        "prepare.req.avoid_protected_folder" => "ポータブル版アプリを Program Files や Windows フォルダー内に置かないでください。D:\\Portable またはユーザーフォルダーへ移動してください。",
-        "prepare.req.move_non_synced_folder" => "同期対象外のフォルダーへ移動してください。例: D:\\Portable\\yt-dlp-gui-v2。",
-        "prepare.req.drive_parent_exists" => "ドライブと親フォルダーが存在することを確認してください。",
-        "prepare.req.permission_denied" => "アプリを書き込み可能なポータブルフォルダーへ移動してください。デスクトップ、ドキュメント、ダウンロードでも失敗する場合は、Defender の制御されたフォルダーアクセスがブロックしている可能性があります。",
-        "prepare.req.file_in_use" => "このフォルダーを使用している可能性のあるプログラムを閉じるか、別のフォルダーを選んでください。",
+        "prepare.req.move_portable_folder" => {
+            "アプリを書き込み可能なポータブルフォルダーへ移動してください。"
+        }
+        "prepare.req.avoid_protected_folder" => {
+            "ポータブル版アプリを Program Files や Windows フォルダー内に置かないでください。D:\\Portable またはユーザーフォルダーへ移動してください。"
+        }
+        "prepare.req.move_non_synced_folder" => {
+            "同期対象外のフォルダーへ移動してください。例: D:\\Portable\\yt-dlp-gui-v2。"
+        }
+        "prepare.req.drive_parent_exists" => {
+            "ドライブと親フォルダーが存在することを確認してください。"
+        }
+        "prepare.req.permission_denied" => {
+            "アプリを書き込み可能なポータブルフォルダーへ移動してください。デスクトップ、ドキュメント、ダウンロードでも失敗する場合は、Defender の制御されたフォルダーアクセスがブロックしている可能性があります。"
+        }
+        "prepare.req.file_in_use" => {
+            "このフォルダーを使用している可能性のあるプログラムを閉じるか、別のフォルダーを選んでください。"
+        }
         "prepare.req.free_disk_space" => "ディスク容量を空けるか、別のディスクを選んでください。",
-        "prepare.req.path_too_long" => "アプリを短いパスへ移動してください。例: D:\\Portable\\yt-dlp-gui-v2。",
-        "prepare.req.choose_writable_portable_folder" => "確実に書き込み可能なポータブルフォルダーを選び、もう一度確認してください。",
-        "prepare.req.clear_write_test" => "残った書き込みテストファイルを削除して、もう一度確認してください。",
+        "prepare.req.path_too_long" => {
+            "アプリを短いパスへ移動してください。例: D:\\Portable\\yt-dlp-gui-v2。"
+        }
+        "prepare.req.choose_writable_portable_folder" => {
+            "確実に書き込み可能なポータブルフォルダーを選び、もう一度確認してください。"
+        }
+        "prepare.req.clear_write_test" => {
+            "残った書き込みテストファイルを削除して、もう一度確認してください。"
+        }
         "options.this_url_contains_both_a_video_and_a_playlis" => {
             "このURLには動画とプレイリストが含まれています"
         }
@@ -306,9 +445,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tool_install.stage.installing" => "インストール中",
         "tool_install.stage.completed" => "完了",
         "tool_install.stage.failed" => "失敗",
-        "prepare.severity.short.required" => "必須",
-        "prepare.severity.short.recommended" => "推奨",
-        "prepare.severity.short.optional" => "任意",
         "item.status.queued" => "ダウンロード待ち",
         "item.status.running" => "ダウンロード中",
         "item.status.finished" => "完了",

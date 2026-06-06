@@ -3,29 +3,13 @@ use std::io::Write;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use super::component_update::manifest_temp_dir;
 use super::config::runtime_config_file_path;
 use super::tool_install::{
     DependencyTool, dependency_tool_exists, dependency_tool_is_available, ffprobe_companion_path,
     portable_root_dir, resolve_support_path,
 };
 use super::tools::{CacheLocationMode, ToolPaths, resolve_output_dir};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PrepareSeverity {
-    Required,
-    Recommended,
-    Optional,
-}
-
-impl PrepareSeverity {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Required => "Required item",
-            Self::Recommended => "Recommended item",
-            Self::Optional => "Optional item",
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrepareStatus {
@@ -60,12 +44,10 @@ pub struct PrepareRequirement {
     pub id: String,
     pub title: String,
     pub description: String,
-    pub severity: PrepareSeverity,
     pub status: PrepareStatus,
     pub detail: String,
     pub recommendation: String,
     pub action: Option<PrepareAction>,
-    pub default_selected: bool,
 }
 
 impl PrepareRequirement {
@@ -85,75 +67,19 @@ pub struct PrepareReport {
 
 impl PrepareReport {
     pub fn should_show_tab(&self) -> bool {
-        self.requirements.iter().any(|item| {
-            item.needs_attention()
-                && matches!(
-                    item.severity,
-                    PrepareSeverity::Required | PrepareSeverity::Recommended
-                )
-        })
-    }
-
-    pub fn required_issue_count(&self) -> usize {
-        self.requirements
-            .iter()
-            .filter(|item| item.severity == PrepareSeverity::Required && item.needs_attention())
-            .count()
-    }
-
-    pub fn recommended_issue_count(&self) -> usize {
-        self.requirements
-            .iter()
-            .filter(|item| item.severity == PrepareSeverity::Recommended && item.needs_attention())
-            .count()
-    }
-
-    pub fn default_selected_tools(&self) -> Vec<DependencyTool> {
-        self.requirements
-            .iter()
-            .filter(|item| item.default_selected && item.needs_attention())
-            .filter_map(|item| match item.action {
-                Some(PrepareAction::InstallTool(tool)) => Some(tool),
-                None => None,
-            })
-            .collect()
+        self.requirements.iter().any(|item| item.needs_attention())
     }
 }
 
 pub fn collect_prepare_report(tool_paths: &ToolPaths, download_dir: &str) -> PrepareReport {
-    let mut requirements = Vec::new();
+    let mut requirements = collect_dependency_presence_report(tool_paths).requirements;
 
-    push_tool_requirement(
-        &mut requirements,
-        DependencyTool::YtDlp,
-        PrepareSeverity::Required,
-        tool_paths.yt_dlp.as_str(),
-        "Core video analysis and downloading.",
-        true,
-    );
-    push_tool_requirement(
-        &mut requirements,
-        DependencyTool::Deno,
-        PrepareSeverity::Recommended,
-        tool_paths.deno.as_str(),
-        "Improves YouTube analysis stability.",
-        true,
-    );
-    push_tool_requirement(
-        &mut requirements,
-        DependencyTool::Ffmpeg,
-        PrepareSeverity::Recommended,
-        tool_paths.ffmpeg.as_str(),
-        "Merges video/audio, converts formats, probes media info, and handles thumbnails/subtitles.",
-        true,
-    );
     let root = portable_root_dir();
     push_writable_requirement(
         &mut requirements,
         "app-root",
         "prepare.req.app_folder.title",
         &root,
-        PrepareSeverity::Required,
         "prepare.req.app_folder.description",
     );
     push_config_file_requirement(&mut requirements, &runtime_config_file_path());
@@ -162,15 +88,13 @@ pub fn collect_prepare_report(tool_paths: &ToolPaths, download_dir: &str) -> Pre
         "tools-dir",
         "prepare.req.tools_folder.title",
         &root.join("tools"),
-        PrepareSeverity::Required,
         "prepare.req.tools_folder.description",
     );
     push_writable_requirement(
         &mut requirements,
-        "tool-install-cache",
+        "manifest-temp",
         "prepare.req.deployment_temp.title",
-        &root.join("cache").join("tool-install"),
-        PrepareSeverity::Required,
+        &manifest_temp_dir(),
         "prepare.req.deployment_temp.description",
     );
 
@@ -180,7 +104,6 @@ pub fn collect_prepare_report(tool_paths: &ToolPaths, download_dir: &str) -> Pre
             "yt-dlp-cache",
             "prepare.req.download_cache.title",
             &resolve_support_path(&tool_paths.cache_dir),
-            PrepareSeverity::Required,
             "prepare.req.download_cache.description",
         );
     }
@@ -191,32 +114,50 @@ pub fn collect_prepare_report(tool_paths: &ToolPaths, download_dir: &str) -> Pre
             "output-dir",
             "prepare.req.output_folder.title",
             &path,
-            PrepareSeverity::Required,
             "prepare.req.output_folder.description",
         ),
         Err(error) => requirements.push(PrepareRequirement {
             id: "output-dir".to_owned(),
             title: "prepare.req.output_folder.title".to_owned(),
             description: "prepare.req.output_folder.description".to_owned(),
-            severity: PrepareSeverity::Required,
             status: PrepareStatus::Failed,
             detail: error,
             recommendation: "prepare.req.output_folder.recommendation".to_owned(),
             action: None,
-            default_selected: false,
         }),
     }
 
     PrepareReport { requirements }
 }
 
+pub fn collect_dependency_presence_report(tool_paths: &ToolPaths) -> PrepareReport {
+    let mut requirements = Vec::new();
+    push_tool_requirement(
+        &mut requirements,
+        DependencyTool::YtDlp,
+        tool_paths.yt_dlp.as_str(),
+        "Core video analysis and downloading.",
+    );
+    push_tool_requirement(
+        &mut requirements,
+        DependencyTool::Deno,
+        tool_paths.deno.as_str(),
+        "Improves YouTube analysis stability.",
+    );
+    push_tool_requirement(
+        &mut requirements,
+        DependencyTool::Ffmpeg,
+        tool_paths.ffmpeg.as_str(),
+        "Merges video/audio, converts formats, probes media info, and handles thumbnails/subtitles.",
+    );
+    PrepareReport { requirements }
+}
+
 fn push_tool_requirement(
     requirements: &mut Vec<PrepareRequirement>,
     tool: DependencyTool,
-    severity: PrepareSeverity,
     configured_path: &str,
     description: &str,
-    default_selected: bool,
 ) {
     let installed = dependency_tool_is_available(tool, configured_path);
     let resolved = if configured_path.trim().is_empty() {
@@ -243,7 +184,6 @@ fn push_tool_requirement(
         id: format!("tool-{}", tool.install_dir_name()),
         title: tool.label().to_owned(),
         description: description.to_owned(),
-        severity,
         status: if installed {
             PrepareStatus::Ok
         } else {
@@ -256,7 +196,6 @@ fn push_tool_requirement(
             format!("Can install to {}.", tool.default_portable_path())
         },
         action: Some(PrepareAction::InstallTool(tool)),
-        default_selected,
     });
 }
 
@@ -296,14 +235,11 @@ fn push_config_file_requirement(requirements: &mut Vec<PrepareRequirement>, path
     requirements.push(PrepareRequirement {
         id: "config-file".to_owned(),
         title: "prepare.req.config_file.title".to_owned(),
-        description: "prepare.req.config_file.description"
-            .to_owned(),
-        severity: PrepareSeverity::Required,
+        description: "prepare.req.config_file.description".to_owned(),
         status,
         detail: detail_parts.join("; "),
         recommendation,
         action: None,
-        default_selected: false,
     });
 }
 
@@ -312,7 +248,6 @@ fn push_writable_requirement(
     id: &str,
     title: &str,
     path: &Path,
-    severity: PrepareSeverity,
     description: &str,
 ) {
     let system = inspect_path_by_system_rules(path);
@@ -344,20 +279,17 @@ fn push_writable_requirement(
     } else if !write.recommendation.is_empty() {
         write.recommendation
     } else {
-        "prepare.req.move_portable_folder"
-            .to_owned()
+        "prepare.req.move_portable_folder".to_owned()
     };
 
     requirements.push(PrepareRequirement {
         id: id.to_owned(),
         title: title.to_owned(),
         description: description.to_owned(),
-        severity,
         status,
         detail: detail_parts.join("; "),
         recommendation,
         action: None,
-        default_selected: false,
     });
 }
 
@@ -401,9 +333,7 @@ fn inspect_path_by_system_rules(path: &Path) -> SystemPathInspection {
                 "Located in a OneDrive sync path; sync locks or security blocking may occur"
                     .to_owned(),
             );
-            recommendation =
-                "prepare.req.move_non_synced_folder"
-                    .to_owned();
+            recommendation = "prepare.req.move_non_synced_folder".to_owned();
         }
     }
 
@@ -600,4 +530,27 @@ fn classify_io_error(error: &std::io::Error) -> (String, String) {
         reason,
         "prepare.req.choose_writable_portable_folder".to_owned(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dependency_presence_report_only_contains_core_tool_checks() {
+        let report = collect_dependency_presence_report(&ToolPaths::default());
+        let ids = report
+            .requirements
+            .iter()
+            .map(|requirement| requirement.id.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(ids, vec!["tool-yt-dlp", "tool-deno", "tool-ffmpeg"]);
+        assert!(
+            report
+                .requirements
+                .iter()
+                .all(|requirement| requirement.action.is_some())
+        );
+    }
 }

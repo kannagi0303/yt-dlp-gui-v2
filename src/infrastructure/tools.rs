@@ -12,6 +12,8 @@ use std::sync::OnceLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::cookie_site_index::read_cookie_site_index;
+
 #[cfg(target_os = "windows")]
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 #[cfg(target_os = "windows")]
@@ -21,6 +23,7 @@ const DEFAULT_FORMAT_SELECTOR: &str = "bestvideo*+bestaudio/best";
 const MUSIC_STREAM_FORMAT_SELECTOR: &str = "bestaudio/best[acodec!=none]";
 const SECTION_FORMAT_SELECTOR: &str =
     "best[protocol!*=dash][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]/best";
+const COOKIE_SOURCE_AUTO: &str = "auto";
 const COOKIE_SOURCE_FILE: &str = "file";
 pub const FINAL_OUTPUT_PATH_PREFIX: &str = "__YTDLPGUI_FINAL_PATH__=";
 #[cfg(target_os = "windows")]
@@ -265,15 +268,21 @@ impl ToolPaths {
     pub fn available_browser_cookie_sources(&self) -> Vec<BrowserCookieSourceOption> {
         let mut items = Vec::new();
         items.push(BrowserCookieSourceOption {
+            value: COOKIE_SOURCE_AUTO,
+            label: "Auto by website",
+        });
+        items.push(BrowserCookieSourceOption {
             value: COOKIE_SOURCE_FILE,
             label: "Use file (cookies.txt)",
         });
+        let mut has_browser_source = false;
         for option in browser_cookie_source_candidates() {
             if browser_cookie_source_exists(option.value) {
+                has_browser_source = true;
                 items.push(option);
             }
         }
-        if items.len() == 1 {
+        if !has_browser_source {
             items.push(BrowserCookieSourceOption {
                 value: "chrome",
                 label: "Chrome",
@@ -283,7 +292,7 @@ impl ToolPaths {
     }
 
     pub fn available_browser_cookie_profiles(&self) -> Vec<BrowserCookieProfileOption> {
-        if self.uses_cookie_file_source() {
+        if self.uses_cookie_file_source() || self.uses_auto_cookie_source() {
             return Vec::new();
         }
         browser_cookie_profiles(&self.browser_cookie_source)
@@ -321,7 +330,7 @@ impl ToolPaths {
         let mut command = Command::new(&tool_path);
         configure_background_command(&mut command);
         self.apply_common_yt_dlp_args(&mut command);
-        self.apply_cookie_args(&mut command, use_cookies)?;
+        self.apply_cookie_args(&mut command, use_cookies, Some(url))?;
         command
             .arg("--flat-playlist")
             .arg("--dump-json")
@@ -444,7 +453,7 @@ impl ToolPaths {
             });
         }
 
-        self.apply_cookie_args(&mut command, use_cookies)?;
+        self.apply_cookie_args(&mut command, use_cookies, Some(url))?;
         self.apply_youtube_extractor_args(&mut command);
         command.arg(url);
 
@@ -545,7 +554,7 @@ impl ToolPaths {
             command.arg("--format").arg(selector);
         }
 
-        self.apply_cookie_args(&mut command, use_cookies)?;
+        self.apply_cookie_args(&mut command, use_cookies, Some(url))?;
         self.apply_youtube_extractor_args(&mut command);
         command.arg(url);
 
@@ -593,7 +602,7 @@ impl ToolPaths {
             .arg("--output")
             .arg(output_template);
 
-        self.apply_cookie_args(&mut command, use_cookies)?;
+        self.apply_cookie_args(&mut command, use_cookies, Some(url))?;
         self.apply_youtube_extractor_args(&mut command);
         command.arg(url);
 
@@ -625,7 +634,7 @@ impl ToolPaths {
             .arg("--progress")
             .arg("--newline")
             .arg("--progress-template")
-            .arg("[yt-dlp],%(progress._percent_str)s,%(progress._eta_str)s,%(progress.downloaded_bytes)s,%(progress.total_bytes)s,%(progress.speed)s,%(progress.eta)s");
+            .arg("[yt-dlp],%(info.format_id)s,%(progress._percent_str)s,%(progress._eta_str)s,%(progress.downloaded_bytes)s,%(progress.total_bytes)s,%(progress.speed)s,%(progress.eta)s");
 
         if request.target_kind != DownloadTargetKind::Subtitle {
             command
@@ -724,7 +733,11 @@ impl ToolPaths {
             }
         }
 
-        self.apply_cookie_args(&mut command, request.use_cookies)?;
+        self.apply_cookie_args(
+            &mut command,
+            request.use_cookies,
+            Some(request.url.as_str()),
+        )?;
         self.apply_youtube_extractor_args(&mut command);
 
         if !self.has_explicit_config() && request.use_aria2 {
@@ -831,6 +844,10 @@ impl ToolPaths {
             return Ok(());
         }
 
+        if self.uses_auto_cookie_source() {
+            return Ok(());
+        }
+
         if self.uses_cookie_file_source() {
             if self.cookie_file_path()?.is_some() {
                 return Ok(());
@@ -849,9 +866,23 @@ impl ToolPaths {
         Ok(())
     }
 
-    fn apply_cookie_args(&self, command: &mut Command, use_cookies: bool) -> Result<(), String> {
+    fn apply_cookie_args(
+        &self,
+        command: &mut Command,
+        use_cookies: bool,
+        url: Option<&str>,
+    ) -> Result<(), String> {
         self.validate_cookie_setup(use_cookies)?;
         if !use_cookies || self.has_explicit_config() {
+            return Ok(());
+        }
+
+        if self.uses_auto_cookie_source() {
+            if let Some(url) = url {
+                if let Some(cookie_file) = auto_cookie_file_for_url(url)? {
+                    command.arg("--cookies").arg(cookie_file);
+                }
+            }
             return Ok(());
         }
 
@@ -868,6 +899,12 @@ impl ToolPaths {
             .arg("--cookies-from-browser")
             .arg(browser_cookie_arg.trim());
         Ok(())
+    }
+
+    fn uses_auto_cookie_source(&self) -> bool {
+        self.browser_cookie_source
+            .trim()
+            .eq_ignore_ascii_case(COOKIE_SOURCE_AUTO)
     }
 
     fn uses_cookie_file_source(&self) -> bool {
@@ -949,11 +986,13 @@ impl ToolPaths {
         match self.cache_mode {
             CacheLocationMode::YtDlpDefault => {}
             CacheLocationMode::V2Cache => {
-                let cache_dir = resolve_support_path(&self.cache_dir);
-                command.arg("--cache-dir").arg(&cache_dir);
+                let cache_root = resolve_support_path(&self.cache_dir);
+                let yt_dlp_cache_dir = cache_root.join("yt-dlp");
+                let yt_dlp_temp_dir = cache_root.join("yt-dlp-temp");
+                command.arg("--cache-dir").arg(&yt_dlp_cache_dir);
                 command
                     .arg("-P")
-                    .arg(format!("temp:{}", cache_dir.display()));
+                    .arg(format!("temp:{}", yt_dlp_temp_dir.display()));
             }
             CacheLocationMode::WindowsTemp => {
                 let temp_dir = std::env::temp_dir();
@@ -1003,7 +1042,7 @@ impl ToolPaths {
             command.arg("-f").arg(selector);
         }
 
-        self.apply_cookie_args(&mut command, use_cookies)
+        self.apply_cookie_args(&mut command, use_cookies, Some(url))
             .map_err(|error| AnalyzeError::new(error, None))?;
         self.apply_youtube_extractor_args(&mut command);
         command.arg(url);
@@ -1131,6 +1170,79 @@ fn config_contains_any_arg(path: &Path, exact_args: &[&str], prefix_args: &[&str
                     || prefix_args.iter().any(|prefix| token.starts_with(prefix))
             })
     })
+}
+
+fn auto_cookie_file_for_url(url: &str) -> Result<Option<PathBuf>, String> {
+    let Some(host) = auto_cookie_host_from_url(url) else {
+        return Ok(None);
+    };
+
+    let cookie_dir = portable_root_dir().join("data").join("cookies");
+    let Some(index) = read_cookie_site_index(&cookie_dir)? else {
+        return Ok(None);
+    };
+
+    for site in index.sites {
+        let cookie_file = site.cookie_file.trim();
+        if cookie_file.is_empty() {
+            continue;
+        }
+
+        let matches = site
+            .match_domains
+            .iter()
+            .map(String::as_str)
+            .any(|domain| auto_cookie_domain_matches(&host, domain));
+        if !matches {
+            continue;
+        }
+
+        let candidate = PathBuf::from(cookie_file);
+        let path = if candidate.is_absolute() {
+            candidate
+        } else {
+            cookie_dir.join(candidate)
+        };
+        if path.is_file() {
+            return Ok(Some(path));
+        }
+    }
+
+    Ok(None)
+}
+
+fn auto_cookie_host_from_url(url: &str) -> Option<String> {
+    let trimmed = url.trim();
+    let rest = trimmed
+        .strip_prefix("https://")
+        .or_else(|| trimmed.strip_prefix("http://"))?;
+    let authority = rest.split(['/', '?', '#']).next()?.trim();
+    if authority.is_empty() {
+        return None;
+    }
+    let host = authority
+        .rsplit('@')
+        .next()
+        .unwrap_or(authority)
+        .split(':')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    if host.is_empty() { None } else { Some(host) }
+}
+
+fn auto_cookie_domain_matches(host: &str, domain: &str) -> bool {
+    let domain = domain
+        .trim()
+        .trim_start_matches('.')
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    if domain.is_empty() {
+        return false;
+    }
+    host == domain || host.ends_with(&format!(".{domain}"))
 }
 
 fn cookie_source_argument(source: &str, profile: &str) -> String {
@@ -1839,6 +1951,36 @@ mod tests {
                 "%(playlist_title|)s:%(meta_album)s",
             ]
         );
+    }
+
+    #[test]
+    fn v2_cache_mode_keeps_yt_dlp_cache_and_temp_namespaced() {
+        let cache_root = std::env::temp_dir().join(format!(
+            "yt-dlp-gui-v2-cache-args-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let tool_paths = ToolPaths {
+            cache_mode: CacheLocationMode::V2Cache,
+            cache_dir: cache_root.display().to_string(),
+            ffmpeg: "missing-ffmpeg.exe".to_owned(),
+            deno: "missing-deno.exe".to_owned(),
+            ..ToolPaths::default()
+        };
+        let mut command = Command::new("yt-dlp");
+
+        tool_paths.apply_common_yt_dlp_args(&mut command);
+
+        let args = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+        assert!(args.windows(2).any(|pair| pair[0] == "--cache-dir"
+            && pair[1] == cache_root.join("yt-dlp").display().to_string()));
+        assert!(args.windows(2).any(|pair| pair[0] == "-P"
+            && pair[1] == format!("temp:{}", cache_root.join("yt-dlp-temp").display())));
     }
 }
 

@@ -10,8 +10,18 @@ pub(crate) fn ensure_windows_app_identity() -> Result<(), String> {
     windows_app_identity::ensure_windows_app_identity()
 }
 
+#[cfg(target_os = "windows")]
+pub(crate) fn set_windows_process_app_identity() -> Result<(), String> {
+    windows_app_identity::set_windows_process_app_identity()
+}
+
 #[cfg(not(target_os = "windows"))]
 pub(crate) fn ensure_windows_app_identity() -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn set_windows_process_app_identity() -> Result<(), String> {
     Ok(())
 }
 
@@ -45,6 +55,10 @@ mod windows_app_identity {
                 ensure_registered()
             })
             .clone()
+    }
+
+    pub(crate) fn set_windows_process_app_identity() -> Result<(), String> {
+        set_process_app_user_model_id()
     }
 
     fn set_process_app_user_model_id() -> Result<(), String> {

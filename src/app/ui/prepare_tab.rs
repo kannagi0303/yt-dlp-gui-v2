@@ -2,30 +2,21 @@ use eframe::egui::{self, Align, Color32, RichText, ScrollArea, Ui};
 use egui_extras::{Size, StripBuilder};
 
 use crate::app::state::{AppState, PrepareDetailPage};
-use crate::app::widgets::icon::AppIcon;
+use crate::app::widgets::icon::{AppIcon, icon_image};
 use crate::i18n::LanguageSelection;
 use crate::infrastructure::{
-    DependencyTool, PrepareRequirement, PrepareSeverity, PrepareStatus, ToolInstallStage,
+    ComponentUpdateStatus, DependencyTool, PrepareRequirement, PrepareStatus,
 };
 
-use super::common::{
-    icon_text_button, measure_label_width, natural_icon_button_width,
-    scroll_content_with_right_gap, text_trailing_icon_button,
-};
+use super::common::{icon_text_button, scroll_content_with_right_gap, text_trailing_icon_button};
+use super::semantic_ui_metrics;
 
-const TITLE_SIZE: f32 = 18.0;
-const BODY_SIZE: f32 = 15.0;
-const SMALL_SIZE: f32 = 13.0;
-const CONTENT_LEFT_INDENT: f32 = 28.0;
-const ROW_GAP_EXTRA: f32 = 6.0;
-
-struct ToolRowMetrics {
-    row_width: f32,
-    row_height: f32,
-    icon_width: f32,
-    name_width: f32,
-    severity_width: f32,
-    action_width: f32,
+#[derive(Clone, Copy)]
+pub(super) struct ToolRowMetrics {
+    pub(super) row_width: f32,
+    pub(super) row_height: f32,
+    pub(super) icon_width: f32,
+    pub(super) name_width: f32,
 }
 
 pub(super) fn render_prepare_tab(ui: &mut Ui, state: &mut AppState) {
@@ -34,45 +25,15 @@ pub(super) fn render_prepare_tab(ui: &mut Ui, state: &mut AppState) {
         return;
     }
 
-    let action_height = ui.spacing().interact_size.y + 12.0;
-
-    StripBuilder::new(ui)
-        .size(Size::remainder())
-        .size(Size::exact(action_height))
-        .vertical(|mut strip| {
-            strip.cell(|ui| {
-                render_prepare_root_page(ui, state);
-            });
-
-            strip.cell(|ui| {
-                render_bottom_actions(ui, state);
-            });
-        });
+    super::prepare_tab_template::render_prepare_tab_template(ui, state);
 }
 
-fn render_prepare_root_page(ui: &mut Ui, state: &mut AppState) {
-    ScrollArea::vertical()
-        .id_salt("prepare-mode-scroll")
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            scroll_content_with_right_gap(ui, |ui| {
-                render_language_selector(ui, state);
-                ui.add_space(16.0);
-                render_header(ui, state);
-                ui.add_space(24.0);
-                render_tool_rows(ui, state);
-                render_environment_issues(ui, state);
-                render_prepare_status(ui, state);
-            });
-        });
-}
-
-fn render_language_selector(ui: &mut Ui, state: &mut AppState) {
-    let language_text = state.ui_tr("prepare.language");
+pub(super) fn render_language_selector(ui: &mut Ui, state: &mut AppState) {
+    let language_text = state.ui_i18n_text_for_key("prepare.language");
     ui.horizontal(|ui| {
         ui.label(
             RichText::new(language_text)
-                .size(SMALL_SIZE)
+                .size(semantic_ui_metrics::prepare_small_text_size())
                 .color(detail_color(ui)),
         );
         let label = language_choice_label(state, state.language_selection());
@@ -92,14 +53,17 @@ fn render_language_detail_page(ui: &mut Ui, state: &mut AppState) {
         .show(ui, |ui| {
             scroll_content_with_right_gap(ui, |ui| {
                 ui.horizontal(|ui| {
-                    let back_text = state.ui_tr("prepare.back");
-                    let language_text = state.ui_tr("prepare.language");
+                    let back_text = state.ui_i18n_text_for_key("prepare.back");
+                    let language_text = state.ui_i18n_text_for_key("prepare.language");
                     if ui.button(format!("← {back_text}")).clicked() {
                         state.close_prepare_detail_page();
                     }
                     ui.label(RichText::new(language_text).strong());
                 });
-                ui.add_space(10.0);
+                ui.add_space(
+                    semantic_ui_metrics::prepare_language_detail_header_to_choices_vertical_spacing(
+                    ),
+                );
                 for language in LanguageSelection::PICKER_ORDER {
                     render_language_choice_row(ui, state, language);
                 }
@@ -108,12 +72,14 @@ fn render_language_detail_page(ui: &mut Ui, state: &mut AppState) {
 }
 
 fn render_language_choice_row(ui: &mut Ui, state: &mut AppState, language: LanguageSelection) {
-    const CHECK_WIDTH: f32 = 18.0;
     let selected = state.language_selection() == language;
     let label = language_choice_label(state, language);
     ui.horizontal(|ui| {
         ui.add_sized(
-            [CHECK_WIDTH, ui.spacing().interact_size.y],
+            [
+                semantic_ui_metrics::prepare_language_choice_checkmark_column_width(),
+                ui.spacing().interact_size.y,
+            ],
             egui::Label::new(if selected { "✓" } else { "" }),
         );
         if ui.selectable_label(selected, label).clicked() {
@@ -125,7 +91,7 @@ fn render_language_choice_row(ui: &mut Ui, state: &mut AppState, language: Langu
 fn language_choice_label(state: &AppState, language: LanguageSelection) -> String {
     match language {
         LanguageSelection::Auto => {
-            let auto_detect_text = state.ui_tr("prepare.auto_detect");
+            let auto_detect_text = state.ui_i18n_text_for_key("prepare.auto_detect");
             format!(
                 "{} ({})",
                 auto_detect_text,
@@ -136,51 +102,27 @@ fn language_choice_label(state: &AppState, language: LanguageSelection) -> Strin
     }
 }
 
-fn render_header(ui: &mut Ui, state: &AppState) {
-    let header_text = state.ui_tr("prepare.install_the_required_tools_now_or_skip_and_h");
+pub(super) fn render_header(ui: &mut Ui, state: &AppState) {
+    let header_text =
+        state.ui_i18n_text_for_key("prepare.install_the_required_tools_now_or_skip_and_h");
     ui.label(
         RichText::new(header_text)
-            .size(TITLE_SIZE)
+            .size(semantic_ui_metrics::prepare_title_text_size())
             .color(detail_color(ui)),
     );
 }
 
-fn render_tool_rows(ui: &mut Ui, state: &mut AppState) {
-    ui.horizontal(|ui| {
-        ui.add_space(CONTENT_LEFT_INDENT);
-        ui.vertical(|ui| {
-            let metrics = tool_row_metrics(ui, state);
-
-            for tool in [
-                DependencyTool::YtDlp,
-                DependencyTool::Deno,
-                DependencyTool::Ffmpeg,
-            ] {
-                if let Some(item) = tool_requirement(state, tool).cloned() {
-                    render_tool_row(ui, state, &item, tool, &metrics);
-                    ui.add_space(ui.spacing().item_spacing.y + ROW_GAP_EXTRA);
-                }
-            }
-        });
-    });
-}
-
-fn tool_row_metrics(ui: &Ui, state: &AppState) -> ToolRowMetrics {
-    let spacing = ui.spacing();
-    let row_height = standard_action_height(ui);
-    let icon_width = row_height * 0.65;
-    let name_width = measure_label_width(ui, &["yt-dlp", "Deno", "FFmpeg"]);
-    let required_text = state.ui_tr("prepare.required");
-    let recommended_text = state.ui_tr("prepare.recommended");
-    let optional_text = state.ui_tr("prepare.optional");
-    let severity_width = measure_label_width(ui, &[required_text, recommended_text, optional_text]);
-    let action_width = standard_action_width(ui, state);
-    let missing_text = state.ui_tr("prepare.missing");
-    let install_later_text = state.ui_tr("prepare.install_later");
-    let downloading_text = state.ui_tr("prepare.downloading_100");
-    let extracting_text = state.ui_tr("prepare.extracting_100");
-    let install_failed_text = state.ui_tr("prepare.install_failed");
-    let status_width = measure_label_width(
+pub(super) fn tool_row_metrics(ui: &Ui, state: &AppState) -> ToolRowMetrics {
+    let row_height = semantic_ui_metrics::prepare_tool_row_height_from_current_control_metrics(ui);
+    let icon_width = semantic_ui_metrics::prepare_tool_row_icon_width_from_row_height(row_height);
+    let base_name_width =
+        semantic_ui_metrics::prepare_tool_row_name_width_for_visible_tool_names(ui);
+    let missing_text = state.ui_i18n_text_for_key("prepare.missing");
+    let install_later_text = state.ui_i18n_text_for_key("prepare.install_later");
+    let downloading_text = state.ui_i18n_text_for_key("prepare.downloading_100");
+    let extracting_text = state.ui_i18n_text_for_key("prepare.extracting_100");
+    let install_failed_text = state.ui_i18n_text_for_key("prepare.install_failed");
+    let status_width = semantic_ui_metrics::prepare_tool_row_status_width_for_visible_labels(
         ui,
         &[
             missing_text,
@@ -190,49 +132,29 @@ fn tool_row_metrics(ui: &Ui, state: &AppState) -> ToolRowMetrics {
             install_failed_text,
         ],
     );
-    let gap = spacing.item_spacing.x;
-    let desired_width = icon_width
-        + gap * 0.8
-        + name_width
-        + gap * 2.8
-        + severity_width
-        + gap * 1.4
-        + action_width
-        + gap
-        + status_width;
+    let desired_width = semantic_ui_metrics::prepare_tool_row_width_for_columns(
+        ui,
+        icon_width,
+        base_name_width,
+        0.0,
+        0.0,
+        status_width,
+    );
     let row_width = desired_width.min(ui.available_width());
 
     ToolRowMetrics {
         row_width,
         row_height,
         icon_width,
-        name_width: name_width + gap * 2.8,
-        severity_width,
-        action_width,
+        name_width: semantic_ui_metrics::prepare_tool_row_name_width_with_following_column_spacing(
+            ui,
+            base_name_width,
+        ),
     }
 }
 
-fn standard_action_height(ui: &Ui) -> f32 {
-    ui.spacing().interact_size.y + 8.0
-}
-
-fn standard_action_width(ui: &Ui, state: &AppState) -> f32 {
-    let install_all_text = state.ui_tr("prepare.install_all");
-    let reinstall_text = state.ui_tr("prepare.reinstall");
-    let installing_text = state.ui_tr("prepare.installing");
-    let skip_text = state.ui_tr("prepare.skip");
-    let install_text = state.ui_tr("prepare.install");
-    [
-        install_all_text,
-        reinstall_text,
-        installing_text,
-        skip_text,
-        install_text,
-    ]
-    .into_iter()
-    .map(|label| natural_icon_button_width(ui, label))
-    .fold(0.0, f32::max)
-        + ui.spacing().button_padding.x
+pub(super) fn has_tool_requirement(state: &AppState, tool: DependencyTool) -> bool {
+    tool_requirement(state, tool).is_some()
 }
 
 fn tool_requirement<'a>(
@@ -245,6 +167,17 @@ fn tool_requirement<'a>(
         .find(|item| item.has_install_action(tool))
 }
 
+pub(super) fn render_tool_row_slot(
+    ui: &mut Ui,
+    state: &mut AppState,
+    tool: DependencyTool,
+    metrics: &ToolRowMetrics,
+) {
+    if let Some(item) = tool_requirement(state, tool).cloned() {
+        render_tool_row(ui, state, &item, tool, metrics);
+    }
+}
+
 fn render_tool_row(
     ui: &mut Ui,
     state: &mut AppState,
@@ -252,83 +185,39 @@ fn render_tool_row(
     tool: DependencyTool,
     metrics: &ToolRowMetrics,
 ) {
-    let installing_tool = state.installing_dependency_tool();
-    let is_installing = installing_tool == Some(tool);
-    let any_installing = installing_tool.is_some();
-    let install_block_reason = state.prepare_dependency_install_block_reason();
-    let installed = item.status == PrepareStatus::Ok;
+    let is_installing = state.dependency_tool_update_is_running(tool);
+    let update_status = state.dependency_tool_update_status(tool);
+    let update_running = state.component_update_running();
+    let indicator = tool_status_indicator(item, update_status, is_installing, update_running);
+    let indicator_color = tool_status_color(ui, item, update_status, is_installing, update_running);
 
     ui.allocate_ui(egui::vec2(metrics.row_width, metrics.row_height), |ui| {
         StripBuilder::new(ui)
             .size(Size::exact(metrics.icon_width))
             .size(Size::exact(metrics.name_width))
-            .size(Size::exact(metrics.severity_width))
-            .size(Size::exact(metrics.action_width))
             .size(Size::remainder())
             .horizontal(|mut strip| {
                 strip.cell(|ui| {
-                    centered_label(
-                        ui,
-                        RichText::new(tool_status_symbol(item, is_installing))
-                            .size(TITLE_SIZE)
-                            .strong()
-                            .color(tool_status_color(ui, item, is_installing)),
-                    );
+                    centered_status_indicator(ui, indicator, indicator_color);
                 });
                 strip.cell(|ui| {
-                    left_label(ui, RichText::new(tool.label()).size(BODY_SIZE).strong());
-                });
-                strip.cell(|ui| {
-                    let severity_text = state.ui_tr(severity_short_label(item.severity));
                     left_label(
                         ui,
-                        RichText::new(severity_text)
-                            .size(BODY_SIZE)
-                            .color(severity_color(ui, item.severity)),
+                        RichText::new(tool.label())
+                            .size(semantic_ui_metrics::prepare_body_text_size())
+                            .strong(),
                     );
-                });
-                strip.cell(|ui| {
-                    let button_label = if is_installing {
-                        state.ui_tr("prepare.installing")
-                    } else if installed {
-                        state.ui_tr("prepare.reinstall")
-                    } else {
-                        state.ui_tr("prepare.install")
-                    };
-                    let button_icon = if is_installing {
-                        AppIcon::Loading
-                    } else {
-                        AppIcon::Download
-                    };
-                    let response = ui.add_enabled(
-                        !any_installing && install_block_reason.is_none(),
-                        icon_text_button(ui, button_icon, button_label)
-                            .min_size(egui::vec2(metrics.action_width, metrics.row_height)),
-                    );
-                    if response.clicked() {
-                        state.install_dependency_tool(tool);
-                    }
-                    drop(response);
                 });
                 strip.cell(|ui| {
                     left_label(
                         ui,
                         RichText::new(state.localize_message(&tool_status_text(state, item, tool)))
-                            .size(BODY_SIZE)
+                            .size(semantic_ui_metrics::prepare_body_text_size())
                             .color(detail_color(ui)),
                     );
                 });
             });
     });
-}
-
-fn centered_label(ui: &mut Ui, text: RichText) {
-    ui.with_layout(
-        egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
-        |ui| {
-            ui.label(text);
-        },
-    );
 }
 
 fn left_label(ui: &mut Ui, text: RichText) {
@@ -337,20 +226,26 @@ fn left_label(ui: &mut Ui, text: RichText) {
     });
 }
 
-fn render_prepare_status(ui: &mut Ui, state: &AppState) {
-    if state.last_action.trim().is_empty() {
+pub(super) fn render_prepare_status(ui: &mut Ui, state: &AppState) {
+    let Some(status_text) = state.prepare_footer_status_text() else {
         return;
-    }
+    };
 
-    ui.add_space(10.0);
     ui.label(
-        RichText::new(state.localize_message(&state.last_action))
-            .size(SMALL_SIZE)
+        RichText::new(status_text)
+            .size(semantic_ui_metrics::prepare_small_text_size())
             .color(detail_color(ui)),
     );
 }
 
-fn render_environment_issues(ui: &mut Ui, state: &AppState) {
+pub(super) fn has_environment_issues(state: &AppState) -> bool {
+    state
+        .prepare_requirements()
+        .iter()
+        .any(|item| item.action.is_none() && item.needs_attention())
+}
+
+pub(super) fn render_environment_issues(ui: &mut Ui, state: &AppState) {
     let issues = state
         .prepare_requirements()
         .iter()
@@ -361,13 +256,14 @@ fn render_environment_issues(ui: &mut Ui, state: &AppState) {
         return;
     }
 
-    ui.add_space(12.0);
-    let needs_attention_text = state.ui_tr("prepare.needs_attention");
+    let needs_attention_text = state.ui_i18n_text_for_key("prepare.needs_attention");
     ui.label(RichText::new(needs_attention_text).size(17.0).strong());
-    ui.add_space(4.0);
+    ui.add_space(semantic_ui_metrics::prepare_environment_issues_header_to_rows_vertical_spacing());
     for item in issues {
         render_issue_row(ui, state, item);
-        ui.add_space(4.0);
+        ui.add_space(
+            semantic_ui_metrics::prepare_environment_issues_between_rows_vertical_spacing(),
+        );
     }
 }
 
@@ -377,12 +273,12 @@ fn render_issue_row(ui: &mut Ui, state: &AppState, item: &PrepareRequirement) {
         ui.horizontal_top(|ui| {
             ui.add_sized(
                 [
-                    ui.spacing().interact_size.y * 0.8,
+                    semantic_ui_metrics::prepare_environment_issue_status_column_width_from_current_control_metrics(ui),
                     ui.spacing().interact_size.y,
                 ],
                 egui::Label::new(
                     RichText::new(status_symbol(item.status))
-                        .size(TITLE_SIZE)
+                        .size(semantic_ui_metrics::prepare_title_text_size())
                         .strong()
                         .color(status_color(ui, item.status)),
                 ),
@@ -390,26 +286,26 @@ fn render_issue_row(ui: &mut Ui, state: &AppState, item: &PrepareRequirement) {
             ui.vertical(|ui| {
                 ui.label(
                     RichText::new(state.localize_message(&item.title))
-                        .size(BODY_SIZE)
+                        .size(semantic_ui_metrics::prepare_body_text_size())
                         .strong(),
                 );
                 if !item.recommendation.trim().is_empty() {
                     ui.label(
                         RichText::new(state.localize_message(&item.recommendation))
-                            .size(SMALL_SIZE)
+                            .size(semantic_ui_metrics::prepare_small_text_size())
                             .color(detail_color(ui)),
                     );
                 } else {
                     ui.label(
                         RichText::new(state.localize_message(&item.description))
-                            .size(SMALL_SIZE)
+                            .size(semantic_ui_metrics::prepare_small_text_size())
                             .color(detail_color(ui)),
                     );
                 }
                 if !item.detail.trim().is_empty() {
                     ui.label(
                         RichText::new(state.localize_message(&item.detail))
-                            .size(SMALL_SIZE)
+                            .size(semantic_ui_metrics::prepare_small_text_size())
                             .color(warn_color(ui)),
                     );
                 }
@@ -418,25 +314,37 @@ fn render_issue_row(ui: &mut Ui, state: &AppState, item: &PrepareRequirement) {
     });
 }
 
-fn render_bottom_actions(ui: &mut Ui, state: &mut AppState) {
-    let install_running = state.installing_dependency_tool().is_some();
+pub(super) fn render_bottom_actions(ui: &mut Ui, state: &mut AppState) {
+    let install_running = state.component_update_running();
     let can_install_all = state.prepare_installable_tool_count() > 0;
     let install_block_reason = state.prepare_dependency_install_block_reason();
-    let row_height = standard_action_height(ui);
-    let install_width = standard_action_width(ui, state);
-    let skip_width = standard_action_width(ui, state);
-    let install_all_text = state.ui_tr("prepare.install_all");
-    let skip_text = state.ui_tr("prepare.skip");
+    let row_height = semantic_ui_metrics::prepare_tool_row_height_from_current_control_metrics(ui);
+    let install_all_text = state.ui_i18n_text_for_key("prepare.install_all");
+    let reinstall_text = state.ui_i18n_text_for_key("prepare.reinstall");
+    let installing_text = state.ui_i18n_text_for_key("prepare.installing");
+    let skip_text = state.ui_i18n_text_for_key("prepare.skip");
+    let install_text = state.ui_i18n_text_for_key("prepare.install");
+    let action_width = semantic_ui_metrics::prepare_tool_row_action_width_for_visible_labels(
+        ui,
+        &[
+            install_all_text,
+            reinstall_text,
+            installing_text,
+            skip_text,
+            install_text,
+        ],
+    );
 
     ui.allocate_ui_with_layout(
         egui::vec2(ui.available_width(), row_height),
         egui::Layout::right_to_left(Align::Center),
         |ui| {
-            ui.spacing_mut().item_spacing.x = 12.0;
+            ui.spacing_mut().item_spacing.x =
+                semantic_ui_metrics::prepare_bottom_action_button_horizontal_spacing();
             let install_all = ui.add_enabled(
                 !install_running && can_install_all && install_block_reason.is_none(),
                 icon_text_button(ui, AppIcon::Download, install_all_text)
-                    .min_size(egui::vec2(install_width, row_height)),
+                    .min_size(egui::vec2(action_width, row_height)),
             );
             if install_all.clicked() {
                 state.install_all_prepare_tools();
@@ -446,7 +354,7 @@ fn render_bottom_actions(ui: &mut Ui, state: &mut AppState) {
             let skip = ui.add_enabled(
                 !install_running,
                 icon_text_button(ui, AppIcon::WindowClose, skip_text)
-                    .min_size(egui::vec2(skip_width, row_height)),
+                    .min_size(egui::vec2(action_width, row_height)),
             );
             if skip.clicked() {
                 state.snooze_prepare_tab();
@@ -455,16 +363,56 @@ fn render_bottom_actions(ui: &mut Ui, state: &mut AppState) {
     );
 }
 
-fn tool_status_symbol(item: &PrepareRequirement, is_installing: bool) -> &'static str {
-    if is_installing {
-        "…"
-    } else if item.status == PrepareStatus::Ok {
-        "✓"
-    } else if item.severity == PrepareSeverity::Optional {
-        "○"
-    } else {
-        "×"
+#[derive(Clone, Copy)]
+enum ToolStatusIndicator {
+    Check,
+    Cross,
+    Pending,
+}
+
+fn tool_status_indicator(
+    item: &PrepareRequirement,
+    update_status: Option<ComponentUpdateStatus>,
+    is_installing: bool,
+    update_running: bool,
+) -> ToolStatusIndicator {
+    match update_status {
+        Some(
+            ComponentUpdateStatus::Checking
+            | ComponentUpdateStatus::Downloading
+            | ComponentUpdateStatus::Staged
+            | ComponentUpdateStatus::Applying,
+        ) if update_running || is_installing => ToolStatusIndicator::Pending,
+        Some(ComponentUpdateStatus::Missing | ComponentUpdateStatus::UpdateAvailable)
+            if update_running =>
+        {
+            ToolStatusIndicator::Pending
+        }
+        Some(ComponentUpdateStatus::Installed | ComponentUpdateStatus::UpToDate)
+            if item.status == PrepareStatus::Ok =>
+        {
+            ToolStatusIndicator::Check
+        }
+        Some(ComponentUpdateStatus::Failed) => ToolStatusIndicator::Cross,
+        _ if update_running && item.needs_attention() => ToolStatusIndicator::Pending,
+        _ if item.status == PrepareStatus::Ok => ToolStatusIndicator::Check,
+        _ => ToolStatusIndicator::Cross,
     }
+}
+
+fn centered_status_indicator(ui: &mut Ui, indicator: ToolStatusIndicator, color: Color32) {
+    let icon = match indicator {
+        ToolStatusIndicator::Check => AppIcon::Check,
+        ToolStatusIndicator::Cross => AppIcon::Close,
+        ToolStatusIndicator::Pending => AppIcon::DownloadCircle,
+    };
+    let icon_size = semantic_ui_metrics::standard_icon_size_from_current_control_metrics(ui);
+    ui.with_layout(
+        egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
+        |ui| {
+            ui.add(icon_image(icon, icon_size, color));
+        },
+    );
 }
 
 fn status_symbol(status: PrepareStatus) -> &'static str {
@@ -475,82 +423,55 @@ fn status_symbol(status: PrepareStatus) -> &'static str {
     }
 }
 
-fn tool_status_color(ui: &Ui, item: &PrepareRequirement, is_installing: bool) -> Color32 {
-    if is_installing {
-        warn_color(ui)
-    } else if item.status == PrepareStatus::Ok {
-        ok_color(ui)
-    } else if item.severity == PrepareSeverity::Optional {
-        detail_color(ui)
-    } else {
-        error_color(ui)
+fn tool_status_color(
+    ui: &Ui,
+    item: &PrepareRequirement,
+    update_status: Option<ComponentUpdateStatus>,
+    is_installing: bool,
+    update_running: bool,
+) -> Color32 {
+    match update_status {
+        Some(
+            ComponentUpdateStatus::Checking
+            | ComponentUpdateStatus::Downloading
+            | ComponentUpdateStatus::Staged
+            | ComponentUpdateStatus::Applying,
+        ) if update_running || is_installing => warn_color(ui),
+        Some(ComponentUpdateStatus::Missing | ComponentUpdateStatus::UpdateAvailable)
+            if update_running =>
+        {
+            warn_color(ui)
+        }
+        Some(ComponentUpdateStatus::Installed | ComponentUpdateStatus::UpToDate)
+            if item.status == PrepareStatus::Ok =>
+        {
+            ok_color(ui)
+        }
+        Some(ComponentUpdateStatus::Failed) => error_color(ui),
+        _ if update_running && item.needs_attention() => warn_color(ui),
+        _ if item.status == PrepareStatus::Ok => ok_color(ui),
+        _ => error_color(ui),
     }
 }
 
 fn tool_status_text(state: &AppState, item: &PrepareRequirement, tool: DependencyTool) -> String {
-    if let Some(progress) = state.dependency_tool_install_progress(tool) {
-        if state.installing_dependency_tool() == Some(tool)
-            || matches!(progress.stage, ToolInstallStage::Failed)
-        {
-            return match progress.percent {
-                Some(percent)
-                    if matches!(
-                        progress.stage,
-                        ToolInstallStage::Downloading
-                            | ToolInstallStage::Extracting
-                            | ToolInstallStage::Installing
-                    ) =>
-                {
-                    format!(
-                        "{} {percent}%",
-                        tool_install_stage_text(state, progress.stage)
-                    )
-                }
-                _ if matches!(progress.stage, ToolInstallStage::Failed)
-                    && !progress.message.trim().is_empty() =>
-                {
-                    state.ui_tr("prepare.install_failed").to_owned()
-                }
-                _ => tool_install_stage_text(state, progress.stage).to_owned(),
-            };
-        }
+    if let Some(status) = state.dependency_tool_update_status_text(tool) {
+        return status;
     }
 
     match item.status {
-        PrepareStatus::Ok => state.ui_tr("prepare.status.ready").to_owned(),
-        PrepareStatus::Missing if item.severity == PrepareSeverity::Optional => {
-            state.ui_tr("prepare.install_later").to_owned()
-        }
-        PrepareStatus::Missing => state.ui_tr("prepare.status.missing").to_owned(),
-        PrepareStatus::Warning => state.ui_tr("prepare.status.warning").to_owned(),
-        PrepareStatus::Failed => state.ui_tr("prepare.status.failed").to_owned(),
-    }
-}
-
-fn tool_install_stage_text(state: &AppState, stage: ToolInstallStage) -> &'static str {
-    match stage {
-        ToolInstallStage::Preparing => state.ui_tr("tool_install.stage.preparing"),
-        ToolInstallStage::Downloading => state.ui_tr("tool_install.stage.downloading"),
-        ToolInstallStage::Extracting => state.ui_tr("tool_install.stage.extracting"),
-        ToolInstallStage::Installing => state.ui_tr("tool_install.stage.installing"),
-        ToolInstallStage::Completed => state.ui_tr("tool_install.stage.completed"),
-        ToolInstallStage::Failed => state.ui_tr("tool_install.stage.failed"),
-    }
-}
-
-fn severity_short_label(severity: PrepareSeverity) -> &'static str {
-    match severity {
-        PrepareSeverity::Required => "prepare.severity.short.required",
-        PrepareSeverity::Recommended => "prepare.severity.short.recommended",
-        PrepareSeverity::Optional => "prepare.severity.short.optional",
-    }
-}
-
-fn severity_color(ui: &Ui, severity: PrepareSeverity) -> Color32 {
-    match severity {
-        PrepareSeverity::Required => error_color(ui),
-        PrepareSeverity::Recommended => warn_color(ui),
-        PrepareSeverity::Optional => detail_color(ui),
+        PrepareStatus::Ok => state
+            .ui_i18n_text_for_key("prepare.status.ready")
+            .to_owned(),
+        PrepareStatus::Missing => state
+            .ui_i18n_text_for_key("prepare.status.missing")
+            .to_owned(),
+        PrepareStatus::Warning => state
+            .ui_i18n_text_for_key("prepare.status.warning")
+            .to_owned(),
+        PrepareStatus::Failed => state
+            .ui_i18n_text_for_key("prepare.status.failed")
+            .to_owned(),
     }
 }
 

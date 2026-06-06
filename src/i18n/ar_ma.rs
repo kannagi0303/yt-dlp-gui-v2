@@ -1,6 +1,48 @@
 pub fn text<'a>(key: &'a str) -> &'a str {
     match key {
         "tab.advanced" => "متقدم",
+        "tab.about" => "About",
+        "about.tools" => "إصدارات الأدوات",
+        "about.current_version" => "الحالي",
+        "about.latest_version" => "الأحدث",
+        "about.author" => "المؤلف",
+        "about.source" => "المصدر",
+        "about.status" => "الحالة",
+        "about.message" => "الرسالة",
+        "about.check_updates" => "التحقق من التحديثات",
+        "about.update_all" => "تحديث الكل",
+        "about.restart" => "إعادة التشغيل",
+        "about.open_release" => "فتح Release",
+        "about.install" => "تثبيت",
+        "about.update" => "تحديث",
+        "about.running" => "جارٍ التحقق من التحديثات...",
+        "about.last_check" => "آخر تحقق:",
+        "about.relative.minutes" => "{count} د",
+        "about.relative.hour" => "ساعة واحدة",
+        "about.relative.hours" => "{count} ساعات",
+        "about.relative.day" => "يوم واحد",
+        "about.relative.days" => "{count} أيام",
+        "about.never_checked" => "لم يتم التحقق من التحديثات بعد",
+        "about.no_release_notes_loaded" => {
+            "لم يتم تحميل ملاحظات الإصدار. اضغط التحقق من التحديثات أولاً."
+        }
+        "about.ownership.managed_portable" => "مُدار بواسطة v2",
+        "about.ownership.external" => "خارجي",
+        "about.ownership.missing" => "مفقود",
+        "about.ownership.unknown" => "غير معروف",
+        "about.status.unknown" => "لم يتم التحقق",
+        "about.status.checking" => "جارٍ التحقق",
+        "about.status.up_to_date" => "الأحدث ✓",
+        "about.status.update_available" => "تحديث متاح ↑",
+        "about.status.missing" => "مفقود +",
+        "about.status.downloading" => "جارٍ التنزيل",
+        "about.status.downloading_percent" => "جارٍ التنزيل {percent}%",
+        "about.status.staged" => "جاهز للتطبيق",
+        "about.status.pending_restart" => "بانتظار إعادة التشغيل",
+        "about.status.applying" => "جارٍ التطبيق",
+        "about.status.installed" => "مثبت",
+        "about.status.skipped" => "تم التخطي",
+        "about.status.failed" => "فشل !",
         "tab.options" => "الخيارات",
         "tab.log" => "السجل",
         "main.url_hint" => "URL",
@@ -60,8 +102,71 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_cookies" => "استخدام cookies",
         "advance.enable_cookies" => "تفعيل cookies",
         "advance.cookie_source" => "مصدر cookies",
+        "advance.cookie_source.auto" => "تلقائي حسب الموقع",
         "advance.cookie_source.file" => "استخدام ملف (cookies.txt)",
+        "advance.cookie_auto" => "تلقائي",
+        "advance.cookie_auto_note" => "تستخدم التنزيلات ملف Cookie المحفوظ المطابق للرابط.",
+        "advance.cookie_rescue" => "استرداد Cookie",
         "advance.cookie_file" => "ملف cookies",
+        "advance.get_cookie" => "الحصول على Cookie",
+        "advance.cookie" => "Cookie",
+        "advance.cookie.off" => "Do not use",
+        "advance.cookie.browser" => "Browser",
+        "advance.cookie.file" => "File",
+        "advance.cookie_file_source" => "File source",
+        "advance.cookie_file_custom" => "Custom cookies.txt",
+        "advance.cookie_file_auto_select" => "Auto select",
+        "advance.cookie_manager_row" => "Management",
+        "advance.manage_cookie" => "Manage Cookie",
+        "advance.cookie_manager_title" => "Cookie Manager",
+        "advance.add_cookie" => "Add Cookie",
+        "advance.cookie_manager_empty" => "No Cookie files have been added.",
+        "advance.cookie_manager_name" => "Name",
+        "advance.cookie_manager_updated" => "Updated",
+        "advance.cookie_manager_actions" => "Actions",
+        "advance.cookie_manager_refresh" => "Reacquire",
+        "advance.cookie_manager_delete" => "Delete",
+        "advance.file" => "File",
+        "youtube_login_rescue.short_note" => "افتح نافذة متصفح مخصصة للحصول على ملفات Cookie.",
+        "youtube_login_rescue.title" => "استرداد Cookie",
+        "youtube_login_rescue.confirm_heading" => "فتح نافذة تسجيل دخول مخصصة",
+        "youtube_login_rescue.confirm_body" => {
+            "ستفتح نافذة {browser} مستقلة الرابط بدون استخدام بيانات المتصفح الشخصية."
+        }
+        "youtube_login_rescue.target_url_label" => "رابط الموقع",
+        "youtube_login_rescue.target_url_hint" => "https://www.youtube.com/",
+        "youtube_login_rescue.clipboard_prefilled" => "تم ملء الرابط من الحافظة.",
+        "youtube_login_rescue.drop_url_note" => "الصق رابطاً أو اسحب ملف .url / ملفاً نصياً.",
+        "youtube_login_rescue.paste_clipboard" => "لصق من الحافظة",
+        "youtube_login_rescue.cookie_note" => {
+            "سجّل الدخول هناك. عند العثور على ملفات Cookie، ستُغلق النافذة وتُطبق تلقائياً."
+        }
+        "youtube_login_rescue.no_browser_title" => "لم يتم العثور على متصفح مدعوم",
+        "youtube_login_rescue.no_browser_body" => {
+            "الحصول على ملفات Cookie يحتاج حالياً إلى Chrome أو Brave أو Microsoft Edge. لا يزال بإمكانك اختيار cookies.txt يدوياً."
+        }
+        "youtube_login_rescue.start" => "بدء",
+        "youtube_login_rescue.opening" => "جارٍ فتح {browser}...",
+        "youtube_login_rescue.waiting_for_cdp" => {
+            "بانتظار اتصال نافذة تسجيل الدخول في {browser}..."
+        }
+        "youtube_login_rescue.waiting_for_cookie" => {
+            "نافذة تسجيل الدخول متصلة. بانتظار ملفات Cookie من الموقع..."
+        }
+        "youtube_login_rescue.cookie_exported" => "تم حفظ Cookie.",
+        "youtube_login_rescue.cookie_exported_note" => {
+            "تم حفظ Cookie لـ {site}. ستستخدم التنزيلات من هذا الموقع هذا الملف تلقائياً."
+        }
+        "youtube_login_rescue.do_not_close_note" => {
+            "يرجى إبقاء متصفح تسجيل الدخول مفتوحاً أثناء تشغيل هذا الفحص."
+        }
+        "youtube_login_rescue.cdp_ready" => "نافذة تسجيل الدخول متصلة.",
+        "youtube_login_rescue.ready_next_step_note" => {
+            "يرجى إكمال تسجيل الدخول إلى YouTube في المتصفح. ستتم إضافة تصدير Cookie في الخطوة التالية."
+        }
+        "youtube_login_rescue.close_login_window" => "إغلاق نافذة تسجيل الدخول",
+        "youtube_login_rescue.failed" => "فشل استرداد Cookie",
+        "youtube_login_rescue.retry" => "إعادة المحاولة",
         "advance.no_cookies_txt_selected" => "لم يتم اختيار cookies.txt",
         "advance.browse" => "تصفح",
         "advance.select_netscape_cookies_txt" => "اختيار Netscape cookies.txt",
@@ -116,8 +221,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
             "ثبّت الأدوات المطلوبة الآن، أو تخطَّ ذلك واضبطها لاحقًا من الخيارات."
         }
-        "prepare.required" => "مطلوب",
-        "prepare.recommended" => "موصى به",
         "prepare.optional" => "اختياري",
         "prepare.missing" => "مفقود",
         "prepare.install_later" => "التثبيت لاحقًا",
@@ -132,32 +235,58 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.another_tool_is_already_being_installed" => "هناك أداة أخرى قيد التثبيت بالفعل.",
         "prepare.needs_attention" => "يحتاج إلى انتباه",
         "prepare.req.app_folder.title" => "مجلد التطبيق",
-        "prepare.req.app_folder.description" => "يجب أن يكون مجلد النسخة المحمولة قابلاً للكتابة لحفظ الإعدادات وبيانات الدعم.",
+        "prepare.req.app_folder.description" => {
+            "يجب أن يكون مجلد النسخة المحمولة قابلاً للكتابة لحفظ الإعدادات وبيانات الدعم."
+        }
         "prepare.req.tools_folder.title" => "مجلد الأدوات",
-        "prepare.req.tools_folder.description" => "يتم تخزين yt-dlp وFFmpeg وDeno هنا عند نشر الأدوات المطلوبة.",
+        "prepare.req.tools_folder.description" => {
+            "يتم تخزين yt-dlp وFFmpeg وDeno هنا عند نشر الأدوات المطلوبة."
+        }
         "prepare.req.deployment_temp.title" => "مجلد مؤقت للنشر",
-        "prepare.req.deployment_temp.description" => "يستخدم استخراج FFmpeg وDeno هذا المجلد المؤقت.",
+        "prepare.req.deployment_temp.description" => {
+            "يستخدم استخراج FFmpeg وDeno هذا المجلد المؤقت."
+        }
         "prepare.req.download_cache.title" => "ذاكرة التخزين المؤقت للتنزيل",
-        "prepare.req.download_cache.description" => "يحفظ وضع التخزين المؤقت في yt-dlp-gui ذاكرة yt-dlp المؤقتة هنا.",
+        "prepare.req.download_cache.description" => {
+            "يحفظ وضع التخزين المؤقت في yt-dlp-gui ذاكرة yt-dlp المؤقتة هنا."
+        }
         "prepare.req.output_folder.title" => "مجلد الإخراج",
         "prepare.req.output_folder.description" => "يتم حفظ الفيديوهات والصوت والترجمات هنا.",
-        "prepare.req.output_folder.recommendation" => "اختر مجلد إخراج صالحاً من الشاشة الرئيسية أو من الخيارات.",
+        "prepare.req.output_folder.recommendation" => {
+            "اختر مجلد إخراج صالحاً من الشاشة الرئيسية أو من الخيارات."
+        }
         "prepare.req.config_file.title" => "ملف الإعدادات",
-        "prepare.req.config_file.description" => "يجب أن يتمكن التطبيق من حفظ حالة تخطي صفحة Prepare ومسارات الأدوات.",
-        "prepare.req.generic_writable_recommendation" => "اختر مجلداً قابلاً للكتابة وتحقق من الأذونات.",
+        "prepare.req.config_file.description" => {
+            "يجب أن يتمكن التطبيق من حفظ حالة تخطي صفحة Prepare ومسارات الأدوات."
+        }
+        "prepare.req.generic_writable_recommendation" => {
+            "اختر مجلداً قابلاً للكتابة وتحقق من الأذونات."
+        }
         "prepare.req.config_not_folder" => "يشير مسار الإعدادات إلى مجلد. اختر مسار ملف بدلاً من ذلك.",
         "prepare.req.config_readonly" => "ملف الإعدادات للقراءة فقط.",
-        "prepare.req.config_readonly_recommendation" => "اسمح بالكتابة إلى ملف الإعدادات أو اختر مجلداً آخر للتطبيق.",
+        "prepare.req.config_readonly_recommendation" => {
+            "اسمح بالكتابة إلى ملف الإعدادات أو اختر مجلداً آخر للتطبيق."
+        }
         "prepare.req.use_folder_path" => "اختر مسار مجلد بدلاً من مسار ملف.",
         "prepare.req.move_portable_folder" => "انقل التطبيق إلى مجلد محمول قابل للكتابة.",
-        "prepare.req.avoid_protected_folder" => "لا تضع التطبيق المحمول داخل Program Files أو مجلد Windows. انقله إلى D:\\Portable أو إلى مجلد المستخدم.",
-        "prepare.req.move_non_synced_folder" => "انقله إلى مجلد غير متزامن، مثل D:\\Portable\\yt-dlp-gui-v2.",
+        "prepare.req.avoid_protected_folder" => {
+            "لا تضع التطبيق المحمول داخل Program Files أو مجلد Windows. انقله إلى D:\\Portable أو إلى مجلد المستخدم."
+        }
+        "prepare.req.move_non_synced_folder" => {
+            "انقله إلى مجلد غير متزامن، مثل D:\\Portable\\yt-dlp-gui-v2."
+        }
         "prepare.req.drive_parent_exists" => "تأكد من وجود محرك الأقراص والمجلد الأب.",
-        "prepare.req.permission_denied" => "انقل التطبيق إلى مجلد محمول قابل للكتابة. إذا استمر الفشل في سطح المكتب/المستندات/التنزيلات، فقد يكون وصول المجلدات المتحكم به في Defender هو السبب.",
+        "prepare.req.permission_denied" => {
+            "انقل التطبيق إلى مجلد محمول قابل للكتابة. إذا استمر الفشل في سطح المكتب/المستندات/التنزيلات، فقد يكون وصول المجلدات المتحكم به في Defender هو السبب."
+        }
         "prepare.req.file_in_use" => "أغلق البرنامج الذي قد يستخدم هذا المجلد، أو اختر مجلداً آخر.",
         "prepare.req.free_disk_space" => "حرر مساحة على القرص أو اختر قرصاً آخر.",
-        "prepare.req.path_too_long" => "انقل التطبيق إلى مسار أقصر، مثل D:\\Portable\\yt-dlp-gui-v2.",
-        "prepare.req.choose_writable_portable_folder" => "اختر مجلداً محمولاً قابلاً للكتابة بوضوح ثم تحقق مرة أخرى.",
+        "prepare.req.path_too_long" => {
+            "انقل التطبيق إلى مسار أقصر، مثل D:\\Portable\\yt-dlp-gui-v2."
+        }
+        "prepare.req.choose_writable_portable_folder" => {
+            "اختر مجلداً محمولاً قابلاً للكتابة بوضوح ثم تحقق مرة أخرى."
+        }
         "prepare.req.clear_write_test" => "احذف ملف اختبار الكتابة المتبقي ثم تحقق مرة أخرى.",
         "options.this_url_contains_both_a_video_and_a_playlis" => {
             "هذا الرابط يحتوي على فيديو وقائمة تشغيل"
@@ -298,9 +427,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tool_install.stage.installing" => "جارٍ التثبيت",
         "tool_install.stage.completed" => "اكتمل",
         "tool_install.stage.failed" => "فشل",
-        "prepare.severity.short.required" => "مطلوب",
-        "prepare.severity.short.recommended" => "موصى به",
-        "prepare.severity.short.optional" => "اختياري",
         "item.status.queued" => "في قائمة الانتظار",
         "item.status.running" => "قيد التشغيل",
         "item.status.finished" => "تم",

@@ -7,13 +7,7 @@ use crate::app::state::ThumbnailRenderSource;
 use crate::app::widgets::icon::{AppIcon, icon_image, standard_icon_color};
 use crate::app::widgets::url_input::{accent_blue_for_ui, accent_green_for_ui, accent_red_for_ui};
 
-pub(super) const COMPACT_ROW_HEIGHT: f32 = 40.0;
-const COMPACT_ROW_SIDE_INSET: f32 = 1.0;
-const COMPACT_COVER_SIZE: f32 = 32.0;
-const COMPACT_ROW_RADIUS: f32 = 6.0;
-const COMPACT_ROW_PADDING_X: f32 = 6.0;
-const COMPACT_GAP: f32 = 6.0;
-const COMPACT_STATUS_WIDTH: f32 = 48.0;
+use super::semantic_ui_metrics;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum CompactRowVisualState {
@@ -49,15 +43,21 @@ pub(super) struct CompactRowOutput {
 
 pub(super) fn render_music_compact_row(ui: &mut Ui, spec: CompactRowSpec<'_>) -> CompactRowOutput {
     let row_width = ui.available_width().max(1.0);
-    let desired_size = egui::vec2(row_width, COMPACT_ROW_HEIGHT);
+    let desired_size = egui::vec2(row_width, semantic_ui_metrics::music_compact_row_height());
     let (rect, response) = ui.allocate_exact_size(desired_size, Sense::hover());
-    let row_rect = rect.shrink2(egui::vec2(COMPACT_ROW_SIDE_INSET, 0.0));
+    let row_rect = rect.shrink2(egui::vec2(
+        semantic_ui_metrics::music_compact_row_side_inset(),
+        0.0,
+    ));
     let fill = compact_row_fill(ui, spec.visual_state);
-    let stroke = Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color);
+    let stroke = Stroke::new(
+        semantic_ui_metrics::music_compact_row_border_stroke_width(),
+        ui.visuals().widgets.noninteractive.bg_stroke.color,
+    );
 
     ui.painter().rect(
         row_rect,
-        COMPACT_ROW_RADIUS,
+        semantic_ui_metrics::music_compact_row_corner_radius(),
         fill,
         stroke,
         egui::StrokeKind::Outside,
@@ -72,17 +72,23 @@ pub(super) fn render_music_compact_row(ui: &mut Ui, spec: CompactRowSpec<'_>) ->
                 row_rect.bottom(),
             ),
         );
-        ui.painter()
-            .rect_filled(fill_rect, COMPACT_ROW_RADIUS, compact_progress_fill(ui));
+        ui.painter().rect_filled(
+            fill_rect,
+            semantic_ui_metrics::music_compact_row_corner_radius(),
+            compact_progress_fill(ui),
+        );
     }
 
     let center_y = row_rect.center().y;
     let cover_rect = egui::Rect::from_min_size(
         egui::pos2(
-            row_rect.left() + COMPACT_ROW_PADDING_X,
-            center_y - COMPACT_COVER_SIZE * 0.5,
+            row_rect.left() + semantic_ui_metrics::music_compact_row_horizontal_padding(),
+            center_y - semantic_ui_metrics::music_compact_cover_size() * 0.5,
         ),
-        egui::vec2(COMPACT_COVER_SIZE, COMPACT_COVER_SIZE),
+        egui::vec2(
+            semantic_ui_metrics::music_compact_cover_size(),
+            semantic_ui_metrics::music_compact_cover_size(),
+        ),
     );
     let play_response = ui.interact(
         cover_rect,
@@ -103,12 +109,12 @@ pub(super) fn render_music_compact_row(ui: &mut Ui, spec: CompactRowSpec<'_>) ->
     );
 
     if spec.is_current {
-        let marker_rect = egui::Rect::from_min_max(
-            egui::pos2(row_rect.left(), row_rect.top() + 4.0),
-            egui::pos2(row_rect.left() + 2.0, row_rect.bottom() - 4.0),
+        let marker_rect = semantic_ui_metrics::music_compact_current_marker_rect_for_row(row_rect);
+        ui.painter().rect_filled(
+            marker_rect,
+            semantic_ui_metrics::music_compact_current_marker_corner_radius(),
+            accent_blue_for_ui(ui),
         );
-        ui.painter()
-            .rect_filled(marker_rect, 1.0, accent_blue_for_ui(ui));
     }
 
     let action_width = normal_item_delete_button_width(ui);
@@ -139,13 +145,21 @@ pub(super) fn render_music_compact_row(ui: &mut Ui, spec: CompactRowSpec<'_>) ->
     }
 
     let status_rect = egui::Rect::from_min_size(
-        egui::pos2(action_rect.left() - COMPACT_STATUS_WIDTH, row_rect.top()),
-        egui::vec2(COMPACT_STATUS_WIDTH, row_rect.height()),
+        egui::pos2(
+            action_rect.left() - semantic_ui_metrics::music_compact_status_column_width(),
+            row_rect.top(),
+        ),
+        egui::vec2(
+            semantic_ui_metrics::music_compact_status_column_width(),
+            row_rect.height(),
+        ),
     );
     render_right_status(ui, status_rect, spec.status_text, spec.visual_state);
 
-    let title_left = cover_rect.right() + COMPACT_GAP;
-    let title_right = status_rect.left() - COMPACT_GAP;
+    let title_left =
+        cover_rect.right() + semantic_ui_metrics::music_compact_title_to_neighbor_horizontal_gap();
+    let title_right =
+        status_rect.left() - semantic_ui_metrics::music_compact_title_to_neighbor_horizontal_gap();
     let title_width = (title_right - title_left).max(0.0);
     render_title(
         ui,
@@ -217,8 +231,11 @@ fn render_compact_cover(
             );
             ui.painter().rect_stroke(
                 rect,
-                5.0,
-                Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color),
+                semantic_ui_metrics::music_compact_cover_corner_radius(),
+                Stroke::new(
+                    semantic_ui_metrics::music_compact_cover_border_stroke_width(),
+                    ui.visuals().widgets.noninteractive.bg_stroke.color,
+                ),
                 egui::StrokeKind::Outside,
             );
             return;
@@ -230,8 +247,11 @@ fn render_compact_cover(
                 .paint_at(ui, rect);
             ui.painter().rect_stroke(
                 rect,
-                5.0,
-                Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color),
+                semantic_ui_metrics::music_compact_cover_corner_radius(),
+                Stroke::new(
+                    semantic_ui_metrics::music_compact_cover_border_stroke_width(),
+                    ui.visuals().widgets.noninteractive.bg_stroke.color,
+                ),
                 egui::StrokeKind::Outside,
             );
             return;
@@ -247,14 +267,21 @@ fn render_compact_cover(
     } else {
         Color32::from_rgb(232, 235, 242)
     };
-    ui.painter().rect_filled(rect, 5.0, fill);
+    ui.painter().rect_filled(
+        rect,
+        semantic_ui_metrics::music_compact_cover_corner_radius(),
+        fill,
+    );
     ui.painter().rect_stroke(
         rect,
-        5.0,
-        Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color),
+        semantic_ui_metrics::music_compact_cover_corner_radius(),
+        Stroke::new(
+            semantic_ui_metrics::music_compact_cover_border_stroke_width(),
+            ui.visuals().widgets.noninteractive.bg_stroke.color,
+        ),
         egui::StrokeKind::Outside,
     );
-    let icon_size = rect.width() * 0.50;
+    let icon_size = semantic_ui_metrics::music_compact_placeholder_icon_size_for_cover_rect(rect);
     let icon_rect = egui::Rect::from_center_size(rect.center(), egui::vec2(icon_size, icon_size));
     icon_image(AppIcon::VolumeHigh, icon_size, standard_icon_color(ui)).paint_at(ui, icon_rect);
 }
@@ -269,7 +296,7 @@ fn render_cover_play_overlay(
     if !visible && !response.hovered() {
         return;
     }
-    let radius = rect.width() * 0.32;
+    let radius = semantic_ui_metrics::music_compact_play_overlay_radius_for_cover_rect(rect);
     let center = rect.center();
     let fill = if ui.visuals().dark_mode {
         Color32::from_rgba_unmultiplied(0, 0, 0, 150)
@@ -282,7 +309,7 @@ fn render_cover_play_overlay(
     } else {
         AppIcon::Play
     };
-    let icon_size = radius * 1.15;
+    let icon_size = semantic_ui_metrics::music_compact_play_overlay_icon_size_for_radius(radius);
     let icon_rect = egui::Rect::from_center_size(center, egui::vec2(icon_size, icon_size));
     icon_image(icon, icon_size, standard_icon_color(ui)).paint_at(ui, icon_rect);
 }
@@ -301,13 +328,10 @@ fn render_title(
         CompactRowVisualState::Downloaded => accent_green_for_ui(ui),
         _ => ui.visuals().text_color(),
     };
-    let body_size = TextStyle::Body.resolve(ui.style()).size;
-    let galley = WidgetText::from(RichText::new(title).size(body_size + 1.0)).into_galley(
-        ui,
-        Some(TextWrapMode::Truncate),
-        max_width,
-        TextStyle::Body,
-    );
+    let galley = WidgetText::from(
+        RichText::new(title).size(semantic_ui_metrics::music_compact_title_font_size_from_body(ui)),
+    )
+    .into_galley(ui, Some(TextWrapMode::Truncate), max_width, TextStyle::Body);
     let pos = egui::pos2(left, center_y - galley.size().y * 0.5);
     ui.painter().galley(pos, galley, color);
 }
@@ -350,13 +374,13 @@ fn render_remove_action(ui: &Ui, rect: egui::Rect, response: &Response, item_hov
 
     ui.painter().rect(
         rect,
-        2.0,
+        semantic_ui_metrics::music_compact_remove_button_corner_radius(),
         visuals.bg_fill,
         visuals.bg_stroke,
         egui::StrokeKind::Outside,
     );
 
-    let icon_size = 14.0;
+    let icon_size = semantic_ui_metrics::music_compact_remove_icon_size();
     let icon_rect = egui::Rect::from_center_size(rect.center(), egui::vec2(icon_size, icon_size));
     icon_image(AppIcon::WindowClose, icon_size, icon_color).paint_at(ui, icon_rect);
 }

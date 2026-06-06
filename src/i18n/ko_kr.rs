@@ -1,6 +1,48 @@
 pub fn text<'a>(key: &'a str) -> &'a str {
     match key {
         "tab.advanced" => "고급",
+        "tab.about" => "About",
+        "about.tools" => "도구 버전",
+        "about.current_version" => "현재",
+        "about.latest_version" => "최신",
+        "about.author" => "작성자",
+        "about.source" => "소스",
+        "about.status" => "상태",
+        "about.message" => "메시지",
+        "about.check_updates" => "업데이트 확인",
+        "about.update_all" => "모두 업데이트",
+        "about.restart" => "다시 시작",
+        "about.open_release" => "Release 열기",
+        "about.install" => "설치",
+        "about.update" => "업데이트",
+        "about.running" => "업데이트 확인 중...",
+        "about.last_check" => "마지막 확인:",
+        "about.relative.minutes" => "{count}분",
+        "about.relative.hour" => "1시간",
+        "about.relative.hours" => "{count}시간",
+        "about.relative.day" => "1일",
+        "about.relative.days" => "{count}일",
+        "about.never_checked" => "아직 업데이트를 확인하지 않음",
+        "about.no_release_notes_loaded" => {
+            "릴리스 노트를 불러오지 않았습니다. 먼저 업데이트를 확인하세요."
+        }
+        "about.ownership.managed_portable" => "v2 관리",
+        "about.ownership.external" => "외부",
+        "about.ownership.missing" => "없음",
+        "about.ownership.unknown" => "알 수 없음",
+        "about.status.unknown" => "확인 안 됨",
+        "about.status.checking" => "확인 중",
+        "about.status.up_to_date" => "최신 ✓",
+        "about.status.update_available" => "업데이트 있음 ↑",
+        "about.status.missing" => "없음 +",
+        "about.status.downloading" => "다운로드 중",
+        "about.status.downloading_percent" => "다운로드 중 {percent}%",
+        "about.status.staged" => "준비됨",
+        "about.status.pending_restart" => "다시 시작 필요",
+        "about.status.applying" => "적용 중",
+        "about.status.installed" => "설치됨",
+        "about.status.skipped" => "건너뜀",
+        "about.status.failed" => "실패 !",
         "tab.options" => "옵션",
         "tab.log" => "로그",
         "main.url_hint" => "URL",
@@ -62,8 +104,69 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_cookies" => "쿠키 사용",
         "advance.enable_cookies" => "쿠키 사용",
         "advance.cookie_source" => "쿠키 소스",
+        "advance.cookie_source.auto" => "웹사이트별 자동",
         "advance.cookie_source.file" => "파일 사용 (cookies.txt)",
+        "advance.cookie_auto" => "자동",
+        "advance.cookie_auto_note" => "다운로드는 URL과 일치하는 저장된 Cookie를 사용합니다.",
+        "advance.cookie_rescue" => "Cookie 가져오기",
         "advance.cookie_file" => "쿠키 파일",
+        "advance.get_cookie" => "Cookie 가져오기",
+        "advance.cookie" => "Cookie",
+        "advance.cookie.off" => "Do not use",
+        "advance.cookie.browser" => "Browser",
+        "advance.cookie.file" => "File",
+        "advance.cookie_file_source" => "File source",
+        "advance.cookie_file_custom" => "Custom cookies.txt",
+        "advance.cookie_file_auto_select" => "Auto select",
+        "advance.cookie_manager_row" => "Management",
+        "advance.manage_cookie" => "Manage Cookie",
+        "advance.cookie_manager_title" => "Cookie Manager",
+        "advance.add_cookie" => "Add Cookie",
+        "advance.cookie_manager_empty" => "No Cookie files have been added.",
+        "advance.cookie_manager_name" => "Name",
+        "advance.cookie_manager_updated" => "Updated",
+        "advance.cookie_manager_actions" => "Actions",
+        "advance.cookie_manager_refresh" => "Reacquire",
+        "advance.cookie_manager_delete" => "Delete",
+        "advance.file" => "File",
+        "youtube_login_rescue.short_note" => "Cookie를 가져올 전용 브라우저 창을 엽니다.",
+        "youtube_login_rescue.title" => "Cookie 가져오기",
+        "youtube_login_rescue.confirm_heading" => "전용 브라우저 로그인 창 열기",
+        "youtube_login_rescue.confirm_body" => {
+            "독립된 {browser} 창이 개인 브라우저 데이터를 사용하지 않고 URL을 엽니다."
+        }
+        "youtube_login_rescue.target_url_label" => "웹사이트 URL",
+        "youtube_login_rescue.target_url_hint" => "https://www.youtube.com/",
+        "youtube_login_rescue.clipboard_prefilled" => "클립보드에서 URL을 채웠습니다.",
+        "youtube_login_rescue.drop_url_note" => "URL을 붙여넣거나 .url / 텍스트 파일을 놓으세요.",
+        "youtube_login_rescue.paste_clipboard" => "클립보드 붙여넣기",
+        "youtube_login_rescue.cookie_note" => {
+            "해당 창에서 로그인하세요. Cookie를 찾으면 창을 닫고 자동으로 적용합니다."
+        }
+        "youtube_login_rescue.no_browser_title" => "지원되는 브라우저를 찾을 수 없음",
+        "youtube_login_rescue.no_browser_body" => {
+            "Cookie를 가져오려면 현재 Chrome, Brave 또는 Microsoft Edge가 필요합니다. cookies.txt는 계속 수동으로 선택할 수 있습니다."
+        }
+        "youtube_login_rescue.start" => "시작",
+        "youtube_login_rescue.opening" => "{browser} 여는 중...",
+        "youtube_login_rescue.waiting_for_cdp" => "{browser} 로그인 창 연결 대기 중...",
+        "youtube_login_rescue.waiting_for_cookie" => {
+            "로그인 창이 연결되었습니다. 웹사이트 Cookie 대기 중..."
+        }
+        "youtube_login_rescue.cookie_exported" => "Cookie가 저장되었습니다.",
+        "youtube_login_rescue.cookie_exported_note" => {
+            "{site} Cookie를 저장했습니다. 해당 웹사이트의 다운로드에 자동으로 사용됩니다."
+        }
+        "youtube_login_rescue.do_not_close_note" => {
+            "확인이 진행되는 동안 로그인 브라우저를 닫지 마세요."
+        }
+        "youtube_login_rescue.cdp_ready" => "로그인 창이 연결되었습니다.",
+        "youtube_login_rescue.ready_next_step_note" => {
+            "브라우저에서 YouTube 로그인을 완료하세요. Cookie 내보내기는 다음 단계에서 추가됩니다."
+        }
+        "youtube_login_rescue.close_login_window" => "로그인 창 닫기",
+        "youtube_login_rescue.failed" => "Cookie 가져오기 실패",
+        "youtube_login_rescue.retry" => "다시 시도",
         "advance.no_cookies_txt_selected" => "cookies.txt가 선택되지 않았습니다",
         "advance.browse" => "찾아보기",
         "advance.select_netscape_cookies_txt" => "Netscape cookies.txt 선택",
@@ -118,8 +221,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
             "필요한 도구를 지금 설치하거나 건너뛰고 나중에 옵션에서 설정하세요."
         }
-        "prepare.required" => "필수",
-        "prepare.recommended" => "권장",
         "prepare.optional" => "선택",
         "prepare.missing" => "없음",
         "prepare.install_later" => "나중에 설치",
@@ -134,32 +235,60 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.another_tool_is_already_being_installed" => "다른 도구가 이미 설치 중입니다.",
         "prepare.needs_attention" => "확인 필요",
         "prepare.req.app_folder.title" => "앱 폴더",
-        "prepare.req.app_folder.description" => "설정과 지원 데이터를 저장하려면 포터블 폴더에 쓰기 권한이 필요합니다.",
+        "prepare.req.app_folder.description" => {
+            "설정과 지원 데이터를 저장하려면 포터블 폴더에 쓰기 권한이 필요합니다."
+        }
         "prepare.req.tools_folder.title" => "도구 폴더",
-        "prepare.req.tools_folder.description" => "의존성 배포 시 yt-dlp, FFmpeg, Deno가 여기에 저장됩니다.",
+        "prepare.req.tools_folder.description" => {
+            "의존성 배포 시 yt-dlp, FFmpeg, Deno가 여기에 저장됩니다."
+        }
         "prepare.req.deployment_temp.title" => "배포 임시 폴더",
-        "prepare.req.deployment_temp.description" => "FFmpeg와 Deno 압축 해제에 이 임시 폴더를 사용합니다.",
+        "prepare.req.deployment_temp.description" => {
+            "FFmpeg와 Deno 압축 해제에 이 임시 폴더를 사용합니다."
+        }
         "prepare.req.download_cache.title" => "다운로드 캐시",
-        "prepare.req.download_cache.description" => "yt-dlp-gui 캐시 모드는 yt-dlp 캐시를 여기에 저장합니다.",
+        "prepare.req.download_cache.description" => {
+            "yt-dlp-gui 캐시 모드는 yt-dlp 캐시를 여기에 저장합니다."
+        }
         "prepare.req.output_folder.title" => "출력 폴더",
         "prepare.req.output_folder.description" => "동영상, 오디오, 자막이 여기에 저장됩니다.",
-        "prepare.req.output_folder.recommendation" => "메인 화면이나 옵션에서 올바른 출력 폴더를 선택하세요.",
+        "prepare.req.output_folder.recommendation" => {
+            "메인 화면이나 옵션에서 올바른 출력 폴더를 선택하세요."
+        }
         "prepare.req.config_file.title" => "설정 파일",
-        "prepare.req.config_file.description" => "앱은 Prepare 건너뛰기 상태와 도구 경로 설정을 저장할 수 있어야 합니다.",
-        "prepare.req.generic_writable_recommendation" => "쓰기 가능한 폴더를 선택하고 권한을 확인하세요.",
+        "prepare.req.config_file.description" => {
+            "앱은 Prepare 건너뛰기 상태와 도구 경로 설정을 저장할 수 있어야 합니다."
+        }
+        "prepare.req.generic_writable_recommendation" => {
+            "쓰기 가능한 폴더를 선택하고 권한을 확인하세요."
+        }
         "prepare.req.config_not_folder" => "설정 경로가 폴더를 가리킵니다. 파일 경로를 선택하세요.",
         "prepare.req.config_readonly" => "설정 파일이 읽기 전용입니다.",
-        "prepare.req.config_readonly_recommendation" => "설정 파일에 쓰기를 허용하거나 다른 앱 폴더를 선택하세요.",
+        "prepare.req.config_readonly_recommendation" => {
+            "설정 파일에 쓰기를 허용하거나 다른 앱 폴더를 선택하세요."
+        }
         "prepare.req.use_folder_path" => "파일 경로가 아니라 폴더 경로를 선택하세요.",
         "prepare.req.move_portable_folder" => "앱을 쓰기 가능한 포터블 폴더로 옮기세요.",
-        "prepare.req.avoid_protected_folder" => "포터블 앱을 Program Files 또는 Windows 폴더 아래에 두지 마세요. D:\\Portable 또는 사용자 폴더로 옮기세요.",
-        "prepare.req.move_non_synced_folder" => "동기화되지 않는 폴더로 옮기세요. 예: D:\\Portable\\yt-dlp-gui-v2.",
+        "prepare.req.avoid_protected_folder" => {
+            "포터블 앱을 Program Files 또는 Windows 폴더 아래에 두지 마세요. D:\\Portable 또는 사용자 폴더로 옮기세요."
+        }
+        "prepare.req.move_non_synced_folder" => {
+            "동기화되지 않는 폴더로 옮기세요. 예: D:\\Portable\\yt-dlp-gui-v2."
+        }
         "prepare.req.drive_parent_exists" => "드라이브와 상위 폴더가 존재하는지 확인하세요.",
-        "prepare.req.permission_denied" => "앱을 쓰기 가능한 포터블 폴더로 옮기세요. 바탕 화면/문서/다운로드에서도 실패하면 Defender의 제어된 폴더 액세스가 차단 중일 수 있습니다.",
-        "prepare.req.file_in_use" => "이 폴더를 사용 중일 수 있는 프로그램을 닫거나 다른 폴더를 선택하세요.",
+        "prepare.req.permission_denied" => {
+            "앱을 쓰기 가능한 포터블 폴더로 옮기세요. 바탕 화면/문서/다운로드에서도 실패하면 Defender의 제어된 폴더 액세스가 차단 중일 수 있습니다."
+        }
+        "prepare.req.file_in_use" => {
+            "이 폴더를 사용 중일 수 있는 프로그램을 닫거나 다른 폴더를 선택하세요."
+        }
         "prepare.req.free_disk_space" => "디스크 공간을 확보하거나 다른 디스크를 선택하세요.",
-        "prepare.req.path_too_long" => "앱을 더 짧은 경로로 옮기세요. 예: D:\\Portable\\yt-dlp-gui-v2.",
-        "prepare.req.choose_writable_portable_folder" => "명확히 쓰기 가능한 포터블 폴더를 선택한 뒤 다시 확인하세요.",
+        "prepare.req.path_too_long" => {
+            "앱을 더 짧은 경로로 옮기세요. 예: D:\\Portable\\yt-dlp-gui-v2."
+        }
+        "prepare.req.choose_writable_portable_folder" => {
+            "명확히 쓰기 가능한 포터블 폴더를 선택한 뒤 다시 확인하세요."
+        }
         "prepare.req.clear_write_test" => "남은 쓰기 테스트 파일을 삭제한 뒤 다시 확인하세요.",
         "options.this_url_contains_both_a_video_and_a_playlis" => {
             "이 URL에는 동영상과 재생목록이 모두 포함되어 있습니다"
@@ -308,9 +437,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tool_install.stage.installing" => "설치 중",
         "tool_install.stage.completed" => "완료",
         "tool_install.stage.failed" => "실패",
-        "prepare.severity.short.required" => "필수",
-        "prepare.severity.short.recommended" => "권장",
-        "prepare.severity.short.optional" => "선택 사항",
         "item.status.queued" => "대기 중",
         "item.status.running" => "실행 중",
         "item.status.finished" => "완료",

@@ -38,6 +38,15 @@ pub(super) enum PostProcessEvent {
         action: String,
         command_line: String,
         success: bool,
+        detail: Option<String>,
+    },
+    RecoveryStep {
+        item_id: QueueItemId,
+        workflow_id: WorkflowRunId,
+        action: String,
+        detail: String,
+        recover_previous_failure: bool,
+        resolved_success: bool,
     },
     Finished(PostProcessResult),
 }
@@ -71,6 +80,7 @@ enum VideoEncoderKind {
     Av1Amf,
     LibSvtAv1,
     LibAomAv1,
+    LibVpxVp9,
 }
 
 impl VideoEncoderKind {
@@ -90,6 +100,7 @@ impl VideoEncoderKind {
             Self::Av1Amf => "AMD AMF AV1",
             Self::LibSvtAv1 => "SVT-AV1",
             Self::LibAomAv1 => "libaom-av1",
+            Self::LibVpxVp9 => "libvpx-vp9",
         }
     }
 
@@ -109,6 +120,7 @@ impl VideoEncoderKind {
             Self::Av1Amf => Some("av1_amf"),
             Self::LibSvtAv1 => Some("libsvtav1"),
             Self::LibAomAv1 => Some("libaom-av1"),
+            Self::LibVpxVp9 => Some("libvpx-vp9"),
         }
     }
 
@@ -219,6 +231,7 @@ impl VideoEncoderKind {
                 "-b:v",
                 "0",
             ],
+            Self::LibVpxVp9 => &["-c:v", "libvpx-vp9", "-crf", "31", "-b:v", "0"],
         }
     }
 
@@ -244,7 +257,7 @@ impl VideoEncoderKind {
             Self::Av1Nvenc | Self::Av1Qsv | Self::Av1Amf | Self::LibSvtAv1 | Self::LibAomAv1 => {
                 Some(TargetVideoCodec::Av1)
             }
-            Self::Copy => None,
+            Self::Copy | Self::LibVpxVp9 => None,
         }
     }
 
@@ -271,6 +284,7 @@ impl VideoEncoderKind {
             Self::Av1Amf => vec!["-c:v", "av1_amf", "-quality", "balanced", "-rc", "vbr_peak"],
             Self::LibSvtAv1 => vec!["-c:v", "libsvtav1", "-preset", "8"],
             Self::LibAomAv1 => vec!["-c:v", "libaom-av1", "-cpu-used", "6"],
+            Self::LibVpxVp9 => vec!["-c:v", "libvpx-vp9"],
         }
         .into_iter()
         .map(ToOwned::to_owned)
@@ -377,6 +391,7 @@ pub(super) fn run_builtin_transcode_worker(
     tool_paths: ToolPaths,
     settings: TranscodeIntentSettings,
     input_path: String,
+    temp_root: PathBuf,
     item_id: QueueItemId,
     workflow_id: WorkflowRunId,
     tx: mpsc::Sender<PostProcessEvent>,
@@ -387,6 +402,7 @@ pub(super) fn run_builtin_transcode_worker(
         &tool_paths,
         &settings,
         &input_path,
+        &temp_root,
         item_id,
         workflow_id,
         tx.clone(),
@@ -413,10 +429,51 @@ pub(super) fn request_post_process_stop(
     }
 }
 
+fn emit_post_process_tool_finished(
+    tx: &mpsc::Sender<PostProcessEvent>,
+    item_id: QueueItemId,
+    workflow_id: WorkflowRunId,
+    tool: &str,
+    action: &str,
+    command_line: String,
+    success: bool,
+    detail: Option<String>,
+) {
+    let _ = tx.send(PostProcessEvent::ToolCommandFinished {
+        item_id,
+        workflow_id,
+        tool: tool.to_owned(),
+        action: action.to_owned(),
+        command_line,
+        success,
+        detail,
+    });
+}
+
+fn emit_post_process_recovery_step(
+    tx: &mpsc::Sender<PostProcessEvent>,
+    item_id: QueueItemId,
+    workflow_id: WorkflowRunId,
+    action: &str,
+    detail: impl Into<String>,
+    recover_previous_failure: bool,
+    resolved_success: bool,
+) {
+    let _ = tx.send(PostProcessEvent::RecoveryStep {
+        item_id,
+        workflow_id,
+        action: action.to_owned(),
+        detail: detail.into(),
+        recover_previous_failure,
+        resolved_success,
+    });
+}
+
 fn run_output_conversion_attempt(
     tool_paths: &ToolPaths,
     settings: &TranscodeIntentSettings,
     input_path: &str,
+    temp_root: &Path,
     item_id: QueueItemId,
     workflow_id: WorkflowRunId,
     tx: mpsc::Sender<PostProcessEvent>,
@@ -441,7 +498,7 @@ fn run_output_conversion_attempt(
     {
         effective_settings.subtitle_policy = SubtitlePolicy::Preserve;
     }
-    normalize_output_settings(&mut effective_settings, &input_path, media_probe.as_ref());
+    normalize_output_settings(&mut effective_settings, media_probe.as_ref());
 
     if !output_conversion_required(&effective_settings, &input_path) {
         let _ = tx.send(PostProcessEvent::Progress {
@@ -453,8 +510,12 @@ fn run_output_conversion_attempt(
     }
 
     let final_output = output_path_for(&input_path, effective_settings.container_policy);
-    let temp_output = transcode_temp_output_path(&final_output);
-    let video_attempts = video_encoder_attempts(&ffmpeg, effective_settings.video_codec_policy);
+    let temp_output = transcode_temp_output_path(&final_output, temp_root, workflow_id);
+    if let Some(parent) = temp_output.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("Could not create post-process temp folder: {error}"))?;
+    }
+    let video_attempts = video_encoder_attempts(&ffmpeg, &effective_settings, &input_path);
     if video_attempts.is_empty() {
         return Err("No usable FFmpeg video encoder was found for the selected output.".to_owned());
     }
@@ -491,8 +552,20 @@ fn run_output_conversion_attempt(
             Err(error) if encoder.is_hardware() => {
                 let _ = fs::remove_file(&temp_output);
                 eprintln!(
-                    "[post-process] hardware encoder failed; fallback continues: {}: {error}",
+                    "[post-process] hardware encoder failed; trying next encoder: {}: {error}",
                     encoder.label()
+                );
+                emit_post_process_recovery_step(
+                    &tx,
+                    item_id,
+                    workflow_id,
+                    "try next encoder",
+                    format!(
+                        "{} failed; v2 will try the next available encoder. {error}",
+                        encoder.label()
+                    ),
+                    true,
+                    false,
                 );
                 failed_attempts.push(format!("{}: {error}", encoder.label()));
             }
@@ -502,14 +575,21 @@ fn run_output_conversion_attempt(
                     return Err(error);
                 }
                 return Err(format!(
-                    "{error}; hardware fallback attempts: {}",
+                    "{error}; earlier hardware encoder failures: {}",
                     failed_attempts.join(" | ")
                 ));
             }
         }
     }
 
-    Err("FFmpeg output conversion failed: no encoder attempt succeeded".to_owned())
+    if failed_attempts.is_empty() {
+        Err("FFmpeg output conversion failed: no encoder attempt succeeded".to_owned())
+    } else {
+        Err(format!(
+            "FFmpeg output conversion failed: no encoder attempt succeeded; earlier encoder failures: {}",
+            failed_attempts.join(" | ")
+        ))
+    }
 }
 
 fn output_conversion_required(settings: &TranscodeIntentSettings, input_path: &Path) -> bool {
@@ -552,33 +632,12 @@ fn probe_input_media(ffmpeg: &Path, input_path: &Path) -> Option<MediaProbeInfo>
 
 fn normalize_output_settings(
     settings: &mut TranscodeIntentSettings,
-    input_path: &Path,
     media: Option<&MediaProbeInfo>,
 ) {
-    if settings.container_policy == ContainerPolicy::Auto
-        && (settings.video_codec_policy != VideoCodecPolicy::Auto
-            || settings.audio_policy != AudioPolicy::Auto
-            || settings.subtitle_policy == SubtitlePolicy::Embed)
-    {
-        if let Some(inferred) = container_policy_for_extension(input_path).filter(|container| {
-            container_allowed_for_codecs(
-                *container,
-                settings.video_codec_policy,
-                settings.audio_policy,
-            )
-        }) {
-            settings.container_policy = inferred;
-        } else {
-            settings.container_policy =
-                best_container_for_codecs(settings.video_codec_policy, settings.audio_policy);
-        }
-    }
-
-    if settings.subtitle_policy == SubtitlePolicy::Burn
-        && settings.video_codec_policy == VideoCodecPolicy::Auto
-    {
-        settings.video_codec_policy = VideoCodecPolicy::H264;
-    }
+    // ContainerPolicy::Auto means "keep the downloaded/source container".  Even
+    // when burn-in subtitles force video re-encoding, do not silently change the
+    // output extension here. Encoder selection handles source-container-safe
+    // choices for burn-in paths.
 
     match settings.container_policy {
         ContainerPolicy::Mp4 | ContainerPolicy::Mov => {
@@ -603,39 +662,6 @@ fn normalize_output_settings(
         }
         ContainerPolicy::Mkv | ContainerPolicy::Auto => {}
     }
-}
-
-fn container_policy_for_extension(path: &Path) -> Option<ContainerPolicy> {
-    match path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(|value| value.to_ascii_lowercase())
-        .as_deref()
-    {
-        Some("mp4" | "m4v") => Some(ContainerPolicy::Mp4),
-        Some("mkv") => Some(ContainerPolicy::Mkv),
-        Some("mov") => Some(ContainerPolicy::Mov),
-        _ => None,
-    }
-}
-
-fn best_container_for_codecs(video: VideoCodecPolicy, audio: AudioPolicy) -> ContainerPolicy {
-    [
-        ContainerPolicy::Mkv,
-        ContainerPolicy::Mp4,
-        ContainerPolicy::Mov,
-    ]
-    .into_iter()
-    .find(|container| container_allowed_for_codecs(*container, video, audio))
-    .unwrap_or(ContainerPolicy::Mkv)
-}
-
-fn container_allowed_for_codecs(
-    container: ContainerPolicy,
-    video: VideoCodecPolicy,
-    audio: AudioPolicy,
-) -> bool {
-    video_allowed_for_container(video, container) && audio_allowed_for_container(audio, container)
 }
 
 fn video_allowed_for_container(video: VideoCodecPolicy, container: ContainerPolicy) -> bool {
@@ -704,8 +730,15 @@ fn source_audio_allowed_for_container(
     }
 }
 
-fn video_encoder_attempts(ffmpeg: &Path, policy: VideoCodecPolicy) -> Vec<VideoEncoderKind> {
-    let all = match policy {
+fn video_encoder_attempts(
+    ffmpeg: &Path,
+    settings: &TranscodeIntentSettings,
+    input_path: &Path,
+) -> Vec<VideoEncoderKind> {
+    let all = match settings.video_codec_policy {
+        VideoCodecPolicy::Auto if settings.subtitle_policy == SubtitlePolicy::Burn => {
+            auto_burn_video_encoder_attempts(settings.container_policy, input_path)
+        }
         VideoCodecPolicy::Auto => vec![VideoEncoderKind::Copy],
         VideoCodecPolicy::H264 => vec![
             VideoEncoderKind::H264Nvenc,
@@ -728,20 +761,52 @@ fn video_encoder_attempts(ffmpeg: &Path, policy: VideoCodecPolicy) -> Vec<VideoE
         ],
     };
 
-    if policy == VideoCodecPolicy::Auto {
-        return all;
+    filter_available_video_encoders(ffmpeg, all)
+}
+
+fn auto_burn_video_encoder_attempts(
+    container_policy: ContainerPolicy,
+    input_path: &Path,
+) -> Vec<VideoEncoderKind> {
+    let source_ext = input_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase());
+
+    if matches!(container_policy, ContainerPolicy::Auto)
+        && source_ext.as_deref().is_some_and(|ext| ext == "webm")
+    {
+        return vec![
+            VideoEncoderKind::Av1Nvenc,
+            VideoEncoderKind::Av1Qsv,
+            VideoEncoderKind::Av1Amf,
+            VideoEncoderKind::LibVpxVp9,
+            VideoEncoderKind::LibSvtAv1,
+            VideoEncoderKind::LibAomAv1,
+        ];
     }
 
+    vec![
+        VideoEncoderKind::H264Nvenc,
+        VideoEncoderKind::H264Qsv,
+        VideoEncoderKind::H264Amf,
+        VideoEncoderKind::LibX264,
+    ]
+}
+
+fn filter_available_video_encoders(
+    ffmpeg: &Path,
+    encoders: Vec<VideoEncoderKind>,
+) -> Vec<VideoEncoderKind> {
     match available_ffmpeg_encoders(ffmpeg) {
-        Some(encoders) => all
+        Some(available) => encoders
             .into_iter()
-            .filter(|encoder| {
-                encoder
-                    .ffmpeg_name()
-                    .is_some_and(|name| ffmpeg_encoder_is_available(&encoders, name))
+            .filter(|encoder| match encoder.ffmpeg_name() {
+                Some(name) => ffmpeg_encoder_is_available(&available, name),
+                None => true,
             })
             .collect(),
-        None => all,
+        None => encoders,
     }
 }
 
@@ -831,70 +896,79 @@ fn run_ffmpeg_output_conversion(
         .unwrap_or_default();
 
     if cancel_requested.load(Ordering::Relaxed) {
-        let _ = tx.send(PostProcessEvent::ToolCommandFinished {
+        emit_post_process_tool_finished(
+            &tx,
             item_id,
             workflow_id,
-            tool: "ffmpeg".to_owned(),
-            action: "convert".to_owned(),
-            command_line: command_line.clone(),
-            success: false,
-        });
+            "ffmpeg",
+            "convert",
+            command_line.clone(),
+            false,
+            Some(POST_PROCESS_CANCELLED_MESSAGE.to_owned()),
+        );
         return Err(POST_PROCESS_CANCELLED_MESSAGE.to_owned());
     }
 
     match status {
         Some(Ok(status)) if status.success() => {
-            let _ = tx.send(PostProcessEvent::ToolCommandFinished {
+            emit_post_process_tool_finished(
+                &tx,
                 item_id,
                 workflow_id,
-                tool: "ffmpeg".to_owned(),
-                action: "convert".to_owned(),
+                "ffmpeg",
+                "convert",
                 command_line,
-                success: true,
-            });
+                true,
+                None,
+            );
             Ok(())
         }
         Some(Ok(status)) => {
-            let detail = stderr_lines
-                .iter()
-                .rev()
-                .find(|line| !line.trim().is_empty())
-                .cloned()
-                .unwrap_or_else(|| format!("exit code {:?}", status.code()));
-            let _ = tx.send(PostProcessEvent::ToolCommandFinished {
-                item_id,
-                workflow_id,
-                tool: "ffmpeg".to_owned(),
-                action: "convert".to_owned(),
-                command_line: command_line.clone(),
-                success: false,
-            });
-            Err(format!(
+            let detail =
+                ffmpeg_failure_detail(&stderr_lines, format!("exit code {:?}", status.code()));
+            let error = format!(
                 "FFmpeg output conversion failed with {}: {detail}",
                 encoder.label()
-            ))
+            );
+            emit_post_process_tool_finished(
+                &tx,
+                item_id,
+                workflow_id,
+                "ffmpeg",
+                "convert",
+                command_line.clone(),
+                false,
+                Some(error.clone()),
+            );
+            Err(error)
         }
         Some(Err(error)) => {
-            let _ = tx.send(PostProcessEvent::ToolCommandFinished {
+            let error = format!("Could not wait for FFmpeg to finish: {error}");
+            emit_post_process_tool_finished(
+                &tx,
                 item_id,
                 workflow_id,
-                tool: "ffmpeg".to_owned(),
-                action: "convert".to_owned(),
-                command_line: command_line.clone(),
-                success: false,
-            });
-            Err(format!("Could not wait for FFmpeg to finish: {error}"))
+                "ffmpeg",
+                "convert",
+                command_line.clone(),
+                false,
+                Some(error.clone()),
+            );
+            Err(error)
         }
         None => {
-            let _ = tx.send(PostProcessEvent::ToolCommandFinished {
+            let error = "Could not wait for FFmpeg to finish: child process missing".to_owned();
+            emit_post_process_tool_finished(
+                &tx,
                 item_id,
                 workflow_id,
-                tool: "ffmpeg".to_owned(),
-                action: "convert".to_owned(),
+                "ffmpeg",
+                "convert",
                 command_line,
-                success: false,
-            });
-            Err("Could not wait for FFmpeg to finish: child process missing".to_owned())
+                false,
+                Some(error.clone()),
+            );
+            Err(error)
         }
     }
 }
@@ -1139,11 +1213,11 @@ fn container_extension(container: ContainerPolicy) -> Option<&'static str> {
     }
 }
 
-fn transcode_temp_output_path(final_output: &Path) -> PathBuf {
-    let parent = final_output
-        .parent()
-        .filter(|path| !path.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
+fn transcode_temp_output_path(
+    final_output: &Path,
+    temp_root: &Path,
+    workflow_id: WorkflowRunId,
+) -> PathBuf {
     let stem = final_output
         .file_stem()
         .and_then(|value| value.to_str())
@@ -1154,7 +1228,30 @@ fn transcode_temp_output_path(final_output: &Path) -> PathBuf {
         .and_then(|value| value.to_str())
         .filter(|value| !value.trim().is_empty())
         .unwrap_or("mkv");
-    parent.join(format!("{stem}.post-process.tmp.{extension}"))
+    temp_root.join(format!(
+        "{}.{}.post-process.tmp.{}",
+        sanitize_temp_file_stem(stem),
+        workflow_id,
+        extension
+    ))
+}
+
+fn sanitize_temp_file_stem(value: &str) -> String {
+    let cleaned = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    if cleaned.trim_matches(['.', '_', '-']).is_empty() {
+        "post-process".to_owned()
+    } else {
+        cleaned
+    }
 }
 
 fn remove_existing_temp_output(temp_output: &Path) -> Result<(), String> {
@@ -1208,6 +1305,24 @@ fn same_path(left: &Path, right: &Path) -> bool {
     {
         left == right
     }
+}
+
+fn ffmpeg_failure_detail(stderr_lines: &[String], fallback: String) -> String {
+    stderr_lines
+        .iter()
+        .rev()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .find(|line| !is_generic_ffmpeg_failure_tail(line))
+        .map(ToOwned::to_owned)
+        .unwrap_or(fallback)
+}
+
+fn is_generic_ffmpeg_failure_tail(line: &str) -> bool {
+    matches!(
+        line.trim().to_ascii_lowercase().as_str(),
+        "conversion failed!" | "error while closing encoder" | "error writing trailer"
+    )
 }
 
 // i18n-exempt:
@@ -1513,5 +1628,24 @@ fn quote_arg(path: &Path) -> String {
         format!("\"{}\"", text.replace('"', "\\\""))
     } else {
         text
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transcode_temp_output_uses_app_cache_temp_root() {
+        let temp_root = PathBuf::from("cache").join("transcode-temp");
+        let final_output = PathBuf::from("download").join("Video Name!.mp4");
+
+        let temp_output = transcode_temp_output_path(&final_output, &temp_root, 42);
+
+        assert_eq!(temp_output.parent(), Some(temp_root.as_path()));
+        assert_eq!(
+            temp_output.file_name().and_then(|value| value.to_str()),
+            Some("Video_Name_.42.post-process.tmp.mp4")
+        );
     }
 }

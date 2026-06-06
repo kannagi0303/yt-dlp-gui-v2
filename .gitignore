@@ -11,6 +11,7 @@
 # Local runtime data.
 /.codex-yt-dlp-temp/
 /cache/
+/data/
 /download/
 
 # Local app config.

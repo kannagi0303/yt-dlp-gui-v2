@@ -1,6 +1,48 @@
 pub fn text<'a>(key: &'a str) -> &'a str {
     match key {
         "tab.advanced" => "Προχωρημένο",
+        "tab.about" => "About",
+        "about.tools" => "Εκδόσεις εργαλείων",
+        "about.current_version" => "Τρέχουσα",
+        "about.latest_version" => "Πιο πρόσφατη",
+        "about.author" => "Συντάκτης",
+        "about.source" => "Πηγή",
+        "about.status" => "Κατάσταση",
+        "about.message" => "Μήνυμα",
+        "about.check_updates" => "Έλεγχος ενημερώσεων",
+        "about.update_all" => "Ενημέρωση όλων",
+        "about.restart" => "Επανεκκίνηση",
+        "about.open_release" => "Άνοιγμα Release",
+        "about.install" => "Εγκατάσταση",
+        "about.update" => "Ενημέρωση",
+        "about.running" => "Εκτελείται έλεγχος ενημερώσεων...",
+        "about.last_check" => "Τελευταίος έλεγχος:",
+        "about.relative.minutes" => "{count} λεπ.",
+        "about.relative.hour" => "1 ώρα",
+        "about.relative.hours" => "{count} ώρες",
+        "about.relative.day" => "1 ημέρα",
+        "about.relative.days" => "{count} ημέρες",
+        "about.never_checked" => "Δεν έχει γίνει ακόμη έλεγχος ενημερώσεων",
+        "about.no_release_notes_loaded" => {
+            "Δεν έχουν φορτωθεί σημειώσεις έκδοσης. Πατήστε πρώτα Έλεγχος ενημερώσεων."
+        }
+        "about.ownership.managed_portable" => "Διαχείριση v2",
+        "about.ownership.external" => "Εξωτερικό",
+        "about.ownership.missing" => "Λείπει",
+        "about.ownership.unknown" => "Άγνωστο",
+        "about.status.unknown" => "Δεν ελέγχθηκε",
+        "about.status.checking" => "Έλεγχος",
+        "about.status.up_to_date" => "Ενημερωμένο ✓",
+        "about.status.update_available" => "Διαθέσιμη ενημέρωση ↑",
+        "about.status.missing" => "Λείπει +",
+        "about.status.downloading" => "Λήψη",
+        "about.status.downloading_percent" => "Λήψη {percent}%",
+        "about.status.staged" => "Προετοιμασμένο",
+        "about.status.pending_restart" => "Εκκρεμεί επανεκκίνηση",
+        "about.status.applying" => "Εφαρμογή",
+        "about.status.installed" => "Εγκατεστημένο",
+        "about.status.skipped" => "Παραλείφθηκε",
+        "about.status.failed" => "Απέτυχε !",
         "tab.options" => "Επιλογές",
         "tab.log" => "Καταγραφή",
         "main.url_hint" => "URL",
@@ -62,8 +104,77 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_cookies" => "Χρήση cookies",
         "advance.enable_cookies" => "Ενεργοποίηση cookies",
         "advance.cookie_source" => "Πηγή cookies",
+        "advance.cookie_source.auto" => "Αυτόματα ανά ιστότοπο",
         "advance.cookie_source.file" => "Χρήση αρχείου (cookies.txt)",
+        "advance.cookie_auto" => "Αυτόματα",
+        "advance.cookie_auto_note" => {
+            "Οι λήψεις χρησιμοποιούν το αποθηκευμένο Cookie που ταιριάζει με το URL."
+        }
+        "advance.cookie_rescue" => "Ανάκτηση Cookie",
         "advance.cookie_file" => "Αρχείο cookies",
+        "advance.get_cookie" => "Λήψη Cookie",
+        "advance.cookie" => "Cookie",
+        "advance.cookie.off" => "Do not use",
+        "advance.cookie.browser" => "Browser",
+        "advance.cookie.file" => "File",
+        "advance.cookie_file_source" => "File source",
+        "advance.cookie_file_custom" => "Custom cookies.txt",
+        "advance.cookie_file_auto_select" => "Auto select",
+        "advance.cookie_manager_row" => "Management",
+        "advance.manage_cookie" => "Manage Cookie",
+        "advance.cookie_manager_title" => "Cookie Manager",
+        "advance.add_cookie" => "Add Cookie",
+        "advance.cookie_manager_empty" => "No Cookie files have been added.",
+        "advance.cookie_manager_name" => "Name",
+        "advance.cookie_manager_updated" => "Updated",
+        "advance.cookie_manager_actions" => "Actions",
+        "advance.cookie_manager_refresh" => "Reacquire",
+        "advance.cookie_manager_delete" => "Delete",
+        "advance.file" => "File",
+        "youtube_login_rescue.short_note" => {
+            "Άνοιγμα ξεχωριστού παραθύρου browser για λήψη cookies."
+        }
+        "youtube_login_rescue.title" => "Ανάκτηση Cookie",
+        "youtube_login_rescue.confirm_heading" => "Άνοιγμα ξεχωριστού παραθύρου σύνδεσης",
+        "youtube_login_rescue.confirm_body" => {
+            "Ένα ανεξάρτητο παράθυρο {browser} θα ανοίξει το URL χωρίς να χρησιμοποιήσει τα προσωπικά δεδομένα του browser."
+        }
+        "youtube_login_rescue.target_url_label" => "URL ιστότοπου",
+        "youtube_login_rescue.target_url_hint" => "https://www.youtube.com/",
+        "youtube_login_rescue.clipboard_prefilled" => "Το URL συμπληρώθηκε από το πρόχειρο.",
+        "youtube_login_rescue.drop_url_note" => {
+            "Επικολλήστε ένα URL ή σύρετε ένα αρχείο .url / κειμένου."
+        }
+        "youtube_login_rescue.paste_clipboard" => "Επικόλληση προχείρου",
+        "youtube_login_rescue.cookie_note" => {
+            "Συνδεθείτε εκεί. Μόλις βρεθούν cookies, το παράθυρο θα κλείσει και θα εφαρμοστούν αυτόματα."
+        }
+        "youtube_login_rescue.no_browser_title" => "Δεν βρέθηκε υποστηριζόμενος browser",
+        "youtube_login_rescue.no_browser_body" => {
+            "Η λήψη cookies χρειάζεται προς το παρόν Chrome, Brave ή Microsoft Edge. Μπορείτε ακόμη να επιλέξετε χειροκίνητα cookies.txt."
+        }
+        "youtube_login_rescue.start" => "Έναρξη",
+        "youtube_login_rescue.opening" => "Άνοιγμα {browser}...",
+        "youtube_login_rescue.waiting_for_cdp" => {
+            "Αναμονή σύνδεσης του παραθύρου σύνδεσης {browser}..."
+        }
+        "youtube_login_rescue.waiting_for_cookie" => {
+            "Το παράθυρο σύνδεσης είναι συνδεδεμένο. Αναμονή για cookies ιστότοπου..."
+        }
+        "youtube_login_rescue.cookie_exported" => "Το Cookie αποθηκεύτηκε.",
+        "youtube_login_rescue.cookie_exported_note" => {
+            "Αποθηκεύτηκε Cookie για {site}. Οι λήψεις από αυτόν τον ιστότοπο θα το χρησιμοποιούν αυτόματα."
+        }
+        "youtube_login_rescue.do_not_close_note" => {
+            "Κρατήστε ανοιχτό τον browser σύνδεσης όσο εκτελείται αυτός ο έλεγχος."
+        }
+        "youtube_login_rescue.cdp_ready" => "Το παράθυρο σύνδεσης είναι συνδεδεμένο.",
+        "youtube_login_rescue.ready_next_step_note" => {
+            "Ολοκληρώστε τη σύνδεση στο YouTube μέσα στον browser. Η εξαγωγή Cookie θα προστεθεί στο επόμενο βήμα."
+        }
+        "youtube_login_rescue.close_login_window" => "Κλείσιμο παραθύρου σύνδεσης",
+        "youtube_login_rescue.failed" => "Η ανάκτηση Cookie απέτυχε",
+        "youtube_login_rescue.retry" => "Επανάληψη",
         "advance.no_cookies_txt_selected" => "Δεν επιλέχθηκε cookies.txt",
         "advance.browse" => "Αναζήτηση",
         "advance.select_netscape_cookies_txt" => "Επιλογή Netscape cookies.txt",
@@ -120,8 +231,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.install_the_required_tools_now_or_skip_and_h" => {
             "Εγκαταστήστε τώρα τα απαιτούμενα εργαλεία ή παραλείψτε το και ρυθμίστε τα αργότερα στις Επιλογές."
         }
-        "prepare.required" => "Απαιτείται",
-        "prepare.recommended" => "Συνιστάται",
         "prepare.optional" => "Προαιρετικό",
         "prepare.missing" => "Λείπει",
         "prepare.install_later" => "Εγκατάσταση αργότερα",
@@ -136,33 +245,71 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "prepare.another_tool_is_already_being_installed" => "Ένα άλλο εργαλείο εγκαθίσταται ήδη.",
         "prepare.needs_attention" => "Χρειάζεται προσοχή",
         "prepare.req.app_folder.title" => "Φάκελος εφαρμογής",
-        "prepare.req.app_folder.description" => "Ο φορητός φάκελος πρέπει να είναι εγγράψιμος για ρυθμίσεις και βοηθητικά δεδομένα.",
+        "prepare.req.app_folder.description" => {
+            "Ο φορητός φάκελος πρέπει να είναι εγγράψιμος για ρυθμίσεις και βοηθητικά δεδομένα."
+        }
         "prepare.req.tools_folder.title" => "Φάκελος εργαλείων",
-        "prepare.req.tools_folder.description" => "Η εγκατάσταση εξαρτήσεων αποθηκεύει εδώ τα yt-dlp, FFmpeg και Deno.",
+        "prepare.req.tools_folder.description" => {
+            "Η εγκατάσταση εξαρτήσεων αποθηκεύει εδώ τα yt-dlp, FFmpeg και Deno."
+        }
         "prepare.req.deployment_temp.title" => "Προσωρινός φάκελος εγκατάστασης",
-        "prepare.req.deployment_temp.description" => "Η εξαγωγή των FFmpeg και Deno χρησιμοποιεί αυτόν τον προσωρινό φάκελο.",
+        "prepare.req.deployment_temp.description" => {
+            "Η εξαγωγή των FFmpeg και Deno χρησιμοποιεί αυτόν τον προσωρινό φάκελο."
+        }
         "prepare.req.download_cache.title" => "Κρυφή μνήμη λήψεων",
-        "prepare.req.download_cache.description" => "Η λειτουργία cache του yt-dlp-gui αποθηκεύει εδώ την cache του yt-dlp.",
+        "prepare.req.download_cache.description" => {
+            "Η λειτουργία cache του yt-dlp-gui αποθηκεύει εδώ την cache του yt-dlp."
+        }
         "prepare.req.output_folder.title" => "Φάκελος εξόδου",
-        "prepare.req.output_folder.description" => "Τα βίντεο, ο ήχος και οι υπότιτλοι αποθηκεύονται εδώ.",
-        "prepare.req.output_folder.recommendation" => "Επιλέξτε έναν έγκυρο φάκελο εξόδου από την κύρια οθόνη ή τις Επιλογές.",
+        "prepare.req.output_folder.description" => {
+            "Τα βίντεο, ο ήχος και οι υπότιτλοι αποθηκεύονται εδώ."
+        }
+        "prepare.req.output_folder.recommendation" => {
+            "Επιλέξτε έναν έγκυρο φάκελο εξόδου από την κύρια οθόνη ή τις Επιλογές."
+        }
         "prepare.req.config_file.title" => "Αρχείο ρυθμίσεων",
-        "prepare.req.config_file.description" => "Η εφαρμογή πρέπει να μπορεί να αποθηκεύει την παράλειψη του Prepare και τις διαδρομές εργαλείων.",
-        "prepare.req.generic_writable_recommendation" => "Επιλέξτε έναν εγγράψιμο φάκελο και ελέγξτε τα δικαιώματα.",
-        "prepare.req.config_not_folder" => "Η διαδρομή ρυθμίσεων δείχνει σε φάκελο. Επιλέξτε διαδρομή αρχείου.",
+        "prepare.req.config_file.description" => {
+            "Η εφαρμογή πρέπει να μπορεί να αποθηκεύει την παράλειψη του Prepare και τις διαδρομές εργαλείων."
+        }
+        "prepare.req.generic_writable_recommendation" => {
+            "Επιλέξτε έναν εγγράψιμο φάκελο και ελέγξτε τα δικαιώματα."
+        }
+        "prepare.req.config_not_folder" => {
+            "Η διαδρομή ρυθμίσεων δείχνει σε φάκελο. Επιλέξτε διαδρομή αρχείου."
+        }
         "prepare.req.config_readonly" => "Το αρχείο ρυθμίσεων είναι μόνο για ανάγνωση.",
-        "prepare.req.config_readonly_recommendation" => "Επιτρέψτε εγγραφή στο αρχείο ρυθμίσεων ή επιλέξτε άλλο φάκελο εφαρμογής.",
+        "prepare.req.config_readonly_recommendation" => {
+            "Επιτρέψτε εγγραφή στο αρχείο ρυθμίσεων ή επιλέξτε άλλο φάκελο εφαρμογής."
+        }
         "prepare.req.use_folder_path" => "Επιλέξτε διαδρομή φακέλου αντί για διαδρομή αρχείου.",
-        "prepare.req.move_portable_folder" => "Μετακινήστε την εφαρμογή σε έναν εγγράψιμο φορητό φάκελο.",
-        "prepare.req.avoid_protected_folder" => "Μην τοποθετείτε τη φορητή εφαρμογή στο Program Files ή στον φάκελο Windows. Μετακινήστε τη στο D:\\Portable ή σε φάκελο χρήστη.",
-        "prepare.req.move_non_synced_folder" => "Μετακινήστε τη σε μη συγχρονιζόμενο φάκελο, π.χ. D:\\Portable\\yt-dlp-gui-v2.",
-        "prepare.req.drive_parent_exists" => "Βεβαιωθείτε ότι υπάρχει η μονάδα δίσκου και ο γονικός φάκελος.",
-        "prepare.req.permission_denied" => "Μετακινήστε την εφαρμογή σε εγγράψιμο φορητό φάκελο. Αν Επιφάνεια εργασίας/Έγγραφα/Λήψεις συνεχίζουν να αποτυγχάνουν, μπορεί να το μπλοκάρει το Controlled Folder Access του Defender.",
-        "prepare.req.file_in_use" => "Κλείστε το πρόγραμμα που μπορεί να χρησιμοποιεί αυτόν τον φάκελο ή επιλέξτε άλλο φάκελο.",
+        "prepare.req.move_portable_folder" => {
+            "Μετακινήστε την εφαρμογή σε έναν εγγράψιμο φορητό φάκελο."
+        }
+        "prepare.req.avoid_protected_folder" => {
+            "Μην τοποθετείτε τη φορητή εφαρμογή στο Program Files ή στον φάκελο Windows. Μετακινήστε τη στο D:\\Portable ή σε φάκελο χρήστη."
+        }
+        "prepare.req.move_non_synced_folder" => {
+            "Μετακινήστε τη σε μη συγχρονιζόμενο φάκελο, π.χ. D:\\Portable\\yt-dlp-gui-v2."
+        }
+        "prepare.req.drive_parent_exists" => {
+            "Βεβαιωθείτε ότι υπάρχει η μονάδα δίσκου και ο γονικός φάκελος."
+        }
+        "prepare.req.permission_denied" => {
+            "Μετακινήστε την εφαρμογή σε εγγράψιμο φορητό φάκελο. Αν Επιφάνεια εργασίας/Έγγραφα/Λήψεις συνεχίζουν να αποτυγχάνουν, μπορεί να το μπλοκάρει το Controlled Folder Access του Defender."
+        }
+        "prepare.req.file_in_use" => {
+            "Κλείστε το πρόγραμμα που μπορεί να χρησιμοποιεί αυτόν τον φάκελο ή επιλέξτε άλλο φάκελο."
+        }
         "prepare.req.free_disk_space" => "Ελευθερώστε χώρο στον δίσκο ή επιλέξτε άλλο δίσκο.",
-        "prepare.req.path_too_long" => "Μετακινήστε την εφαρμογή σε συντομότερη διαδρομή, π.χ. D:\\Portable\\yt-dlp-gui-v2.",
-        "prepare.req.choose_writable_portable_folder" => "Επιλέξτε έναν σαφώς εγγράψιμο φορητό φάκελο και ελέγξτε ξανά.",
-        "prepare.req.clear_write_test" => "Αφαιρέστε το υπόλοιπο αρχείο δοκιμής εγγραφής και ελέγξτε ξανά.",
+        "prepare.req.path_too_long" => {
+            "Μετακινήστε την εφαρμογή σε συντομότερη διαδρομή, π.χ. D:\\Portable\\yt-dlp-gui-v2."
+        }
+        "prepare.req.choose_writable_portable_folder" => {
+            "Επιλέξτε έναν σαφώς εγγράψιμο φορητό φάκελο και ελέγξτε ξανά."
+        }
+        "prepare.req.clear_write_test" => {
+            "Αφαιρέστε το υπόλοιπο αρχείο δοκιμής εγγραφής και ελέγξτε ξανά."
+        }
         "options.this_url_contains_both_a_video_and_a_playlis" => {
             "Αυτό το URL περιέχει και βίντεο και λίστα αναπαραγωγής"
         }
@@ -312,9 +459,6 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "tool_install.stage.installing" => "Εγκατάσταση",
         "tool_install.stage.completed" => "Ολοκληρώθηκε",
         "tool_install.stage.failed" => "Απέτυχε",
-        "prepare.severity.short.required" => "Απαιτείται",
-        "prepare.severity.short.recommended" => "Προτεινόμενο",
-        "prepare.severity.short.optional" => "Προαιρετικό",
         "item.status.queued" => "Σε ουρά",
         "item.status.running" => "Εκτελείται",
         "item.status.finished" => "Ολοκληρώθηκε",

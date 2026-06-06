@@ -2,7 +2,9 @@ pub(crate) mod app_icon;
 mod app_mode;
 mod batch_add_worker;
 mod compatibility_profiles;
+mod component_update_worker;
 mod custom_chrome;
+mod download_resilience;
 mod download_worker;
 mod format_picker_state;
 mod media_probe;
@@ -13,16 +15,17 @@ mod post_process_worker;
 mod queue_status;
 pub mod state;
 mod thumbnail_worker;
-mod tool_install_worker;
 mod transcode_graph;
 mod transcode_plan;
 pub mod ui;
 pub mod widgets;
 
 use std::{
+    collections::HashSet,
     fs,
     path::PathBuf,
     sync::Arc,
+    thread,
     time::{Duration, Instant},
 };
 
@@ -33,8 +36,11 @@ use eframe::{
 use egui_extras::install_image_loaders;
 
 use self::{
-    custom_chrome::CustomChromeResult, native_titlebar::NativeTitlebarAccentResult, state::AppState,
+    custom_chrome::CustomChromeResult,
+    native_titlebar::NativeTitlebarAccentResult,
+    state::{AppState, OptionsDetailPage, PrepareDetailPage},
 };
+use crate::i18n::Language;
 use crate::infrastructure::{AppConfig, ThemeAccentColor, ThemeMode, ToolPaths};
 
 const WINDOW_ICON_FADE_DURATION: Duration = Duration::from_millis(180);
@@ -49,13 +55,71 @@ pub struct NgDlpApp {
     applied_window_icon_theme: Option<egui::Theme>,
     window_icon_transition: Option<WindowIconTransition>,
     applied_ui_scale_percent: Option<u16>,
+    applied_font_profile: Option<FontLoadProfile>,
+    dynamic_font_scripts: DynamicFontScripts,
+    observed_font_content_revision: u64,
     startup_focus_requested: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct FontLoadProfile {
+    language: Language,
+    language_picker_visible: bool,
+    dynamic_scripts: DynamicFontScripts,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct DynamicFontScripts {
+    han: bool,
+    japanese: bool,
+    korean: bool,
+    emoji: bool,
+    indic: bool,
+    thai: bool,
+}
+
+impl DynamicFontScripts {
+    fn observe_text(&mut self, text: &str) {
+        for character in text.chars() {
+            let code = character as u32;
+            self.han |= is_han_codepoint(code);
+            self.japanese |= is_japanese_codepoint(code);
+            self.korean |= is_korean_codepoint(code);
+            self.emoji |= is_emoji_codepoint(code);
+            self.indic |= is_indic_codepoint(code);
+            self.thai |= is_thai_or_lao_codepoint(code);
+            if self.is_complete() {
+                return;
+            }
+        }
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.han |= other.han;
+        self.japanese |= other.japanese;
+        self.korean |= other.korean;
+        self.emoji |= other.emoji;
+        self.indic |= other.indic;
+        self.thai |= other.thai;
+    }
+
+    fn is_complete(self) -> bool {
+        self.han && self.japanese && self.korean && self.emoji && self.indic && self.thai
+    }
 }
 
 struct WindowIconTransition {
     from: egui::Theme,
     to: egui::Theme,
     started_at: Instant,
+}
+
+fn startup_font_profile(config: &AppConfig) -> FontLoadProfile {
+    FontLoadProfile {
+        language: config.language.resolve(),
+        language_picker_visible: false,
+        dynamic_scripts: DynamicFontScripts::default(),
+    }
 }
 
 impl NgDlpApp {
@@ -69,15 +133,23 @@ impl NgDlpApp {
         config: AppConfig,
         tool_paths: ToolPaths,
     ) -> Self {
-        configure_fonts(&cc.egui_ctx);
-        install_image_loaders(&cc.egui_ctx);
-        cc.egui_ctx.options_mut(|options| {
+        let startup_font_profile = startup_font_profile(&config);
+        let font_worker = thread::Builder::new()
+            .name("startup-font-read".to_owned())
+            .spawn(move || load_windows_ui_fonts(startup_font_profile))
+            .ok();
+        let state = AppState::from_runtime(config, tool_paths);
+        let startup_fonts = font_worker
+            .and_then(|worker| worker.join().ok())
+            .unwrap_or_else(|| load_windows_ui_fonts(startup_font_profile));
+        let ctx = &cc.egui_ctx;
+        configure_loaded_fonts(ctx, startup_fonts);
+        install_image_loaders(ctx);
+        ctx.options_mut(|options| {
             options.max_passes = std::num::NonZeroUsize::new(2).unwrap();
         });
-        let state = AppState::from_runtime(config, tool_paths);
         let initial_ui_scale_percent = state.config.ui_scale_percent;
-        cc.egui_ctx
-            .set_zoom_factor(ui_scale_factor(initial_ui_scale_percent));
+        ctx.set_zoom_factor(ui_scale_factor(initial_ui_scale_percent));
 
         Self {
             state,
@@ -89,6 +161,9 @@ impl NgDlpApp {
             applied_window_icon_theme: None,
             window_icon_transition: None,
             applied_ui_scale_percent: Some(initial_ui_scale_percent),
+            applied_font_profile: Some(startup_font_profile),
+            dynamic_font_scripts: DynamicFontScripts::default(),
+            observed_font_content_revision: 0,
             startup_focus_requested: false,
         }
     }
@@ -97,7 +172,6 @@ impl NgDlpApp {
 impl Drop for NgDlpApp {
     fn drop(&mut self) {
         self.state.stop_music_playback();
-        self.state.cleanup_active_tool_install();
         self.state.cleanup_active_download_processes();
     }
 }
@@ -344,6 +418,8 @@ impl eframe::App for NgDlpApp {
         self.request_startup_focus(ctx);
         self.state.sync_window_state(ctx);
         self.state.poll_background_work();
+        self.refresh_dynamic_font_scripts();
+        self.apply_fonts(ctx);
         self.state.poll_thumbnail_work(ctx);
         self.state.poll_clipboard_monitor();
         if self.state.has_active_work() || self.state.has_music_playback_activity() {
@@ -360,11 +436,170 @@ impl eframe::App for NgDlpApp {
     }
 }
 
-fn configure_fonts(ctx: &eframe::egui::Context) {
+impl NgDlpApp {
+    fn refresh_dynamic_font_scripts(&mut self) {
+        let revision = self.state.font_content_revision();
+        if self.observed_font_content_revision == revision {
+            return;
+        }
+
+        self.dynamic_font_scripts
+            .merge(dynamic_font_scripts_for_state(&self.state));
+        self.observed_font_content_revision = revision;
+    }
+
+    fn apply_fonts(&mut self, ctx: &egui::Context) {
+        let profile = FontLoadProfile {
+            language: self.state.language(),
+            language_picker_visible: matches!(
+                self.state.options_detail_page,
+                Some(OptionsDetailPage::Language)
+            ) || matches!(
+                self.state.prepare_detail_page,
+                Some(PrepareDetailPage::Language)
+            ),
+            dynamic_scripts: self.dynamic_font_scripts,
+        };
+        if self.applied_font_profile == Some(profile) {
+            return;
+        }
+
+        configure_fonts(ctx, profile);
+        self.applied_font_profile = Some(profile);
+    }
+}
+
+fn dynamic_font_scripts_for_state(state: &AppState) -> DynamicFontScripts {
+    let mut scripts = DynamicFontScripts::default();
+    for text in [
+        state.url_input.as_str(),
+        state.batch_input.as_str(),
+        state.last_action.as_str(),
+    ] {
+        scripts.observe_text(text);
+    }
+    observe_metadata_font_scripts(&mut scripts, &state.empty_item_preview);
+
+    for item in &state.queue_items {
+        for text in [
+            item.title.as_str(),
+            item.music_album_title.as_str(),
+            item.selection.file_name.as_str(),
+            item.last_error.as_deref().unwrap_or_default(),
+        ] {
+            scripts.observe_text(text);
+        }
+        if let Some(metadata) = item.metadata() {
+            observe_metadata_font_scripts(&mut scripts, metadata);
+        }
+        if scripts.is_complete() {
+            break;
+        }
+    }
+    scripts
+}
+
+fn observe_metadata_font_scripts(
+    scripts: &mut DynamicFontScripts,
+    metadata: &crate::domain::VideoMetadata,
+) {
+    for text in [
+        metadata.title.as_str(),
+        metadata.channel.as_str(),
+        metadata.uploader.as_str(),
+        metadata.creator.as_str(),
+        metadata.description.as_str(),
+    ] {
+        scripts.observe_text(text);
+    }
+    for chapter in &metadata.chapters {
+        scripts.observe_text(&chapter.title);
+    }
+    for subtitle in &metadata.subtitle_tracks {
+        scripts.observe_text(&subtitle.source_language_label);
+        scripts.observe_text(
+            subtitle
+                .target_language_label
+                .as_deref()
+                .unwrap_or_default(),
+        );
+        observe_language_code_font_scripts(scripts, &subtitle.source_language_code);
+        if let Some(code) = subtitle.target_language_code.as_deref() {
+            observe_language_code_font_scripts(scripts, code);
+        }
+    }
+}
+
+fn observe_language_code_font_scripts(scripts: &mut DynamicFontScripts, language_code: &str) {
+    let primary = language_code
+        .split(['-', '_'])
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    match primary.as_str() {
+        "ja" => scripts.japanese = true,
+        "ko" => scripts.korean = true,
+        "zh" => scripts.han = true,
+        "th" | "lo" => scripts.thai = true,
+        "hi" | "bn" | "pa" | "gu" | "or" | "ta" | "te" | "kn" | "ml" | "si" | "my" | "km" => {
+            scripts.indic = true
+        }
+        _ => {}
+    }
+}
+
+fn is_han_codepoint(code: u32) -> bool {
+    matches!(
+        code,
+        0x3400..=0x4DBF
+            | 0x4E00..=0x9FFF
+            | 0xF900..=0xFAFF
+            | 0x20000..=0x2FA1F
+    )
+}
+
+fn is_japanese_codepoint(code: u32) -> bool {
+    matches!(
+        code,
+        0x3040..=0x30FF | 0x31F0..=0x31FF | 0xFF66..=0xFF9F
+    )
+}
+
+fn is_korean_codepoint(code: u32) -> bool {
+    matches!(
+        code,
+        0x1100..=0x11FF
+            | 0x3130..=0x318F
+            | 0xA960..=0xA97F
+            | 0xAC00..=0xD7AF
+            | 0xD7B0..=0xD7FF
+    )
+}
+
+fn is_emoji_codepoint(code: u32) -> bool {
+    matches!(code, 0x2600..=0x27BF | 0xFE0F | 0x1F000..=0x1FAFF)
+}
+
+fn is_indic_codepoint(code: u32) -> bool {
+    matches!(
+        code,
+        0x0900..=0x0DFF | 0x0F00..=0x109F | 0x1780..=0x17FF
+    )
+}
+
+fn is_thai_or_lao_codepoint(code: u32) -> bool {
+    matches!(code, 0x0E00..=0x0EFF)
+}
+
+fn configure_fonts(ctx: &eframe::egui::Context, profile: FontLoadProfile) {
+    configure_loaded_fonts(ctx, load_windows_ui_fonts(profile));
+}
+
+fn configure_loaded_fonts(ctx: &eframe::egui::Context, loaded_fonts: Vec<(String, Vec<u8>)>) {
     let mut fonts = FontDefinitions::default();
     let mut loaded_font_names = Vec::new();
 
-    for (font_name, font_bytes) in load_windows_ui_fonts() {
+    for (font_name, font_bytes) in loaded_fonts {
         fonts
             .font_data
             .insert(font_name.clone(), FontData::from_owned(font_bytes).into());
@@ -382,27 +617,7 @@ fn prepend_ui_font_order(
     family: FontFamily,
     loaded_font_names: &[String],
 ) {
-    let preferred = [
-        "windows-segoeui",
-        "windows-jhenghei",
-        "windows-yahei",
-        "windows-malgungothic",
-        "windows-yugothic",
-        "windows-meiryo",
-        "windows-msgothic",
-        "windows-mingliu",
-        "windows-simsun",
-        "windows-gulim",
-        "windows-batang",
-        "windows-segoeuiemoji",
-        "windows-segoeuisymbol",
-    ];
-
-    let mut family_fonts = preferred
-        .into_iter()
-        .filter(|font_name| loaded_font_names.iter().any(|loaded| loaded == font_name))
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
+    let mut family_fonts = loaded_font_names.to_vec();
 
     if let Some(existing_fonts) = fonts.families.get(&family) {
         let existing_fonts = existing_fonts.clone();
@@ -418,37 +633,258 @@ fn prepend_ui_font_order(
     }
 }
 
-#[cfg(target_os = "windows")]
-fn load_windows_ui_fonts() -> Vec<(String, Vec<u8>)> {
-    let font_dir = PathBuf::from(r"C:\Windows\Fonts");
-    let candidates = [
-        ("windows-segoeui", "segoeui.ttf"),
-        ("windows-jhenghei", "msjh.ttc"),
-        ("windows-yahei", "msyh.ttc"),
-        ("windows-malgungothic", "malgun.ttf"),
-        ("windows-yugothic", "YuGothM.ttc"),
-        ("windows-meiryo", "meiryo.ttc"),
-        ("windows-msgothic", "msgothic.ttc"),
-        ("windows-mingliu", "mingliu.ttc"),
-        ("windows-simsun", "simsun.ttc"),
-        ("windows-gulim", "gulim.ttc"),
-        ("windows-batang", "batang.ttc"),
-        ("windows-segoeuiemoji", "seguiemj.ttf"),
-        ("windows-segoeuisymbol", "seguisym.ttf"),
-    ];
+struct WindowsFontGroup {
+    font_name: &'static str,
+    file_names: &'static [&'static str],
+}
 
-    candidates
+const WINDOWS_SEGOE_UI: WindowsFontGroup = WindowsFontGroup {
+    font_name: "windows-segoeui",
+    file_names: &["segoeui.ttf", "segoeuil.ttf", "arial.ttf"],
+};
+const WINDOWS_TRADITIONAL_CHINESE: WindowsFontGroup = WindowsFontGroup {
+    font_name: "windows-jhenghei",
+    file_names: &[
+        "msjh.ttc",
+        "mingliu.ttc",
+        "msyh.ttc",
+        "simsun.ttc",
+        "YuGothM.ttc",
+        "malgun.ttf",
+    ],
+};
+const WINDOWS_SIMPLIFIED_CHINESE: WindowsFontGroup = WindowsFontGroup {
+    font_name: "windows-yahei",
+    file_names: &[
+        "msyh.ttc",
+        "simsun.ttc",
+        "msjh.ttc",
+        "mingliu.ttc",
+        "YuGothM.ttc",
+        "malgun.ttf",
+    ],
+};
+const WINDOWS_JAPANESE: WindowsFontGroup = WindowsFontGroup {
+    font_name: "windows-yugothic",
+    file_names: &[
+        "YuGothM.ttc",
+        "meiryo.ttc",
+        "msgothic.ttc",
+        "msjh.ttc",
+        "msyh.ttc",
+    ],
+};
+const WINDOWS_KOREAN: WindowsFontGroup = WindowsFontGroup {
+    font_name: "windows-malgungothic",
+    file_names: &[
+        "malgun.ttf",
+        "gulim.ttc",
+        "batang.ttc",
+        "msjh.ttc",
+        "msyh.ttc",
+    ],
+};
+const WINDOWS_EMOJI: WindowsFontGroup = WindowsFontGroup {
+    font_name: "windows-segoeuiemoji",
+    file_names: &["seguiemj.ttf", "seguisym.ttf"],
+};
+const WINDOWS_INDIC: WindowsFontGroup = WindowsFontGroup {
+    font_name: "windows-nirmalaui",
+    file_names: &[
+        "Nirmala.ttc",
+        "Nirmala.ttf",
+        "Mangal.ttf",
+        "Vrinda.ttf",
+        "Raavi.ttf",
+        "Shruti.ttf",
+        "Kalinga.ttf",
+        "Latha.ttf",
+        "Gautami.ttf",
+        "Tunga.ttf",
+        "Kartika.ttf",
+    ],
+};
+const WINDOWS_THAI: WindowsFontGroup = WindowsFontGroup {
+    font_name: "windows-leelawadeeui",
+    file_names: &["LeelawUI.ttf", "LeelawUIb.ttf", "tahoma.ttf"],
+};
+const WINDOWS_SEGOE_SYMBOL: WindowsFontGroup = WindowsFontGroup {
+    font_name: "windows-segoeuisymbol",
+    file_names: &["seguisym.ttf", "seguiemj.ttf", "segoeui.ttf"],
+};
+
+fn windows_ui_font_groups(profile: FontLoadProfile) -> Vec<&'static WindowsFontGroup> {
+    let mut groups = vec![&WINDOWS_SEGOE_UI];
+    push_unique_font_group(
+        &mut groups,
+        windows_font_group_for_language(profile.language),
+    );
+
+    if profile.language_picker_visible {
+        for group in [
+            &WINDOWS_TRADITIONAL_CHINESE,
+            &WINDOWS_SIMPLIFIED_CHINESE,
+            &WINDOWS_JAPANESE,
+            &WINDOWS_KOREAN,
+        ] {
+            push_unique_font_group(&mut groups, Some(group));
+        }
+    }
+    if profile.dynamic_scripts.japanese {
+        push_unique_font_group(&mut groups, Some(&WINDOWS_JAPANESE));
+    }
+    if profile.dynamic_scripts.korean {
+        push_unique_font_group(&mut groups, Some(&WINDOWS_KOREAN));
+    }
+    if profile.dynamic_scripts.han {
+        push_unique_font_group(&mut groups, Some(&WINDOWS_TRADITIONAL_CHINESE));
+        push_unique_font_group(&mut groups, Some(&WINDOWS_SIMPLIFIED_CHINESE));
+    }
+    if profile.dynamic_scripts.emoji {
+        push_unique_font_group(&mut groups, Some(&WINDOWS_EMOJI));
+    }
+    if profile.dynamic_scripts.indic {
+        push_unique_font_group(&mut groups, Some(&WINDOWS_INDIC));
+    }
+    if profile.dynamic_scripts.thai {
+        push_unique_font_group(&mut groups, Some(&WINDOWS_THAI));
+    }
+    push_unique_font_group(&mut groups, Some(&WINDOWS_SEGOE_SYMBOL));
+    groups
+}
+
+fn push_unique_font_group(
+    groups: &mut Vec<&'static WindowsFontGroup>,
+    group: Option<&'static WindowsFontGroup>,
+) {
+    let Some(group) = group else {
+        return;
+    };
+    if !groups
+        .iter()
+        .any(|existing| existing.font_name == group.font_name)
+    {
+        groups.push(group);
+    }
+}
+
+fn windows_font_group_for_language(language: Language) -> Option<&'static WindowsFontGroup> {
+    match language {
+        Language::ZhTw => Some(&WINDOWS_TRADITIONAL_CHINESE),
+        Language::ZhCn => Some(&WINDOWS_SIMPLIFIED_CHINESE),
+        Language::JaJp => Some(&WINDOWS_JAPANESE),
+        Language::KoKr => Some(&WINDOWS_KOREAN),
+        _ => None,
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn load_windows_ui_fonts(profile: FontLoadProfile) -> Vec<(String, Vec<u8>)> {
+    let font_dir = PathBuf::from(r"C:\Windows\Fonts");
+    let mut loaded_paths = HashSet::new();
+    windows_ui_font_groups(profile)
         .into_iter()
-        .filter_map(|(font_name, file_name)| {
-            let path = font_dir.join(file_name);
-            fs::read(path)
-                .ok()
-                .map(|bytes| (font_name.to_owned(), bytes))
+        .filter_map(|group| {
+            group.file_names.iter().find_map(|file_name| {
+                let path = font_dir.join(file_name);
+                if !loaded_paths.insert(path.clone()) {
+                    return None;
+                }
+                fs::read(path)
+                    .ok()
+                    .map(|bytes| (group.font_name.to_owned(), bytes))
+            })
         })
         .collect()
 }
 
 #[cfg(not(target_os = "windows"))]
-fn load_windows_ui_fonts() -> Vec<(String, Vec<u8>)> {
+fn load_windows_ui_fonts(_profile: FontLoadProfile) -> Vec<(String, Vec<u8>)> {
     Vec::new()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn font_group_names(profile: FontLoadProfile) -> Vec<&'static str> {
+        windows_ui_font_groups(profile)
+            .into_iter()
+            .map(|group| group.font_name)
+            .collect()
+    }
+
+    #[test]
+    fn startup_font_profile_only_loads_the_current_cjk_family() {
+        let names = font_group_names(FontLoadProfile {
+            language: Language::ZhTw,
+            language_picker_visible: false,
+            dynamic_scripts: DynamicFontScripts::default(),
+        });
+
+        assert_eq!(
+            names,
+            vec![
+                "windows-segoeui",
+                "windows-jhenghei",
+                "windows-segoeuisymbol"
+            ]
+        );
+    }
+
+    #[test]
+    fn language_picker_profile_loads_each_modern_cjk_family() {
+        let names = font_group_names(FontLoadProfile {
+            language: Language::EnUs,
+            language_picker_visible: true,
+            dynamic_scripts: DynamicFontScripts::default(),
+        });
+
+        assert_eq!(
+            names,
+            vec![
+                "windows-segoeui",
+                "windows-jhenghei",
+                "windows-yahei",
+                "windows-yugothic",
+                "windows-malgungothic",
+                "windows-segoeuisymbol"
+            ]
+        );
+    }
+
+    #[test]
+    fn mixed_video_text_requests_lazy_script_fallbacks() {
+        let mut scripts = DynamicFontScripts::default();
+        scripts.observe_text("日本語かな 한국어 中文 🎬 हिन्दी ไทย");
+
+        assert!(scripts.han);
+        assert!(scripts.japanese);
+        assert!(scripts.korean);
+        assert!(scripts.emoji);
+        assert!(scripts.indic);
+        assert!(scripts.thai);
+    }
+
+    #[test]
+    fn active_locale_font_precedes_dynamic_han_fallbacks() {
+        let names = font_group_names(FontLoadProfile {
+            language: Language::ZhCn,
+            language_picker_visible: false,
+            dynamic_scripts: DynamicFontScripts {
+                han: true,
+                ..DynamicFontScripts::default()
+            },
+        });
+
+        assert_eq!(
+            names,
+            vec![
+                "windows-segoeui",
+                "windows-yahei",
+                "windows-jhenghei",
+                "windows-segoeuisymbol"
+            ]
+        );
+    }
 }

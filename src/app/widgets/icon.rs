@@ -4,12 +4,15 @@ use eframe::egui::{self, Color32, Image, Ui};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppIcon {
     CheckboxBlankOutline,
+    Check,
     CheckCircle,
+    Close,
     ContentCopy,
     ContentCut,
     ContentPaste,
     ContentSave,
     Download,
+    DownloadCircle,
     Eraser,
     FolderMoveOutline,
     FolderSettings,
@@ -47,12 +50,15 @@ impl AppIcon {
     fn name(self) -> &'static str {
         match self {
             Self::CheckboxBlankOutline => "CheckboxBlankOutline",
+            Self::Check => "Check",
             Self::CheckCircle => "CheckCircle",
+            Self::Close => "Close",
             Self::ContentCopy => "ContentCopy",
             Self::ContentCut => "ContentCut",
             Self::ContentPaste => "ContentPaste",
             Self::ContentSave => "ContentSave",
             Self::Download => "Download",
+            Self::DownloadCircle => "DownloadCircle",
             Self::Eraser => "Eraser",
             Self::FolderMoveOutline => "FolderMoveOutline",
             Self::FolderSettings => "FolderSettings",
@@ -92,12 +98,15 @@ impl AppIcon {
             Self::CheckboxBlankOutline => {
                 include_bytes!("../../../assets/icons/CheckboxBlankOutline.svg")
             }
+            Self::Check => include_bytes!("../../../assets/icons/Check.svg"),
             Self::CheckCircle => include_bytes!("../../../assets/icons/CheckCircle.svg"),
+            Self::Close => include_bytes!("../../../assets/icons/Close.svg"),
             Self::ContentCopy => include_bytes!("../../../assets/icons/ContentCopy.svg"),
             Self::ContentCut => include_bytes!("../../../assets/icons/ContentCut.svg"),
             Self::ContentPaste => include_bytes!("../../../assets/icons/ContentPaste.svg"),
             Self::ContentSave => include_bytes!("../../../assets/icons/ContentSave.svg"),
             Self::Download => include_bytes!("../../../assets/icons/Download.svg"),
+            Self::DownloadCircle => include_bytes!("../../../assets/icons/DownloadCircle.svg"),
             Self::Eraser => include_bytes!("../../../assets/icons/Eraser.svg"),
             Self::FolderMoveOutline => {
                 include_bytes!("../../../assets/icons/FolderMoveOutline.svg")
