@@ -177,10 +177,16 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_aria2_for_faster_downloads" => "더 빠른 다운로드에 Aria2 사용",
         "advance.download_control" => "다운로드 제어",
         "advance.concurrent_fragments" => "동시 조각 수",
+        "advance.live_streams" => "라이브 스트림",
+        "advance.download_live_streams_from_start_experimental" => {
+            "라이브 스트림을 처음부터 다운로드(실험적)"
+        }
         "advance.1_default" => "1 (기본값)",
         "advance.rate_limit" => "속도 제한",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => "예: 2M, 800K; 무제한이면 비워 두세요",
         "advance.chapters" => "챕터",
+        "advance.download_range" => "다운로드 범위",
+        "advance.always_show_download_range" => "범위 선택 항상 표시",
         "advance.chapter_download_compatibility_mode" => "챕터 다운로드 호환 모드",
         "advance.file_time" => "파일 시간",
         "advance.file_time.none" => "변경하지 않음",
@@ -393,6 +399,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "실행 파일",
         "main.controlled_by_config" => "구성에서 제어됨: ",
         "main.controlled_by_config_2" => "구성에서 제어됨",
+        "picker.section_tab.chapters" => "챕터",
+        "picker.section_tab.time_range" => "시간 범위",
+        "picker.section_chapter_instructions" => {
+            "하나 이상의 챕터를 선택하세요. 연속된 챕터는 하나의 출력으로 합쳐집니다."
+        }
+        "picker.section_time_instructions" => {
+            "재생 위치를 옮겨 시작점과 끝점을 설정한 뒤 범위를 추가하세요."
+        }
+        "picker.section_time_unavailable" => {
+            "동영상 길이를 알 수 없어 사용자 지정 시간 범위를 만들 수 없습니다."
+        }
+        "picker.section_select_all" => "모두 선택",
+        "picker.section_from_selected_to_end" => "첫 선택부터 끝까지",
+        "picker.section_set_start" => "시작점 설정",
+        "picker.section_set_end" => "끝점 설정",
+        "picker.section_add_range" => "범위 추가",
+        "picker.section_no_custom_ranges" => "추가된 사용자 지정 시간 범위가 없습니다.",
         "picker.no_chapters_available" => "사용 가능한 챕터가 없습니다.",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "이 항목에서 다운로드할 범위를 선택하세요. 기본값은 전체 동영상입니다."
@@ -425,6 +448,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "동영상 형식에 따라 결정",
         "picker.not_selected" => "선택 안 됨",
         "picker.full_video" => "전체 동영상",
+        "picker.section_summary.chapters" => "챕터 {chapters}개 선택 · 출력 {outputs}개",
+        "picker.section_summary.custom" => "시간 범위 {ranges}개 · 출력 {outputs}개",
+        "picker.section_summary.combined" => {
+            "챕터 {chapters}개 + 시간 범위 {ranges}개 · 출력 {outputs}개"
+        }
         "picker.no_translation" => "번역 없음",
         "picker.until_end" => "끝",
         "prepare.status.ready" => "준비됨",

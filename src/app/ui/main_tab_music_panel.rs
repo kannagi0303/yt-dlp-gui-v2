@@ -1,12 +1,13 @@
 use eframe::egui::{self, Color32, Ui};
 use egui_taffy::Tui;
 
+use super::main_tab_music_aura::{MusicPlayerAuraRenderer, render_music_player_aura_at};
 use super::main_tab_music_controls::row_music_player;
 use super::main_tab_music_lyrics::render_music_lyrics_at;
 use super::xaml_rect_template::{show_rect_template, show_ui_at_rect};
 use super::xaml_ui_nodes::{TemplateAxis, TemplateNode, auto, block, gap, rows};
 use super::{semantic_ui_metrics, xaml_taffy_styles};
-use crate::app::state::{AppState, MusicLyricsDisplayLine};
+use crate::app::state::{AppState, MusicLyricsDisplayLine, MusicPlayerAuraDisplay};
 
 pub(super) struct MusicPlayerPanel {
     panel: xaml_taffy_styles::XamlTaffyElement,
@@ -14,6 +15,7 @@ pub(super) struct MusicPlayerPanel {
     lyrics_line: Option<MusicLyricsDisplayLine>,
     lyrics_row_height: f32,
     player_row_height: f32,
+    aura_renderer: Option<MusicPlayerAuraRenderer>,
 }
 
 impl MusicPlayerPanel {
@@ -21,11 +23,14 @@ impl MusicPlayerPanel {
         ui: &mut Ui,
         state: &mut AppState,
         player_row_height: f32,
+        aura_renderer: Option<MusicPlayerAuraRenderer>,
     ) -> Option<Self> {
         if !state.music_player_visible() {
             return None;
         }
 
+        let player_control_row_height =
+            semantic_ui_metrics::main_music_player_control_row_height(player_row_height);
         let lyrics_line = state.music_current_lyrics_display();
         let lyrics_row_height = lyrics_line
             .as_ref()
@@ -36,8 +41,11 @@ impl MusicPlayerPanel {
                 )
             })
             .unwrap_or(0.0);
+        let player_panel_height = semantic_ui_metrics::main_music_player_height_from_control_row(
+            player_control_row_height,
+        );
         let music_panel_height = semantic_ui_metrics::main_music_panel_height_for_content(
-            player_row_height,
+            player_panel_height,
             (lyrics_row_height > 0.0).then_some(lyrics_row_height),
         );
 
@@ -46,7 +54,8 @@ impl MusicPlayerPanel {
             height: music_panel_height,
             lyrics_line,
             lyrics_row_height,
-            player_row_height,
+            player_row_height: player_panel_height,
+            aura_renderer,
         })
     }
 
@@ -61,10 +70,18 @@ impl MusicPlayerPanel {
             lyrics_line,
             lyrics_row_height,
             player_row_height,
+            aura_renderer,
         } = self;
 
         panel.show_ui(tui, |ui| {
-            row_music_player_panel(ui, state, lyrics_line, lyrics_row_height, player_row_height);
+            row_music_player_panel(
+                ui,
+                state,
+                lyrics_line,
+                lyrics_row_height,
+                player_row_height,
+                aura_renderer.as_ref(),
+            );
         });
     }
 }
@@ -75,9 +92,11 @@ fn row_music_player_panel(
     lyrics_line: Option<MusicLyricsDisplayLine>,
     lyrics_row_height: f32,
     player_row_height: f32,
+    aura_renderer: Option<&MusicPlayerAuraRenderer>,
 ) {
     let panel_frame = MusicPlayerPanelFrame::allocate(ui);
-    panel_frame.paint(ui);
+    let aura_display = state.music_player_aura_display();
+    panel_frame.paint(ui, aura_renderer, aura_display);
 
     ui.scope_builder(
         egui::UiBuilder::new().max_rect(panel_frame.content_rect),
@@ -85,7 +104,12 @@ fn row_music_player_panel(
             show_music_panel_template(
                 ui,
                 state,
-                music_panel_template(lyrics_line, lyrics_row_height, player_row_height),
+                music_panel_template(
+                    lyrics_line,
+                    lyrics_row_height,
+                    player_row_height,
+                    aura_display,
+                ),
             );
         },
     );
@@ -115,13 +139,21 @@ impl MusicPlayerPanelFrame {
         }
     }
 
-    fn paint(&self, ui: &Ui) {
-        ui.painter().rect(
+    fn paint(
+        &self,
+        ui: &Ui,
+        aura_renderer: Option<&MusicPlayerAuraRenderer>,
+        aura_display: MusicPlayerAuraDisplay,
+    ) {
+        let rounding = semantic_ui_metrics::main_music_panel_corner_radius();
+        ui.painter()
+            .rect_filled(self.panel_rect, rounding, music_player_panel_fill(ui));
+        render_music_player_aura_at(ui, self.panel_rect, aura_renderer, aura_display, rounding);
+        ui.painter().rect_stroke(
             self.panel_rect,
-            7.0,
-            music_player_panel_fill(ui),
+            rounding,
             ui.visuals().widgets.noninteractive.bg_stroke,
-            egui::StrokeKind::Outside,
+            egui::StrokeKind::Inside,
         );
     }
 }
@@ -138,13 +170,14 @@ fn music_player_cell_rect(ui: &Ui) -> egui::Rect {
 }
 
 fn music_player_panel_fill(ui: &Ui) -> Color32 {
-    let base = if ui.visuals().dark_mode {
-        ui.visuals().extreme_bg_color
+    if ui.visuals().dark_mode {
+        // True-black glass: the color stays neutral black while a restrained
+        // amount of queue content remains visible through the floating panel.
+        Color32::from_rgba_unmultiplied(0, 0, 0, 196)
     } else {
-        ui.visuals().panel_fill
-    };
-    let alpha = if ui.visuals().dark_mode { 196 } else { 224 };
-    Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), alpha)
+        let base = ui.visuals().panel_fill;
+        Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), 208)
+    }
 }
 
 type MusicPanelTemplate = TemplateNode<MusicPanelNode>;
@@ -153,25 +186,29 @@ enum MusicPanelNode {
     Lyrics {
         line: MusicLyricsDisplayLine,
         height: f32,
+        aura_display: MusicPlayerAuraDisplay,
     },
     Player {
         height: f32,
+        aura_display: MusicPlayerAuraDisplay,
     },
 }
 
 impl MusicPanelNode {
     fn height(&self) -> f32 {
         match self {
-            Self::Lyrics { height, .. } | Self::Player { height } => height.max(1.0),
+            Self::Lyrics { height, .. } | Self::Player { height, .. } => height.max(1.0),
         }
     }
 
     fn show_at(self, ui: &mut Ui, state: &mut AppState, rect: egui::Rect) {
         show_ui_at_rect(ui, rect, |ui| match self {
-            Self::Lyrics { line, .. } => {
-                render_music_lyrics_at(ui, music_player_cell_rect(ui), &line);
+            Self::Lyrics {
+                line, aura_display, ..
+            } => {
+                render_music_lyrics_at(ui, music_player_cell_rect(ui), &line, aura_display);
             }
-            Self::Player { .. } => row_music_player(ui, state),
+            Self::Player { aura_display, .. } => row_music_player(ui, state, aura_display),
         });
     }
 }
@@ -180,21 +217,27 @@ fn music_panel_template(
     lyrics_line: Option<MusicLyricsDisplayLine>,
     lyrics_row_height: f32,
     player_row_height: f32,
+    aura_display: MusicPlayerAuraDisplay,
 ) -> MusicPanelTemplate {
     let mut children = Vec::new();
 
     if let Some(line) = lyrics_line {
-        children.push(auto(block(MusicPanelNode::Lyrics {
-            line,
-            height: lyrics_row_height,
-        })));
         children.push(gap(
             semantic_ui_metrics::main_music_control_to_lyrics_vertical_spacing(),
         ));
+        children.push(auto(block(MusicPanelNode::Lyrics {
+            line,
+            height: lyrics_row_height,
+            aura_display,
+        })));
     }
 
+    children.push(gap(
+        semantic_ui_metrics::main_music_control_to_lyrics_vertical_spacing(),
+    ));
     children.push(auto(block(MusicPanelNode::Player {
         height: player_row_height,
+        aura_display,
     })));
     rows(children)
 }

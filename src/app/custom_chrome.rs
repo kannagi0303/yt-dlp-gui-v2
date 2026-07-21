@@ -71,7 +71,6 @@ mod windows {
 
     use super::CustomChromeResult;
 
-    const APP_WINDOW_TITLE: &str = "yt-dlp-gui";
     const TITLEBAR_HEIGHT_LOGICAL: i32 = 26;
     const DEFAULT_RIGHT_CLIENT_AREA_WIDTH_LOGICAL: i32 = 160;
     const MIN_RESIZE_BORDER_PX: i32 = 6;
@@ -363,12 +362,14 @@ mod windows {
 
     struct WindowSearch {
         process_id: u32,
+        title: String,
         hwnd: Option<HWND>,
     }
 
     fn find_app_window() -> Option<HWND> {
         let mut search = WindowSearch {
             process_id: std::process::id(),
+            title: crate::infrastructure::runtime_window_title(),
             hwnd: None,
         };
 
@@ -396,7 +397,7 @@ mod windows {
             return 1;
         }
 
-        if unsafe { window_title(hwnd) }.as_deref() == Some(APP_WINDOW_TITLE) {
+        if unsafe { window_title(hwnd) }.as_deref() == Some(search.title.as_str()) {
             search.hwnd = Some(hwnd);
             return 0;
         }

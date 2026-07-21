@@ -3,7 +3,9 @@ use std::process::{Command, Stdio};
 
 use serde_json::Value;
 
-use crate::infrastructure::{configure_background_command, resolve_tool_path};
+use crate::infrastructure::{
+    configure_background_command, resolve_tool_path, run_tracked_command_output,
+};
 
 #[allow(dead_code)]
 #[derive(Clone, Debug, Default)]
@@ -60,17 +62,19 @@ pub(super) fn probe_media_with_ffprobe(
 
     let mut command = Command::new(ffprobe_path);
     configure_background_command(&mut command);
-    let output = command
-        .arg("-v")
-        .arg("error")
-        .arg("-print_format")
-        .arg("json")
-        .arg("-show_format")
-        .arg("-show_streams")
-        .arg(input_path)
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|error| format!("Could not start ffprobe: {error}"))?;
+    let output = {
+        command
+            .arg("-v")
+            .arg("error")
+            .arg("-print_format")
+            .arg("json")
+            .arg("-show_format")
+            .arg("-show_streams")
+            .arg(input_path)
+            .stdin(Stdio::null());
+        run_tracked_command_output(&mut command, "ffprobe media probe")
+            .map_err(|error| format!("Could not start ffprobe: {error}"))?
+    };
 
     if !output.status.success() {
         let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();

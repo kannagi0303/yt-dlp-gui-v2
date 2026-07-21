@@ -64,6 +64,25 @@ pub(super) fn render_download_processing_section(
             settings_taffy_form_row(
                 tui,
                 label_width,
+                state.ui_i18n_text_for_key("advance.live_streams"),
+                |ui| {
+                    let mut live_from_start = state.config.live_from_start;
+                    if ui
+                        .checkbox(
+                            &mut live_from_start,
+                            state.ui_i18n_text_for_key(
+                                "advance.download_live_streams_from_start_experimental",
+                            ),
+                        )
+                        .changed()
+                    {
+                        state.set_live_from_start(live_from_start);
+                    }
+                },
+            );
+            settings_taffy_form_row(
+                tui,
+                label_width,
                 state.ui_i18n_text_for_key("advance.rate_limit"),
                 |ui| {
                     let mut limit_rate = state.tool_paths.limit_rate.clone();
@@ -95,6 +114,23 @@ pub(super) fn render_download_processing_section(
                         .changed()
                     {
                         state.set_chapter_compatibility_mode(compatibility_mode);
+                    }
+                },
+            );
+            settings_taffy_form_row(
+                tui,
+                label_width,
+                state.ui_i18n_text_for_key("advance.download_range"),
+                |ui| {
+                    let mut always_show = state.config.always_show_download_range;
+                    if ui
+                        .checkbox(
+                            &mut always_show,
+                            state.ui_i18n_text_for_key("advance.always_show_download_range"),
+                        )
+                        .changed()
+                    {
+                        state.set_always_show_download_range(always_show);
                     }
                 },
             );

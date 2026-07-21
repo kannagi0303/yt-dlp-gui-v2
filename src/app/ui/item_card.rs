@@ -11,6 +11,7 @@ use crate::app::state::{
 };
 use crate::app::widgets::icon::{AppIcon, icon_image, standard_icon_color};
 use crate::app::widgets::url_input::{accent_blue_for_ui, accent_green_for_ui, accent_red_for_ui};
+use crate::domain::DownloadContainerPreference;
 use crate::infrastructure::DownloadTargetKind;
 
 use super::common::{UiText, cell_label_right};
@@ -86,7 +87,7 @@ fn item_card_layout_size_to_vec2(size: LayoutSize) -> egui::Vec2 {
     egui::vec2(size.width, size.height)
 }
 
-pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
+pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState, bottom_safe_area: f32) {
     render_queue_toolbar(ui, state);
     ui.add_space(ui.spacing().item_spacing.y);
     let mut pending_remove_item_id = None;
@@ -312,6 +313,7 @@ pub(super) fn render_batch_list(ui: &mut Ui, state: &mut AppState) {
                     data.insert_temp(hover_memory_id, group_response.response.hovered());
                 });
             }
+            ui.add_space(bottom_safe_area.max(0.0));
         });
 
     if let Some(item_id) = pending_cancel_item_id {
@@ -1251,6 +1253,10 @@ fn item_file_name_input_row(
     let output_action_mode = state.config.output_file_action_mode;
     let file_name_progress = state.item_file_name_progress(index);
     let show_file_name_progress = state.item_file_name_progress_visible(index);
+    let show_container_picker = enabled && state.item_supports_webm_download_container(index);
+    let selected_container = state.resolved_item_download_container(index);
+    let item_id = state.queue_items[index].id;
+    let mut pending_container = None;
 
     tui.style(item_format_row_style(row_height, action_width))
         .add(|tui| {
@@ -1283,6 +1289,15 @@ fn item_file_name_input_row(
                     );
                 }
             });
+            if show_container_picker {
+                tui.style(item_fixed_cell_style(
+                    semantic_ui_metrics::item_card_output_container_picker_width(),
+                ))
+                .ui(|ui| {
+                    let selected = selected_container.unwrap_or(DownloadContainerPreference::Mkv);
+                    pending_container = draw_item_output_container_picker(ui, item_id, selected);
+                });
+            }
             tui.style(item_fixed_cell_style(action_width)).ui(|ui| {
                 ui.set_max_width(action_width);
                 if enabled {
@@ -1300,6 +1315,43 @@ fn item_file_name_input_row(
                 }
             });
         });
+
+    if let Some(container) = pending_container {
+        state.set_item_download_container_preference(index, container);
+    }
+}
+
+pub(super) fn draw_item_output_container_picker(
+    ui: &mut Ui,
+    item_id: crate::domain::QueueItemId,
+    selected_container: DownloadContainerPreference,
+) -> Option<DownloadContainerPreference> {
+    ui.push_id(("item-output-container", item_id), |ui| {
+        let desired_size = ui.available_size_before_wrap();
+        let label = format!(".{}", selected_container.extension().unwrap_or("mkv"));
+        let response = ui.add_sized(desired_size, egui::Button::new(label));
+        let mut pending = None;
+
+        egui::Popup::menu(&response)
+            .width(response.rect.width())
+            .show(|ui| {
+                ui.set_min_width(response.rect.width());
+                for (container, label) in [
+                    (DownloadContainerPreference::Mkv, ".mkv"),
+                    (DownloadContainerPreference::Webm, ".webm"),
+                ] {
+                    if ui
+                        .selectable_label(selected_container == container, label)
+                        .clicked()
+                    {
+                        pending = (container != selected_container).then_some(container);
+                        ui.close();
+                    }
+                }
+            });
+        pending
+    })
+    .inner
 }
 
 pub(super) fn row_download_section_summary(

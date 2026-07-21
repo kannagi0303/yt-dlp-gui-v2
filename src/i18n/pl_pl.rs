@@ -181,10 +181,16 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_aria2_for_faster_downloads" => "Użyj Aria2 dla szybszych pobrań",
         "advance.download_control" => "Kontrola pobierania",
         "advance.concurrent_fragments" => "Równoczesne fragmenty",
+        "advance.live_streams" => "Transmisje na żywo",
+        "advance.download_live_streams_from_start_experimental" => {
+            "Pobieraj transmisje na żywo od początku (eksperymentalne)"
+        }
         "advance.1_default" => "1 (domyślnie)",
         "advance.rate_limit" => "Limit prędkości",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => "np. 2M, 800K; zostaw puste bez limitu",
         "advance.chapters" => "Rozdziały",
+        "advance.download_range" => "Zakres pobierania",
+        "advance.always_show_download_range" => "Zawsze pokazuj wybór zakresu",
         "advance.chapter_download_compatibility_mode" => "Tryb zgodności pobierania rozdziałów",
         "advance.file_time" => "Czas pliku",
         "advance.file_time.none" => "Nie zmieniaj",
@@ -401,6 +407,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "plik wykonywalny",
         "main.controlled_by_config" => "Kontrolowane przez konfigurację: ",
         "main.controlled_by_config_2" => "Kontrolowane przez konfigurację",
+        "picker.section_tab.chapters" => "Rozdziały",
+        "picker.section_tab.time_range" => "Zakres czasu",
+        "picker.section_chapter_instructions" => {
+            "Wybierz jeden lub więcej rozdziałów. Sąsiednie rozdziały tworzą jeden plik."
+        }
+        "picker.section_time_instructions" => {
+            "Przesuń głowicę, ustaw początek i koniec, a następnie dodaj zakres."
+        }
+        "picker.section_time_unavailable" => {
+            "Czas trwania filmu jest niedostępny, więc nie można utworzyć własnego zakresu."
+        }
+        "picker.section_select_all" => "Zaznacz wszystko",
+        "picker.section_from_selected_to_end" => "Od pierwszego zaznaczonego do końca",
+        "picker.section_set_start" => "Ustaw początek",
+        "picker.section_set_end" => "Ustaw koniec",
+        "picker.section_add_range" => "Dodaj zakres",
+        "picker.section_no_custom_ranges" => "Nie dodano własnych zakresów czasu.",
         "picker.no_chapters_available" => "Brak dostępnych rozdziałów.",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "Wybierz zakres pobierania dla tego elementu. Domyślnie całe wideo."
@@ -427,6 +450,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "Określone przez format wideo",
         "picker.not_selected" => "Nie wybrano",
         "picker.full_video" => "Całe wideo",
+        "picker.section_summary.chapters" => "Wybrano {chapters} rozdziałów · {outputs} plików",
+        "picker.section_summary.custom" => "{ranges} zakresów czasu · {outputs} plików",
+        "picker.section_summary.combined" => {
+            "{chapters} rozdziałów + {ranges} zakresów · {outputs} plików"
+        }
         "picker.no_translation" => "Bez tłumaczenia",
         "picker.until_end" => "koniec",
         "prepare.status.ready" => "Gotowe",

@@ -14,7 +14,8 @@ use crate::app::media_probe::{
 use crate::domain::{QueueItemId, WorkflowRunId};
 use crate::infrastructure::{
     AudioPolicy, ContainerPolicy, SubtitlePolicy, ToolPaths, TranscodeIntentSettings,
-    VideoCodecPolicy, configure_background_command, resolve_tool_path,
+    VideoCodecPolicy, configure_background_command, resolve_tool_path, run_tracked_command_output,
+    track_child_process,
 };
 
 pub(super) const POST_PROCESS_CANCELLED_MESSAGE: &str = "Post-processing cancelled.";
@@ -813,12 +814,13 @@ fn filter_available_video_encoders(
 fn available_ffmpeg_encoders(ffmpeg: &Path) -> Option<String> {
     let mut command = Command::new(ffmpeg);
     configure_background_command(&mut command);
-    let output = command
-        .arg("-hide_banner")
-        .arg("-encoders")
-        .stdin(Stdio::null())
-        .output()
-        .ok()?;
+    let output = {
+        command
+            .arg("-hide_banner")
+            .arg("-encoders")
+            .stdin(Stdio::null());
+        run_tracked_command_output(&mut command, "ffmpeg encoder probe").ok()?
+    };
     let mut text = String::new();
     text.push_str(&String::from_utf8_lossy(&output.stdout));
     text.push_str(&String::from_utf8_lossy(&output.stderr));
@@ -872,6 +874,8 @@ fn run_ffmpeg_output_conversion(
     let mut child = command
         .spawn()
         .map_err(|error| format!("Could not start FFmpeg: {error}"))?;
+
+    let _process_guard = track_child_process(&child, "ffmpeg post-process");
 
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();

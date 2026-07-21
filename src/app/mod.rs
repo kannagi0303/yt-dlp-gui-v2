@@ -9,7 +9,12 @@ mod download_worker;
 mod format_picker_state;
 mod media_probe;
 mod metadata;
+pub(crate) mod music_analysis;
+mod music_mix_timeline;
+mod music_pcm_reservoir;
+mod music_segment_selector;
 mod music_stream;
+mod music_timestretch;
 mod native_titlebar;
 mod post_process_worker;
 mod queue_status;
@@ -41,12 +46,15 @@ use self::{
     state::{AppState, OptionsDetailPage, PrepareDetailPage},
 };
 use crate::i18n::Language;
-use crate::infrastructure::{AppConfig, ThemeAccentColor, ThemeMode, ToolPaths};
+use crate::infrastructure::{
+    AppConfig, ThemeAccentColor, ThemeMode, ToolPaths, record_startup_checkpoint,
+};
 
 const WINDOW_ICON_FADE_DURATION: Duration = Duration::from_millis(180);
 
 pub struct NgDlpApp {
     state: AppState,
+    ui_render_resources: ui::UiRenderResources,
     applied_keep_window_on_top: Option<bool>,
     applied_theme_mode: Option<ThemeMode>,
     applied_theme_accent: Option<(ThemeAccentColor, bool)>,
@@ -59,6 +67,7 @@ pub struct NgDlpApp {
     dynamic_font_scripts: DynamicFontScripts,
     observed_font_content_revision: u64,
     startup_focus_requested: bool,
+    startup_diagnostics_first_frame_logged: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -133,26 +142,32 @@ impl NgDlpApp {
         config: AppConfig,
         tool_paths: ToolPaths,
     ) -> Self {
+        record_startup_checkpoint("app runtime init begin");
         let startup_font_profile = startup_font_profile(&config);
         let font_worker = thread::Builder::new()
             .name("startup-font-read".to_owned())
             .spawn(move || load_windows_ui_fonts(startup_font_profile))
             .ok();
         let state = AppState::from_runtime(config, tool_paths);
+        record_startup_checkpoint("app state built");
         let startup_fonts = font_worker
             .and_then(|worker| worker.join().ok())
             .unwrap_or_else(|| load_windows_ui_fonts(startup_font_profile));
+        record_startup_checkpoint("startup fonts loaded");
         let ctx = &cc.egui_ctx;
         configure_loaded_fonts(ctx, startup_fonts);
         install_image_loaders(ctx);
+        record_startup_checkpoint("image loaders installed");
         ctx.options_mut(|options| {
             options.max_passes = std::num::NonZeroUsize::new(2).unwrap();
         });
         let initial_ui_scale_percent = state.config.ui_scale_percent;
         ctx.set_zoom_factor(ui_scale_factor(initial_ui_scale_percent));
+        let ui_render_resources = ui::UiRenderResources::new(cc.gl.as_deref());
 
         Self {
             state,
+            ui_render_resources,
             applied_keep_window_on_top: None,
             applied_theme_mode: None,
             applied_theme_accent: None,
@@ -165,6 +180,7 @@ impl NgDlpApp {
             dynamic_font_scripts: DynamicFontScripts::default(),
             observed_font_content_revision: 0,
             startup_focus_requested: false,
+            startup_diagnostics_first_frame_logged: false,
         }
     }
 }
@@ -408,6 +424,10 @@ fn mix_color(base: egui::Color32, accent: egui::Color32, amount: f32) -> egui::C
 
 impl eframe::App for NgDlpApp {
     fn logic(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+        if !self.startup_diagnostics_first_frame_logged {
+            record_startup_checkpoint("first frame entered");
+            self.startup_diagnostics_first_frame_logged = true;
+        }
         self.apply_window_options(ctx);
         self.apply_theme_mode(ctx);
         self.apply_theme_accent(ctx);
@@ -432,7 +452,11 @@ impl eframe::App for NgDlpApp {
     }
 
     fn ui(&mut self, ui: &mut eframe::egui::Ui, _frame: &mut eframe::Frame) {
-        ui::render_app(ui, &mut self.state);
+        ui::render_app(ui, &mut self.state, &self.ui_render_resources);
+    }
+
+    fn on_exit(&mut self, gl: Option<&eframe::glow::Context>) {
+        self.ui_render_resources.destroy(gl);
     }
 }
 

@@ -185,12 +185,18 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_aria2_for_faster_downloads" => "Χρήση Aria2 για ταχύτερες λήψεις",
         "advance.download_control" => "Έλεγχος λήψης",
         "advance.concurrent_fragments" => "Ταυτόχρονα τμήματα",
+        "advance.live_streams" => "Ζωντανές μεταδόσεις",
+        "advance.download_live_streams_from_start_experimental" => {
+            "Λήψη ζωντανών μεταδόσεων από την αρχή (πειραματικό)"
+        }
         "advance.1_default" => "1 (προεπιλογή)",
         "advance.rate_limit" => "Όριο Ταχύτητας",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => {
             "π.χ. 2M, 800K· αφήστε κενό για απεριόριστο"
         }
         "advance.chapters" => "Κεφάλαια",
+        "advance.download_range" => "Εύρος λήψης",
+        "advance.always_show_download_range" => "Να εμφανίζεται πάντα η επιλογή εύρους",
         "advance.chapter_download_compatibility_mode" => "Λειτουργία συμβατότητας λήψης κεφαλαίων",
         "advance.file_time" => "Χρόνος αρχείου",
         "advance.file_time.none" => "Να μην αλλάξει",
@@ -415,6 +421,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "εκτελέσιμο",
         "main.controlled_by_config" => "Ελέγχεται από τη ρύθμιση: ",
         "main.controlled_by_config_2" => "Ελέγχεται από τη ρύθμιση",
+        "picker.section_tab.chapters" => "Κεφάλαια",
+        "picker.section_tab.time_range" => "Χρονικό εύρος",
+        "picker.section_chapter_instructions" => {
+            "Επιλέξτε ένα ή περισσότερα κεφάλαια. Τα συνεχόμενα κεφάλαια γίνονται μία έξοδος."
+        }
+        "picker.section_time_instructions" => {
+            "Μετακινήστε την κεφαλή, ορίστε αρχή και τέλος και προσθέστε το εύρος."
+        }
+        "picker.section_time_unavailable" => {
+            "Η διάρκεια του βίντεο δεν είναι διαθέσιμη, οπότε δεν μπορεί να δημιουργηθεί προσαρμοσμένο εύρος."
+        }
+        "picker.section_select_all" => "Επιλογή όλων",
+        "picker.section_from_selected_to_end" => "Από το πρώτο επιλεγμένο έως το τέλος",
+        "picker.section_set_start" => "Ορισμός αρχής",
+        "picker.section_set_end" => "Ορισμός τέλους",
+        "picker.section_add_range" => "Προσθήκη εύρους",
+        "picker.section_no_custom_ranges" => "Δεν προστέθηκαν προσαρμοσμένα χρονικά εύρη.",
         "picker.no_chapters_available" => "Δεν υπάρχουν διαθέσιμα κεφάλαια.",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "Επιλέξτε το εύρος λήψης για αυτό το στοιχείο. Προεπιλογή είναι ολόκληρο το βίντεο."
@@ -447,6 +470,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "Καθορίζεται από τη μορφή βίντεο",
         "picker.not_selected" => "Δεν επιλέχθηκε",
         "picker.full_video" => "Πλήρες βίντεο",
+        "picker.section_summary.chapters" => "{chapters} επιλεγμένα κεφάλαια · {outputs} έξοδοι",
+        "picker.section_summary.custom" => "{ranges} χρονικά εύρη · {outputs} έξοδοι",
+        "picker.section_summary.combined" => {
+            "{chapters} κεφάλαια + {ranges} εύρη · {outputs} έξοδοι"
+        }
         "picker.no_translation" => "Χωρίς μετάφραση",
         "picker.until_end" => "τέλος",
         "prepare.status.ready" => "Έτοιμο",

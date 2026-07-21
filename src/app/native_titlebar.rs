@@ -41,8 +41,6 @@ mod windows {
     use super::NativeTitlebarAccentResult;
     use crate::infrastructure::ThemeAccentColor;
 
-    const APP_WINDOW_TITLE: &str = "yt-dlp-gui";
-
     pub fn apply_titlebar_accent(
         accent: ThemeAccentColor,
         dark_mode: bool,
@@ -138,12 +136,14 @@ mod windows {
 
     struct WindowSearch {
         process_id: u32,
+        title: String,
         hwnd: Option<HWND>,
     }
 
     fn find_app_window() -> Option<HWND> {
         let mut search = WindowSearch {
             process_id: std::process::id(),
+            title: crate::infrastructure::runtime_window_title(),
             hwnd: None,
         };
 
@@ -171,7 +171,7 @@ mod windows {
             return 1;
         }
 
-        if unsafe { window_title(hwnd) }.as_deref() == Some(APP_WINDOW_TITLE) {
+        if unsafe { window_title(hwnd) }.as_deref() == Some(search.title.as_str()) {
             search.hwnd = Some(hwnd);
             return 0;
         }

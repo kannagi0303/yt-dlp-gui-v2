@@ -185,12 +185,18 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "advance.download_control" => "Керування завантаженням",
         "advance.concurrent_fragments" => "Одночасні фрагменти",
+        "advance.live_streams" => "Прямі трансляції",
+        "advance.download_live_streams_from_start_experimental" => {
+            "Завантажувати прямі трансляції від початку (експериментально)"
+        }
         "advance.1_default" => "1 (за замовчуванням)",
         "advance.rate_limit" => "Обмеження швидкості",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => {
             "напр. 2M, 800K; залиште порожнім без обмеження"
         }
         "advance.chapters" => "Розділи",
+        "advance.download_range" => "Діапазон завантаження",
+        "advance.always_show_download_range" => "Завжди показувати вибір діапазону",
         "advance.chapter_download_compatibility_mode" => "Режим сумісності завантаження розділів",
         "advance.file_time" => "Час файлу",
         "advance.file_time.none" => "Не змінювати",
@@ -407,6 +413,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "виконуваний файл",
         "main.controlled_by_config" => "Керується конфігурацією: ",
         "main.controlled_by_config_2" => "Керується конфігурацією",
+        "picker.section_tab.chapters" => "Розділи",
+        "picker.section_tab.time_range" => "Діапазон часу",
+        "picker.section_chapter_instructions" => {
+            "Виберіть один або кілька розділів. Суміжні розділи утворюють один файл."
+        }
+        "picker.section_time_instructions" => {
+            "Перемістіть позицію, задайте початок і кінець, а потім додайте діапазон."
+        }
+        "picker.section_time_unavailable" => {
+            "Тривалість відео недоступна, тому створити власний діапазон неможливо."
+        }
+        "picker.section_select_all" => "Вибрати все",
+        "picker.section_from_selected_to_end" => "Від першого вибраного до кінця",
+        "picker.section_set_start" => "Задати початок",
+        "picker.section_set_end" => "Задати кінець",
+        "picker.section_add_range" => "Додати діапазон",
+        "picker.section_no_custom_ranges" => "Власні діапазони часу не додані.",
         "picker.no_chapters_available" => "Немає доступних розділів.",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "Виберіть діапазон для завантаження цього елемента. За замовчуванням — усе відео."
@@ -433,6 +456,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "Визначається форматом відео",
         "picker.not_selected" => "Не вибрано",
         "picker.full_video" => "Повне відео",
+        "picker.section_summary.chapters" => "Вибрано розділів: {chapters} · файлів: {outputs}",
+        "picker.section_summary.custom" => "Діапазонів: {ranges} · файлів: {outputs}",
+        "picker.section_summary.combined" => {
+            "Розділів: {chapters} + діапазонів: {ranges} · файлів: {outputs}"
+        }
         "picker.no_translation" => "Без перекладу",
         "picker.until_end" => "кінець",
         "prepare.status.ready" => "Готово",

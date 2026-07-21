@@ -177,10 +177,16 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_aria2_for_faster_downloads" => "استخدام Aria2 لتنزيل أسرع",
         "advance.download_control" => "التحكم بالتنزيل",
         "advance.concurrent_fragments" => "الأجزاء المتزامنة",
+        "advance.live_streams" => "البث المباشر",
+        "advance.download_live_streams_from_start_experimental" => {
+            "تنزيل البث المباشر من البداية (تجريبي)"
+        }
         "advance.1_default" => "1 (افتراضي)",
         "advance.rate_limit" => "حد السرعة",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => "مثلاً 2M، 800K؛ اتركه فارغًا بلا حد",
         "advance.chapters" => "الفصول",
+        "advance.download_range" => "نطاق التنزيل",
+        "advance.always_show_download_range" => "إظهار اختيار النطاق دائمًا",
         "advance.chapter_download_compatibility_mode" => "وضع توافق تنزيل الفصول",
         "advance.file_time" => "وقت الملف",
         "advance.file_time.none" => "عدم التغيير",
@@ -389,6 +395,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "ملف تنفيذي",
         "main.controlled_by_config" => "تتحكم به الإعدادات: ",
         "main.controlled_by_config_2" => "تتحكم به الإعدادات",
+        "picker.section_tab.chapters" => "الفصول",
+        "picker.section_tab.time_range" => "النطاق الزمني",
+        "picker.section_chapter_instructions" => {
+            "اختر فصلًا واحدًا أو أكثر. تُدمج الفصول المتجاورة في ملف إخراج واحد."
+        }
+        "picker.section_time_instructions" => {
+            "حرّك مؤشر التشغيل، وحدد البداية والنهاية، ثم أضف النطاق."
+        }
+        "picker.section_time_unavailable" => {
+            "مدة الفيديو غير متاحة، لذلك لا يمكن إنشاء نطاق زمني مخصص."
+        }
+        "picker.section_select_all" => "تحديد الكل",
+        "picker.section_from_selected_to_end" => "من أول فصل محدد إلى النهاية",
+        "picker.section_set_start" => "تعيين البداية",
+        "picker.section_set_end" => "تعيين النهاية",
+        "picker.section_add_range" => "إضافة نطاق",
+        "picker.section_no_custom_ranges" => "لم تتم إضافة نطاقات زمنية مخصصة.",
         "picker.no_chapters_available" => "لا توجد فصول متاحة.",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "اختر النطاق المراد تنزيله لهذا العنصر. الافتراضي هو الفيديو الكامل."
@@ -415,6 +438,9 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "يُحدَّد حسب صيغة الفيديو",
         "picker.not_selected" => "غير محدد",
         "picker.full_video" => "الفيديو الكامل",
+        "picker.section_summary.chapters" => "تم تحديد {chapters} فصول · {outputs} ملفات",
+        "picker.section_summary.custom" => "{ranges} نطاقات زمنية · {outputs} ملفات",
+        "picker.section_summary.combined" => "{chapters} فصول + {ranges} نطاقات · {outputs} ملفات",
         "picker.no_translation" => "بدون ترجمة",
         "picker.until_end" => "النهاية",
         "prepare.status.ready" => "جاهز",

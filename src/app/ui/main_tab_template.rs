@@ -7,17 +7,20 @@ use crate::app::widgets::url_input::app_textbox_single_line_height;
 use super::item_card::render_batch_list;
 use super::main_tab_controls::{MainTabButtonRole, MainTabControls, MainTabTextBoxRole};
 use super::main_tab_music_panel::MusicPlayerPanel;
+use super::main_tab_output_actions::DownloadContainerPicker;
 use super::single_mode::build_single_mode_item;
-use super::xaml_template_renderer::{
-    TemplateBlockSlot, show_full_height_page_template, show_template_tui_block,
-};
-use super::xaml_ui_nodes::{auto, block, fill, fixed_px, gap, rows};
-use super::{semantic_ui_metrics, xaml_taffy_styles, xaml_ui_nodes};
+use super::xaml_template_renderer::{TemplateBlockSlot, show_full_height_page_template};
+use super::xaml_ui_nodes::{auto, block, fill, gap, rows};
+use super::{UiRenderResources, semantic_ui_metrics, xaml_taffy_styles, xaml_ui_nodes};
 
 type MainTabTemplateTree = xaml_ui_nodes::TemplateNode<MainTabNode>;
 
-pub(super) fn render_main_tab(ui: &mut Ui, state: &mut AppState) {
-    let template = MainTabTemplate::resolve(ui, state);
+pub(super) fn render_main_tab(
+    ui: &mut Ui,
+    state: &mut AppState,
+    render_resources: &UiRenderResources,
+) {
+    let template = MainTabTemplate::resolve(ui, state, render_resources);
     template.show(ui, state);
 }
 
@@ -32,11 +35,13 @@ enum MainTabNode {
         monitor_toggle: MainTabButtonRole,
         start: MainTabButtonRole,
     },
-    MainContent,
-    MusicPlayerPanel(MusicPlayerPanel),
+    MainContent {
+        music_player_panel: Option<MusicPlayerPanel>,
+    },
     OutputRow {
         target_select: MainTabButtonRole,
         path: MainTabTextBoxRole,
+        download_container: Option<DownloadContainerPicker>,
         download: MainTabButtonRole,
     },
 }
@@ -51,10 +56,15 @@ struct MainTabTemplateContext {
 }
 
 impl MainTabTemplate {
-    fn resolve(ui: &mut Ui, state: &mut AppState) -> Self {
+    fn resolve(ui: &mut Ui, state: &mut AppState, render_resources: &UiRenderResources) -> Self {
         let context = MainTabTemplateContext::resolve(ui, state);
         let controls = MainTabControls::resolve(ui, state, context.row);
-        let music_player_panel = MusicPlayerPanel::resolve(ui, state, context.row_height);
+        let music_player_panel = MusicPlayerPanel::resolve(
+            ui,
+            state,
+            context.row_height,
+            render_resources.music_player_aura(),
+        );
         let root = main_tab_root_template(context, controls, music_player_panel);
 
         Self { context, root }
@@ -101,6 +111,7 @@ fn main_tab_root_template(
         start,
         target_select,
         path,
+        download_container,
         download,
     } = controls;
 
@@ -111,21 +122,14 @@ fn main_tab_root_template(
             start,
         })),
         gap(context.section_spacing),
-        fill(block(MainTabNode::MainContent)),
+        fill(block(MainTabNode::MainContent { music_player_panel })),
         gap(context.content_output_gap),
     ];
-
-    if let Some(music_player_panel) = music_player_panel {
-        root_rows.push(fixed_px(
-            music_player_panel.height(),
-            block(MainTabNode::MusicPlayerPanel(music_player_panel)),
-        ));
-        root_rows.push(gap(context.section_spacing));
-    }
 
     root_rows.push(auto(block(MainTabNode::OutputRow {
         target_select,
         path,
+        download_container,
         download,
     })));
 
@@ -151,16 +155,23 @@ fn show_main_tab_block(
         } => show_main_tab_single_line_row_block(slot, tui, context, |tui| {
             show_main_tab_url_input_row(url, monitor_toggle, start, tui, state);
         }),
-        MainTabNode::MainContent => show_main_tab_content(slot, tui, state, context),
-        MainTabNode::MusicPlayerPanel(music_player_panel) => {
-            show_template_tui_block(slot, tui, |tui| music_player_panel.show(tui, state));
+        MainTabNode::MainContent { music_player_panel } => {
+            show_main_tab_content(slot, tui, state, context, music_player_panel)
         }
         MainTabNode::OutputRow {
             target_select,
             path,
+            download_container,
             download,
         } => show_main_tab_single_line_row_block(slot, tui, context, |tui| {
-            show_main_tab_output_row(target_select, path, download, tui, state);
+            show_main_tab_output_row(
+                target_select,
+                path,
+                download_container,
+                download,
+                tui,
+                state,
+            );
         }),
     }
 }
@@ -192,12 +203,16 @@ fn show_main_tab_url_input_row(
 fn show_main_tab_output_row(
     target_select: MainTabButtonRole,
     path: MainTabTextBoxRole,
+    download_container: Option<DownloadContainerPicker>,
     download: MainTabButtonRole,
     tui: &mut Tui,
     state: &mut AppState,
 ) {
     target_select.show(tui, state);
     path.show(tui, state);
+    if let Some(download_container) = download_container {
+        download_container.show(tui, state);
+    }
     download.show(tui, state);
 }
 
@@ -206,25 +221,57 @@ fn show_main_tab_content(
     tui: &mut Tui,
     state: &mut AppState,
     context: MainTabTemplateContext,
+    music_player_panel: Option<MusicPlayerPanel>,
 ) {
-    match (state.app_mode(), slot) {
-        (AppMode::Origin, TemplateBlockSlot::Root) => {
-            build_single_mode_item(tui, state, context.row_height);
+    match slot {
+        TemplateBlockSlot::Root => {
+            show_main_tab_content_layers(tui, state, context, music_player_panel);
         }
-        (AppMode::Origin, TemplateBlockSlot::Child { style, .. }) => {
-            tui.style(style)
-                .add(|tui| build_single_mode_item(tui, state, context.row_height));
-        }
-        (_, TemplateBlockSlot::Root) => {
-            xaml_taffy_styles::XamlTaffyElement::grow_block()
-                .show_fill_ui(tui, |ui| render_batch_list(ui, state));
-        }
-        (_, TemplateBlockSlot::Child { style, .. }) => {
-            tui.style(style).ui(|ui| {
-                xaml_taffy_styles::show_fill_content_presenter(ui, |ui| {
-                    render_batch_list(ui, state);
-                });
+        TemplateBlockSlot::Child { style, .. } => {
+            tui.style(style).add(|tui| {
+                show_main_tab_content_layers(tui, state, context, music_player_panel);
             });
+        }
+    }
+}
+
+fn show_main_tab_content_layers(
+    tui: &mut Tui,
+    state: &mut AppState,
+    context: MainTabTemplateContext,
+    music_player_panel: Option<MusicPlayerPanel>,
+) {
+    let overlay_height = music_player_panel
+        .as_ref()
+        .map(MusicPlayerPanel::height)
+        .unwrap_or(0.0);
+    let bottom_safe_area =
+        overlay_height + f32::from(overlay_height > 0.0) * context.section_spacing;
+
+    tui.style(xaml_taffy_styles::xaml_overlay_host_style())
+        .add(|tui| {
+            tui.style(xaml_taffy_styles::xaml_overlay_content_style())
+                .add(|tui| {
+                    show_main_tab_content_body(tui, state, context, bottom_safe_area);
+                });
+            if let Some(music_player_panel) = music_player_panel {
+                tui.style(xaml_taffy_styles::xaml_bottom_overlay_style(overlay_height))
+                    .add(|tui| music_player_panel.show(tui, state));
+            }
+        });
+}
+
+fn show_main_tab_content_body(
+    tui: &mut Tui,
+    state: &mut AppState,
+    context: MainTabTemplateContext,
+    bottom_safe_area: f32,
+) {
+    match state.app_mode() {
+        AppMode::Origin => build_single_mode_item(tui, state, context.row_height),
+        _ => {
+            xaml_taffy_styles::XamlTaffyElement::grow_block()
+                .show_fill_ui(tui, |ui| render_batch_list(ui, state, bottom_safe_area));
         }
     }
 }

@@ -10,7 +10,8 @@ pub(super) fn selection_matches_completed(
         && selection.audio_selector == completed.audio_selector
         && selection.subtitle_selector == completed.subtitle_selector
         && selection.file_name == completed.file_name
-        && selection.download_sections == completed.download_sections
+        && selection.container_preference == completed.container_preference
+        && selection.download_range == completed.download_range
         && selection.write_thumbnail == completed.write_thumbnail
         && selection.embed_thumbnail == completed.embed_thumbnail
         && selection.write_subtitles == completed.write_subtitles

@@ -104,30 +104,34 @@ fn command_viewer_gap(command_height: f32) -> f32 {
 }
 
 fn ensure_valid_log_selection(state: &mut AppState) {
-    if let Some(selected_step) = state.log_viewer_selected_step {
+    if let Some(selected_step) = state.log_viewer_selected_step() {
         if selected_tool_log_step(state).is_none() {
-            state.log_viewer_selected_step = None;
+            state.set_log_viewer_selected_step(None);
         }
         if !state
-            .tool_logs
+            .tool_log_actions()
             .iter()
             .any(|action| action.steps.iter().any(|step| step.id == selected_step))
         {
-            state.log_viewer_selected_step = None;
+            state.set_log_viewer_selected_step(None);
         }
     }
 
-    if let Some(action_id) = state.log_viewer_expanded_action {
-        if !state.tool_logs.iter().any(|action| action.id == action_id) {
-            state.log_viewer_expanded_action = None;
+    if let Some(action_id) = state.log_viewer_expanded_action() {
+        if !state
+            .tool_log_actions()
+            .iter()
+            .any(|action| action.id == action_id)
+        {
+            state.set_log_viewer_expanded_action(None);
         }
     }
 }
 
 fn selected_tool_log_step(state: &AppState) -> Option<&ToolLogStep> {
-    let selected_step = state.log_viewer_selected_step?;
+    let selected_step = state.log_viewer_selected_step()?;
     state
-        .tool_logs
+        .tool_log_actions()
         .iter()
         .flat_map(|action| action.steps.iter())
         .find(|step| step.id == selected_step)

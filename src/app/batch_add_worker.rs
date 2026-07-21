@@ -11,7 +11,7 @@ use serde_json::Value;
 use crate::app::metadata::{
     PlaylistEntrySeed, playlist_entry_seed_from_json, select_largest_thumbnail_url,
 };
-use crate::infrastructure::{ToolPaths, configure_background_command};
+use crate::infrastructure::{ToolPaths, configure_background_command, track_child_process};
 
 pub(super) enum BatchAddEvent {
     ToolCommandFinished {
@@ -77,9 +77,13 @@ pub(super) fn run_batch_add_worker(
         }
     };
 
+    let _process_guard = track_child_process(&child, "yt-dlp batch add");
+
     let stdout = match child.stdout.take() {
         Some(stdout) => stdout,
         None => {
+            terminate_child_process(&mut child);
+            let _ = child.wait();
             let _ = tx.send(BatchAddEvent::ToolCommandFinished {
                 action_id: tool_log_action_id,
                 command_line: command_line.clone(),

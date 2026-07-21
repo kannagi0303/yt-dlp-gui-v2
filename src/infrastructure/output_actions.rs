@@ -46,14 +46,33 @@ fn output_parent_folder(path: &Path) -> Option<PathBuf> {
 
 #[cfg(target_os = "windows")]
 fn open_file_with_system(path: &Path) -> Result<(), String> {
-    Command::new("cmd")
-        .arg("/C")
-        .arg("start")
-        .arg("")
-        .arg(path)
-        .spawn()
-        .map(|_| ())
-        .map_err(|error| format!("Could not open file: {error}"))
+    use std::os::windows::ffi::OsStrExt;
+
+    use windows_sys::Win32::UI::Shell::ShellExecuteW;
+    use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+    let wide_path = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let result = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            std::ptr::null(),
+            wide_path.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            SW_SHOWNORMAL,
+        )
+    } as isize;
+    if result > 32 {
+        Ok(())
+    } else {
+        Err(format!(
+            "Could not open file with the Windows shell (ShellExecuteW error {result})."
+        ))
+    }
 }
 
 #[cfg(target_os = "windows")]

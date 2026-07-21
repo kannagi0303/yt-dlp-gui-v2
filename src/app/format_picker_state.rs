@@ -1,3 +1,5 @@
+use crate::domain::DownloadRangeSelection;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FormatPickerKind {
     Video,
@@ -61,6 +63,8 @@ pub struct FormatPickerState {
     pub filters: FormatPickerFilters,
     pub subtitle_source_key: String,
     pub subtitle_tab: SubtitlePickerTab,
+    pub section_tab: SectionPickerTab,
+    pub download_range_draft: DownloadRangePickerDraft,
 }
 
 impl Default for FormatPickerState {
@@ -76,8 +80,33 @@ impl Default for FormatPickerState {
             filters: FormatPickerFilters::default(),
             subtitle_source_key: String::new(),
             subtitle_tab: SubtitlePickerTab::None,
+            section_tab: SectionPickerTab::Chapters,
+            download_range_draft: DownloadRangePickerDraft::default(),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectionPickerTab {
+    Chapters,
+    TimeRange,
+}
+
+impl SectionPickerTab {
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Self::Chapters => "picker.section_tab.chapters",
+            Self::TimeRange => "picker.section_tab.time_range",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct DownloadRangePickerDraft {
+    pub selection: DownloadRangeSelection,
+    pub playhead_millis: u64,
+    pub start_marker_millis: Option<u64>,
+    pub end_marker_millis: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

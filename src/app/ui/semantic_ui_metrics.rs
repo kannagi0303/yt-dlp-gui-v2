@@ -178,16 +178,36 @@ const MAIN_INLINE_CONTROL_GAP_SCALE_FROM_ITEM_SPACING: f32 = 0.5;
 const MAIN_ORIGIN_CONTENT_OUTPUT_GAP_REDUCTION: f32 = 4.0;
 const MAIN_MUSIC_PANEL_HORIZONTAL_PADDING: f32 = 8.0;
 const MAIN_MUSIC_PANEL_VERTICAL_PADDING: f32 = 5.0;
+const MAIN_MUSIC_PANEL_CORNER_RADIUS: f32 = 7.0;
 const MAIN_MUSIC_PANEL_CONTROL_TO_LYRICS_VERTICAL_SPACING: f32 = 4.0;
 const MAIN_MUSIC_LYRICS_FONT_SIZE_DELTA_FROM_BODY: f32 = 4.5;
 const MAIN_MUSIC_LYRICS_ROW_EXTRA_HEIGHT_FROM_TEXT_METRICS: f32 = 8.0;
 const MAIN_MUSIC_SEEK_BAR_HORIZONTAL_INSET: f32 = 2.0;
 const MAIN_MUSIC_PLAYER_CONTROL_SPACING_MINIMUM: f32 = 8.0;
+const MAIN_MUSIC_PLAYER_CONTROL_ROW_HEIGHT_MINIMUM: f32 = 28.0;
+const MAIN_MUSIC_PLAYER_SEEK_ROW_HEIGHT: f32 = 12.0;
+const MAIN_MUSIC_PLAYER_SEEK_TO_CONTROLS_SPACING: f32 = 6.0;
+const MAIN_MUSIC_PLAYER_BPM_WIDTH: f32 = 72.0;
+const MAIN_MUSIC_PLAYER_ANALYSIS_PEARLS_WIDTH: f32 = 58.0;
+const MAIN_MUSIC_PLAYER_ANALYSIS_PEARL_RADIUS: f32 = 1.25;
+const MAIN_MUSIC_PLAYER_ANALYSIS_PEARL_RADIUS_GAIN: f32 = 1.35;
+const MAIN_MUSIC_PLAYER_ANALYSIS_PEARL_MAX_LIFT: f32 = 6.5;
 const MAIN_MUSIC_PLAYER_TIME_TEXT_WIDTH: f32 = 108.0;
-const MAIN_MUSIC_PLAYER_VOLUME_CONTROL_WIDTH: f32 = 128.0;
+const MAIN_MUSIC_PLAYER_VOLUME_POPUP_WIDTH: f32 = 144.0;
 const MAIN_MUSIC_ROUND_BUTTON_RADIUS_INSET: f32 = 1.0;
-const MAIN_MUSIC_PLAYBACK_ICON_SCALE_FROM_STANDARD_ICON: f32 = 0.92;
-const MAIN_MUSIC_VOLUME_ICON_SCALE_FROM_STANDARD_ICON: f32 = 0.86;
+const MAIN_MUSIC_PLAYBACK_ICON_SCALE_FROM_BUTTON: f32 = 0.64;
+const MAIN_MUSIC_STAGE_LABEL_SCALE_FROM_BUTTON: f32 = 0.46;
+const MAIN_MUSIC_BUTTON_IDLE_FILL_ALPHA: u8 = 42;
+const MAIN_MUSIC_BUTTON_HOVER_FILL_ALPHA: u8 = 76;
+const MAIN_MUSIC_BUTTON_PRESSED_FILL_ALPHA: u8 = 104;
+const MAIN_MUSIC_BUTTON_ACTIVE_FILL_ALPHA: u8 = 68;
+const MAIN_MUSIC_BUTTON_ACTIVE_HOVER_FILL_ALPHA: u8 = 96;
+const MAIN_MUSIC_BUTTON_ACTIVE_PRESSED_FILL_ALPHA: u8 = 124;
+const MAIN_MUSIC_BUTTON_IDLE_STROKE_ALPHA: u8 = 54;
+const MAIN_MUSIC_BUTTON_HOVER_STROKE_ALPHA: u8 = 88;
+const MAIN_MUSIC_BUTTON_ACTIVE_STROKE_ALPHA: u8 = 154;
+const MAIN_MUSIC_BUTTON_IDLE_FOREGROUND_ALPHA: u8 = 216;
+const MAIN_MUSIC_BUTTON_HOVER_FOREGROUND_ALPHA: u8 = 244;
 const MAIN_URL_ACTION_SPINNER_SIZE_SCALE_FROM_CONTROL_HEIGHT: f32 = 0.75;
 const MAIN_URL_ACTION_SPINNER_TO_TEXT_HORIZONTAL_SPACING: f32 = 4.0;
 const MAIN_MISSING_YT_DLP_CALLOUT_WIDTH: f32 = 320.0;
@@ -272,6 +292,7 @@ const ITEM_CARD_DURATION_BADGE_RIGHT_INSET: f32 = 4.0;
 const ITEM_CARD_DURATION_BADGE_BOTTOM_INSET: f32 = 4.0;
 const ITEM_CARD_DURATION_BADGE_CORNER_RADIUS: f32 = 2.0;
 const ITEM_CARD_FIELD_CORNER_RADIUS: f32 = 2.0;
+const ITEM_CARD_OUTPUT_CONTAINER_PICKER_WIDTH: f32 = 68.0;
 const ITEM_CARD_FIELD_TEXT_HORIZONTAL_INSET: f32 = 4.0;
 const ITEM_CARD_FIELD_TEXT_WIDTH_REDUCTION_FROM_INSET: f32 = 8.0;
 
@@ -279,9 +300,21 @@ const ITEM_CARD_FIELD_TEXT_EDIT_MARGIN_X: i8 = 4;
 const ITEM_CARD_FIELD_TEXT_EDIT_MARGIN_Y: i8 = 2;
 
 const FORMAT_PICKER_EMPTY_MESSAGE_TOP_VERTICAL_SPACING: f32 = 12.0;
-const FORMAT_PICKER_SECTION_DESCRIPTION_HEIGHT_WHEN_COMPATIBILITY_WARNING_VISIBLE: f32 = 52.0;
-const FORMAT_PICKER_SECTION_DESCRIPTION_HEIGHT_WHEN_COMPACT: f32 = 30.0;
 const FORMAT_PICKER_SECTION_ROW_HEIGHT: f32 = 24.0;
+const FORMAT_PICKER_TIME_RANGE_TIMELINE_HEIGHT: f32 = 56.0;
+const FORMAT_PICKER_TIME_RANGE_TIMELINE_HORIZONTAL_INSET: f32 = 8.0;
+const FORMAT_PICKER_TIME_RANGE_TIMELINE_VERTICAL_INSET: f32 = 6.0;
+const FORMAT_PICKER_TIME_RANGE_TRACK_STROKE_WIDTH: f32 = 6.0;
+const FORMAT_PICKER_TIME_RANGE_CHAPTER_MARKER_RADIUS: f32 = 3.0;
+const FORMAT_PICKER_TIME_RANGE_PLAYHEAD_STROKE_WIDTH: f32 = 2.0;
+const FORMAT_PICKER_TIME_RANGE_PLAYHEAD_RADIUS: f32 = 6.0;
+const FORMAT_PICKER_TIME_RANGE_SEGMENT_HALF_HEIGHT: f32 = 4.0;
+const FORMAT_PICKER_TIME_RANGE_SEGMENT_CORNER_RADIUS: f32 = 2.0;
+const FORMAT_PICKER_TIME_RANGE_BOUNDARY_NOTCH_HALF_HEIGHT: f32 = 9.0;
+const FORMAT_PICKER_TIME_RANGE_SNAP_DISTANCE_PIXELS: f32 = 10.0;
+const FORMAT_PICKER_TIME_RANGE_MARKER_HIT_RADIUS_SCALE: f32 = 4.0;
+const FORMAT_PICKER_TIME_RANGE_MARKER_LABEL_FONT_SIZE: f32 = 10.0;
+const FORMAT_PICKER_TIME_RANGE_TIMESTAMP_FONT_SIZE: f32 = 11.0;
 const FORMAT_PICKER_FILTER_BUTTON_HORIZONTAL_PADDING: f32 = 5.0;
 const FORMAT_PICKER_FILTER_BUTTON_VERTICAL_PADDING: f32 = 1.0;
 const FORMAT_PICKER_FILTER_NODE_HEIGHT_REDUCTION_FROM_CONTROL_METRICS: f32 = 10.0;
@@ -367,6 +400,10 @@ pub(super) fn main_music_panel_height_for_content(
             .unwrap_or(0.0)
 }
 
+pub(super) fn main_music_panel_corner_radius() -> f32 {
+    MAIN_MUSIC_PANEL_CORNER_RADIUS
+}
+
 pub(super) fn main_music_panel_content_rect(panel_rect: egui::Rect) -> egui::Rect {
     let content_width = (panel_rect.width() - MAIN_MUSIC_PANEL_HORIZONTAL_PADDING * 2.0).max(1.0);
     let content_height = (panel_rect.height() - MAIN_MUSIC_PANEL_VERTICAL_PADDING * 2.0).max(1.0);
@@ -398,26 +435,117 @@ pub(super) fn main_music_player_control_spacing_from_current_spacing(ui: &Ui) ->
         .max(MAIN_MUSIC_PLAYER_CONTROL_SPACING_MINIMUM)
 }
 
+pub(super) fn main_music_player_control_row_height(base_height: f32) -> f32 {
+    base_height.max(MAIN_MUSIC_PLAYER_CONTROL_ROW_HEIGHT_MINIMUM)
+}
+
+pub(super) fn main_music_player_control_row_height_from_current_metrics(ui: &Ui) -> f32 {
+    main_music_player_control_row_height(ui.spacing().interact_size.y)
+}
+
+pub(super) fn main_music_player_height_from_control_row(control_row_height: f32) -> f32 {
+    MAIN_MUSIC_PLAYER_SEEK_ROW_HEIGHT
+        + MAIN_MUSIC_PLAYER_SEEK_TO_CONTROLS_SPACING
+        + control_row_height.max(1.0)
+}
+
+pub(super) fn main_music_player_seek_row_height() -> f32 {
+    MAIN_MUSIC_PLAYER_SEEK_ROW_HEIGHT
+}
+
+pub(super) fn main_music_player_seek_to_controls_spacing() -> f32 {
+    MAIN_MUSIC_PLAYER_SEEK_TO_CONTROLS_SPACING
+}
+
 pub(super) fn main_music_player_time_text_width() -> f32 {
     MAIN_MUSIC_PLAYER_TIME_TEXT_WIDTH
 }
 
-pub(super) fn main_music_player_volume_control_width() -> f32 {
-    MAIN_MUSIC_PLAYER_VOLUME_CONTROL_WIDTH
+pub(super) fn main_music_player_bpm_width() -> f32 {
+    MAIN_MUSIC_PLAYER_BPM_WIDTH
+}
+
+pub(super) fn main_music_player_analysis_pearls_width() -> f32 {
+    MAIN_MUSIC_PLAYER_ANALYSIS_PEARLS_WIDTH
+}
+
+pub(super) fn main_music_player_analysis_pearl_radius(value: f32) -> f32 {
+    MAIN_MUSIC_PLAYER_ANALYSIS_PEARL_RADIUS
+        + value.clamp(0.0, 1.0) * MAIN_MUSIC_PLAYER_ANALYSIS_PEARL_RADIUS_GAIN
+}
+
+pub(super) fn main_music_player_analysis_pearl_max_lift() -> f32 {
+    MAIN_MUSIC_PLAYER_ANALYSIS_PEARL_MAX_LIFT
+}
+
+pub(super) fn main_music_player_volume_popup_width() -> f32 {
+    MAIN_MUSIC_PLAYER_VOLUME_POPUP_WIDTH
 }
 
 pub(super) fn main_music_round_button_radius_for_rect(rect: egui::Rect) -> f32 {
     (rect.width().min(rect.height()) * 0.5 - MAIN_MUSIC_ROUND_BUTTON_RADIUS_INSET).max(1.0)
 }
 
-pub(super) fn main_music_playback_icon_size_from_current_control_metrics(ui: &Ui) -> f32 {
-    standard_icon_size_from_current_control_metrics(ui)
-        * MAIN_MUSIC_PLAYBACK_ICON_SCALE_FROM_STANDARD_ICON
+pub(super) fn main_music_playback_icon_size_for_rect(rect: egui::Rect) -> f32 {
+    rect.width().min(rect.height()) * MAIN_MUSIC_PLAYBACK_ICON_SCALE_FROM_BUTTON
 }
 
-pub(super) fn main_music_volume_icon_size_from_current_control_metrics(ui: &Ui) -> f32 {
-    standard_icon_size_from_current_control_metrics(ui)
-        * MAIN_MUSIC_VOLUME_ICON_SCALE_FROM_STANDARD_ICON
+pub(super) fn main_music_stage_label_size_for_rect(rect: egui::Rect) -> f32 {
+    rect.width().min(rect.height()) * MAIN_MUSIC_STAGE_LABEL_SCALE_FROM_BUTTON
+}
+
+pub(super) fn main_music_button_fill(
+    ui: &Ui,
+    response: &egui::Response,
+    active_color: Option<egui::Color32>,
+) -> egui::Color32 {
+    let alpha = match (
+        active_color.is_some(),
+        response.is_pointer_button_down_on(),
+        response.hovered(),
+    ) {
+        (true, true, _) => MAIN_MUSIC_BUTTON_ACTIVE_PRESSED_FILL_ALPHA,
+        (true, false, true) => MAIN_MUSIC_BUTTON_ACTIVE_HOVER_FILL_ALPHA,
+        (true, false, false) => MAIN_MUSIC_BUTTON_ACTIVE_FILL_ALPHA,
+        (false, true, _) => MAIN_MUSIC_BUTTON_PRESSED_FILL_ALPHA,
+        (false, false, true) => MAIN_MUSIC_BUTTON_HOVER_FILL_ALPHA,
+        (false, false, false) => MAIN_MUSIC_BUTTON_IDLE_FILL_ALPHA,
+    };
+    let base = active_color.unwrap_or_else(|| ui.visuals().widgets.inactive.fg_stroke.color);
+    egui::Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), alpha)
+}
+
+pub(super) fn main_music_button_stroke(
+    ui: &Ui,
+    response: &egui::Response,
+    active_color: Option<egui::Color32>,
+) -> egui::Stroke {
+    let base = active_color.unwrap_or_else(|| ui.visuals().widgets.inactive.fg_stroke.color);
+    let alpha = if active_color.is_some() {
+        MAIN_MUSIC_BUTTON_ACTIVE_STROKE_ALPHA
+    } else if response.hovered() || response.is_pointer_button_down_on() {
+        MAIN_MUSIC_BUTTON_HOVER_STROKE_ALPHA
+    } else {
+        MAIN_MUSIC_BUTTON_IDLE_STROKE_ALPHA
+    };
+    egui::Stroke::new(
+        if active_color.is_some() { 1.25 } else { 1.0 },
+        egui::Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), alpha),
+    )
+}
+
+pub(super) fn main_music_button_foreground(
+    ui: &Ui,
+    response: &egui::Response,
+    active_color: Option<egui::Color32>,
+) -> egui::Color32 {
+    let base = active_color.unwrap_or_else(|| ui.style().interact(response).fg_stroke.color);
+    let alpha = if response.hovered() || response.is_pointer_button_down_on() {
+        MAIN_MUSIC_BUTTON_HOVER_FOREGROUND_ALPHA
+    } else {
+        MAIN_MUSIC_BUTTON_IDLE_FOREGROUND_ALPHA
+    };
+    egui::Color32::from_rgba_unmultiplied(base.r(), base.g(), base.b(), alpha)
 }
 
 pub(super) fn main_url_action_spinner_size_for_control_height(control_height: f32) -> f32 {
@@ -872,6 +1000,10 @@ pub(super) fn item_card_field_corner_radius() -> f32 {
     ITEM_CARD_FIELD_CORNER_RADIUS
 }
 
+pub(super) fn item_card_output_container_picker_width() -> f32 {
+    ITEM_CARD_OUTPUT_CONTAINER_PICKER_WIDTH
+}
+
 pub(super) fn item_card_field_text_available_width(rect: egui::Rect) -> f32 {
     (rect.width() - ITEM_CARD_FIELD_TEXT_WIDTH_REDUCTION_FROM_INSET).max(0.0)
 }
@@ -1283,19 +1415,64 @@ pub(super) fn format_picker_empty_message_top_vertical_spacing() -> f32 {
     FORMAT_PICKER_EMPTY_MESSAGE_TOP_VERTICAL_SPACING
 }
 
-pub(super) fn format_picker_section_description_height_for_option_count_and_compatibility_mode(
-    option_count: usize,
-    chapter_compatibility_mode: bool,
-) -> f32 {
-    if chapter_compatibility_mode && option_count > 1 {
-        FORMAT_PICKER_SECTION_DESCRIPTION_HEIGHT_WHEN_COMPATIBILITY_WARNING_VISIBLE
-    } else {
-        FORMAT_PICKER_SECTION_DESCRIPTION_HEIGHT_WHEN_COMPACT
-    }
-}
-
 pub(super) fn format_picker_section_row_height() -> f32 {
     FORMAT_PICKER_SECTION_ROW_HEIGHT
+}
+
+pub(super) fn format_picker_time_range_timeline_height() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_TIMELINE_HEIGHT
+}
+
+pub(super) fn format_picker_time_range_timeline_horizontal_inset() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_TIMELINE_HORIZONTAL_INSET
+}
+
+pub(super) fn format_picker_time_range_timeline_vertical_inset() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_TIMELINE_VERTICAL_INSET
+}
+
+pub(super) fn format_picker_time_range_track_stroke_width() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_TRACK_STROKE_WIDTH
+}
+
+pub(super) fn format_picker_time_range_chapter_marker_radius() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_CHAPTER_MARKER_RADIUS
+}
+
+pub(super) fn format_picker_time_range_playhead_stroke_width() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_PLAYHEAD_STROKE_WIDTH
+}
+
+pub(super) fn format_picker_time_range_playhead_radius() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_PLAYHEAD_RADIUS
+}
+
+pub(super) fn format_picker_time_range_segment_half_height() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_SEGMENT_HALF_HEIGHT
+}
+
+pub(super) fn format_picker_time_range_segment_corner_radius() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_SEGMENT_CORNER_RADIUS
+}
+
+pub(super) fn format_picker_time_range_boundary_notch_half_height() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_BOUNDARY_NOTCH_HALF_HEIGHT
+}
+
+pub(super) fn format_picker_time_range_snap_distance_pixels() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_SNAP_DISTANCE_PIXELS
+}
+
+pub(super) fn format_picker_time_range_marker_hit_radius_scale() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_MARKER_HIT_RADIUS_SCALE
+}
+
+pub(super) fn format_picker_time_range_marker_label_font_size() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_MARKER_LABEL_FONT_SIZE
+}
+
+pub(super) fn format_picker_time_range_timestamp_font_size() -> f32 {
+    FORMAT_PICKER_TIME_RANGE_TIMESTAMP_FONT_SIZE
 }
 
 pub(super) fn format_picker_filter_button_padding() -> egui::Vec2 {

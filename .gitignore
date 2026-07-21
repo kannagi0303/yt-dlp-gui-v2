@@ -4,6 +4,8 @@
 # Local machine-first notes.
 /notes/
 /AGENTS.md
+/.agents/
+/.codex/
 
 # Local generated docs.
 /docs/
@@ -16,6 +18,7 @@
 
 # Local app config.
 /yt-dlp-gui.yaml
+/edition.example.yaml
 
 # Local bundled tools and generated tool dumps.
 /tools/

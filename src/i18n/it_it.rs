@@ -181,12 +181,18 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_aria2_for_faster_downloads" => "Usa Aria2 per download più veloci",
         "advance.download_control" => "Controllo download",
         "advance.concurrent_fragments" => "Frammenti simultanei",
+        "advance.live_streams" => "Dirette streaming",
+        "advance.download_live_streams_from_start_experimental" => {
+            "Scarica le dirette dall'inizio (sperimentale)"
+        }
         "advance.1_default" => "1 (predefinito)",
         "advance.rate_limit" => "Limite velocità",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => {
             "es. 2M, 800K; lascia vuoto per illimitato"
         }
         "advance.chapters" => "Capitoli",
+        "advance.download_range" => "Intervallo di download",
+        "advance.always_show_download_range" => "Mostra sempre la selezione intervallo",
         "advance.chapter_download_compatibility_mode" => "Modalità compatibilità download capitoli",
         "advance.file_time" => "Ora file",
         "advance.file_time.none" => "Non modificare",
@@ -409,6 +415,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "eseguibile",
         "main.controlled_by_config" => "Controllato dalla configurazione: ",
         "main.controlled_by_config_2" => "Controllato dalla configurazione",
+        "picker.section_tab.chapters" => "Capitoli",
+        "picker.section_tab.time_range" => "Intervallo di tempo",
+        "picker.section_chapter_instructions" => {
+            "Seleziona uno o più capitoli. I capitoli adiacenti diventano un'unica uscita."
+        }
+        "picker.section_time_instructions" => {
+            "Sposta l'indicatore, imposta inizio e fine, quindi aggiungi l'intervallo."
+        }
+        "picker.section_time_unavailable" => {
+            "La durata del video non è disponibile; non è possibile creare un intervallo personalizzato."
+        }
+        "picker.section_select_all" => "Seleziona tutto",
+        "picker.section_from_selected_to_end" => "Dal primo selezionato alla fine",
+        "picker.section_set_start" => "Imposta inizio",
+        "picker.section_set_end" => "Imposta fine",
+        "picker.section_add_range" => "Aggiungi intervallo",
+        "picker.section_no_custom_ranges" => "Nessun intervallo di tempo personalizzato.",
         "picker.no_chapters_available" => "Nessun capitolo disponibile.",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "Scegli l’intervallo da scaricare per questo elemento. Il valore predefinito è l’intero video."
@@ -441,6 +464,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "Deciso dal formato video",
         "picker.not_selected" => "Non selezionato",
         "picker.full_video" => "Video completo",
+        "picker.section_summary.chapters" => "{chapters} capitoli selezionati · {outputs} uscite",
+        "picker.section_summary.custom" => "{ranges} intervalli · {outputs} uscite",
+        "picker.section_summary.combined" => {
+            "{chapters} capitoli + {ranges} intervalli · {outputs} uscite"
+        }
         "picker.no_translation" => "Nessuna traduzione",
         "picker.until_end" => "fine",
         "prepare.status.ready" => "Pronto",

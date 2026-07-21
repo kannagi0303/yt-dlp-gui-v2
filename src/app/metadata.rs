@@ -49,10 +49,8 @@ pub(super) fn extract_chapters(
                 .filter(|value| value.is_finite() && *value > start);
             let start_text = format_section_timestamp(start);
             let end_text = end.map(format_section_timestamp);
-            let download_sections = match end_text.as_deref() {
-                Some(end) => format!("*{start_text}-{end}"),
-                None => format!("*{start_text}-"),
-            };
+            let start_millis = seconds_to_millis(start);
+            let end_millis = end.map(seconds_to_millis);
             let title = chapter
                 .get("title")
                 .and_then(Value::as_str)
@@ -66,14 +64,15 @@ pub(super) fn extract_chapters(
                 title,
                 start_text,
                 end_text,
-                download_sections,
+                start_millis,
+                end_millis,
             ))
         })
         .collect()
 }
 
 fn format_section_timestamp(seconds: f64) -> String {
-    let total_millis = (seconds.max(0.0) * 1000.0).round() as u64;
+    let total_millis = seconds_to_millis(seconds);
     let millis = total_millis % 1000;
     let total_seconds = total_millis / 1000;
     let hours = total_seconds / 3600;
@@ -85,6 +84,10 @@ fn format_section_timestamp(seconds: f64) -> String {
     } else {
         format!("{hours:02}:{minutes:02}:{seconds:02}.{millis:03}")
     }
+}
+
+fn seconds_to_millis(seconds: f64) -> u64 {
+    (seconds.max(0.0) * 1000.0).round() as u64
 }
 
 pub(super) fn extract_formats(json: &Value) -> Vec<FormatOption> {

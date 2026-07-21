@@ -134,7 +134,9 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "youtube_login_rescue.clipboard_prefilled" => "已從剪貼簿帶入網址。",
         "youtube_login_rescue.drop_url_note" => "可貼上網址，或拖放 .url / 文字檔。",
         "youtube_login_rescue.paste_clipboard" => "貼上剪貼簿",
-        "youtube_login_rescue.cookie_note" => "進行登入操作，完成後會自動關閉套用。",
+        "youtube_login_rescue.cookie_note" => {
+            "完成登入後，請在網頁上方按「我已完成登入，儲存 cookies」。"
+        }
         "youtube_login_rescue.no_browser_title" => "找不到可用的瀏覽器",
         "youtube_login_rescue.no_browser_body" => {
             "取得 Cookie 目前需要 Chrome、Brave 或 Microsoft Edge。你也可以手動選擇 cookies.txt。"
@@ -142,12 +144,16 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "youtube_login_rescue.start" => "開始",
         "youtube_login_rescue.opening" => "正在開啟 {browser}...",
         "youtube_login_rescue.waiting_for_cdp" => "等待 {browser} 登入視窗連線...",
-        "youtube_login_rescue.waiting_for_cookie" => "登入視窗已連線，等待網站 Cookie...",
+        "youtube_login_rescue.waiting_for_cookie" => {
+            "登入視窗已連線，請完成登入後按網頁上方的儲存按鈕。"
+        }
         "youtube_login_rescue.cookie_exported" => "Cookie 已儲存。",
         "youtube_login_rescue.cookie_exported_note" => {
             "已儲存 {site} Cookie。下載該網站時會自動套用。"
         }
-        "youtube_login_rescue.do_not_close_note" => "檢查期間請先不要關閉登入瀏覽器。",
+        "youtube_login_rescue.do_not_close_note" => {
+            "按下網頁內儲存按鈕前，請先不要關閉登入瀏覽器。"
+        }
         "youtube_login_rescue.cdp_ready" => "登入視窗已連線。",
         "youtube_login_rescue.ready_next_step_note" => {
             "請在瀏覽器中完成 YouTube 登入。Cookie 匯出會在下一步加入。"
@@ -165,10 +171,14 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_aria2_for_faster_downloads" => "使用 Aria2 加速下載",
         "advance.download_control" => "下載控制",
         "advance.concurrent_fragments" => "並行分片",
+        "advance.live_streams" => "直播",
+        "advance.download_live_streams_from_start_experimental" => "從直播開頭開始下載（實驗性）",
         "advance.1_default" => "1（預設）",
         "advance.rate_limit" => "限速",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => "例如 2M、800K，留空不限速",
         "advance.chapters" => "章節",
+        "advance.download_range" => "下載範圍",
+        "advance.always_show_download_range" => "始終顯示範圍選取",
         "advance.chapter_download_compatibility_mode" => "章節下載相容模式",
         "advance.file_time" => "檔案時間",
         "advance.file_time.none" => "不變更",
@@ -353,6 +363,19 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "執行檔",
         "main.controlled_by_config" => "由設定檔控制：",
         "main.controlled_by_config_2" => "由設定檔控制",
+        "picker.section_tab.chapters" => "章節",
+        "picker.section_tab.time_range" => "時間範圍",
+        "picker.section_chapter_instructions" => {
+            "勾選一個或多個章節；相鄰章節會合併成同一個輸出檔。"
+        }
+        "picker.section_time_instructions" => "移動播放頭，依序設定起點與終點，再加入範圍。",
+        "picker.section_time_unavailable" => "無法取得影片總長度，因此目前不能建立自訂時間範圍。",
+        "picker.section_select_all" => "全選",
+        "picker.section_from_selected_to_end" => "從第一個已選章節到結尾",
+        "picker.section_set_start" => "設為起點",
+        "picker.section_set_end" => "設為終點",
+        "picker.section_add_range" => "加入範圍",
+        "picker.section_no_custom_ranges" => "尚未加入自訂時間範圍。",
         "picker.no_chapters_available" => "沒有可選擇的章節。",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "選擇這個項目要下載的範圍。預設為完整影片。"
@@ -379,6 +402,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "由 Video 格式決定",
         "picker.not_selected" => "未選擇",
         "picker.full_video" => "完整影片",
+        "picker.section_summary.chapters" => "已選 {chapters} 個章節 · {outputs} 個輸出檔",
+        "picker.section_summary.custom" => "{ranges} 個時間範圍 · {outputs} 個輸出檔",
+        "picker.section_summary.combined" => {
+            "{chapters} 個章節 + {ranges} 個時間範圍 · {outputs} 個輸出檔"
+        }
         "picker.no_translation" => "無翻譯",
         "picker.until_end" => "結尾",
         "prepare.status.ready" => "已就緒",

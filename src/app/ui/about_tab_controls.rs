@@ -186,19 +186,19 @@ fn component_row_overlay_style() -> taffy::Style {
     taffy::Style {
         position: taffy::Position::Absolute,
         size: taffy::Size {
-            width: percent(1.0),
-            height: percent(1.0),
+            width: percent(1.0_f32),
+            height: percent(1.0_f32),
         },
         min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
+            width: length(0.0_f32),
+            height: length(0.0_f32),
         },
         max_size: taffy::Size {
-            width: percent(1.0),
-            height: percent(1.0),
+            width: percent(1.0_f32),
+            height: percent(1.0_f32),
         },
-        margin: length(0.0),
-        padding: length(0.0),
+        margin: length(0.0_f32),
+        padding: length(0.0_f32),
         ..Default::default()
     }
 }

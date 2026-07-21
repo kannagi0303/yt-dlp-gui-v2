@@ -6,6 +6,10 @@ use super::{format_picker_filters, format_picker_subtitle};
 
 pub(super) fn pending_selection_summary(state: &AppState) -> Option<String> {
     let kind = state.format_picker.kind?;
+    if kind == FormatPickerKind::Section {
+        return (!state.pending_download_range_is_empty())
+            .then(|| state.pending_download_range_summary());
+    }
     if !matches!(kind, FormatPickerKind::Video | FormatPickerKind::Audio) {
         return None;
     }
@@ -32,12 +36,7 @@ pub(super) fn pending_selection_id(state: &AppState) -> Option<String> {
             .map(|option| option.id.clone());
     }
     if kind == FormatPickerKind::Section {
-        let options = state.download_section_picker_options();
-        return state
-            .format_picker
-            .selected_row
-            .and_then(|row| options.get(row))
-            .map(|(value, _label)| value.clone());
+        return Some(String::new());
     }
 
     pending_selected_format(state).map(|option| option.id.clone())

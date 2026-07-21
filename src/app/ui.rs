@@ -19,6 +19,7 @@ mod format_picker_selection;
 mod format_picker_subtitle;
 mod format_picker_table;
 mod format_picker_template;
+mod format_picker_time_range;
 mod item_card;
 mod item_card_compact;
 mod item_card_output_actions;
@@ -44,9 +45,12 @@ mod main_tab;
 mod main_tab_controls;
 mod main_tab_dependency_notice;
 mod main_tab_monitor_control;
+mod main_tab_music_aura;
+mod main_tab_music_aura_dynamics;
 mod main_tab_music_controls;
 mod main_tab_music_lyrics;
 mod main_tab_music_panel;
+mod main_tab_music_stage_controls;
 mod main_tab_output_actions;
 mod main_tab_template;
 mod main_tab_text_fields;
@@ -88,7 +92,34 @@ use eframe::egui::{self, CentralPanel, Ui};
 
 use crate::app::state::{AppState, AppTab};
 
-pub fn render_app(root_ui: &mut Ui, state: &mut AppState) {
+pub(crate) struct UiRenderResources {
+    music_player_aura: Option<main_tab_music_aura::MusicPlayerAuraRenderer>,
+}
+
+impl UiRenderResources {
+    pub(crate) fn new(gl: Option<&eframe::glow::Context>) -> Self {
+        let music_player_aura = gl.and_then(|gl| {
+            main_tab_music_aura::MusicPlayerAuraRenderer::new(gl)
+                .map_err(|error| {
+                    eprintln!("[music-aura] GPU renderer unavailable: {error}");
+                })
+                .ok()
+        });
+        Self { music_player_aura }
+    }
+
+    fn music_player_aura(&self) -> Option<main_tab_music_aura::MusicPlayerAuraRenderer> {
+        self.music_player_aura.clone()
+    }
+
+    pub(crate) fn destroy(&mut self, gl: Option<&eframe::glow::Context>) {
+        if let (Some(renderer), Some(gl)) = (self.music_player_aura.take(), gl) {
+            renderer.destroy(gl);
+        }
+    }
+}
+
+pub fn render_app(root_ui: &mut Ui, state: &mut AppState, render_resources: &UiRenderResources) {
     let prompt_open = state.youtube_playlist_prompt.is_some()
         || state.music_download_prompt_open()
         || state.youtube_login_rescue_dialog_visible();
@@ -100,7 +131,7 @@ pub fn render_app(root_ui: &mut Ui, state: &mut AppState) {
 
     CentralPanel::default()
         .frame(egui::Frame::NONE.fill(panel_fill))
-        .show_inside(root_ui, |ui| {
+        .show(root_ui, |ui| {
             titlebar::render_titlebar(ui, state);
 
             egui::Frame::NONE
@@ -132,8 +163,12 @@ pub fn render_app(root_ui: &mut Ui, state: &mut AppState) {
                             }
                         } else {
                             match state.active_tab {
-                                AppTab::Prepare => main_tab::render_main_tab(ui, state),
-                                AppTab::Main => main_tab::render_main_tab(ui, state),
+                                AppTab::Prepare => {
+                                    main_tab::render_main_tab(ui, state, render_resources)
+                                }
+                                AppTab::Main => {
+                                    main_tab::render_main_tab(ui, state, render_resources)
+                                }
                                 AppTab::Advance => advance_tab::render_advance_tab(ui, state),
                                 AppTab::Options => options_tab::render_options_tab(ui, state),
                                 AppTab::About => about_tab::render_about_tab(ui, state),

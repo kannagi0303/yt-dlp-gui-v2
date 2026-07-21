@@ -379,16 +379,16 @@ pub(super) fn xaml_horizontal_auto_stack_style(
         flex_direction: taffy::FlexDirection::Row,
         align_items: Some(align_items),
         size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: auto(),
         },
         min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
+            width: length(0.0_f32),
+            height: length(0.0_f32),
         },
         gap: length(gap.max(0.0)),
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -399,19 +399,19 @@ pub(super) fn xaml_weighted_width_auto_height_vertical_stack_style(gap: f32) -> 
         flex_direction: taffy::FlexDirection::Column,
         align_items: Some(taffy::AlignItems::Stretch),
         size: taffy::Size {
-            width: length(0.0),
+            width: length(0.0_f32),
             height: auto(),
         },
         min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
+            width: length(0.0_f32),
+            height: length(0.0_f32),
         },
-        flex_basis: length(0.0),
+        flex_basis: length(0.0_f32),
         flex_grow: 1.0,
         flex_shrink: 1.0,
         gap: length(gap.max(0.0)),
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -422,23 +422,23 @@ pub(super) fn xaml_horizontal_grow_root_style() -> taffy::Style {
         flex_direction: taffy::FlexDirection::Row,
         align_items: Some(taffy::AlignItems::Stretch),
         size: taffy::Size {
-            width: percent(1.0),
-            height: percent(1.0),
+            width: percent(1.0_f32),
+            height: percent(1.0_f32),
         },
         min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
+            width: length(0.0_f32),
+            height: length(0.0_f32),
         },
         max_size: taffy::Size {
-            width: percent(1.0),
-            height: percent(1.0),
+            width: percent(1.0_f32),
+            height: percent(1.0_f32),
         },
-        flex_basis: length(0.0),
+        flex_basis: length(0.0_f32),
         flex_grow: 1.0,
         flex_shrink: 1.0,
-        gap: length(0.0),
-        padding: length(0.0),
-        margin: length(0.0),
+        gap: length(0.0_f32),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -449,23 +449,23 @@ pub(super) fn xaml_vertical_grow_root_style() -> taffy::Style {
         flex_direction: taffy::FlexDirection::Column,
         align_items: Some(taffy::AlignItems::Stretch),
         size: taffy::Size {
-            width: percent(1.0),
-            height: percent(1.0),
+            width: percent(1.0_f32),
+            height: percent(1.0_f32),
         },
         min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
+            width: length(0.0_f32),
+            height: length(0.0_f32),
         },
         max_size: taffy::Size {
-            width: percent(1.0),
-            height: percent(1.0),
+            width: percent(1.0_f32),
+            height: percent(1.0_f32),
         },
-        flex_basis: length(0.0),
+        flex_basis: length(0.0_f32),
         flex_grow: 1.0,
         flex_shrink: 1.0,
-        gap: length(0.0),
-        padding: length(0.0),
-        margin: length(0.0),
+        gap: length(0.0_f32),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -498,6 +498,91 @@ pub(super) fn xaml_template_gap_style(parent_axis: TemplateAxis, size: f32) -> t
     xaml_template_child_style(parent_axis, TemplateSizing::FixedPx(size), None)
 }
 
+/// Relative layer host for XAML-style content with layout-owned overlays.
+///
+/// Children remain responsible for declaring either full-size flow content or
+/// an absolute edge attachment. Page code must not derive overlay coordinates
+/// from sibling rects.
+pub(super) fn xaml_overlay_host_style() -> taffy::Style {
+    taffy::Style {
+        display: taffy::Display::Block,
+        position: taffy::Position::Relative,
+        size: taffy::Size {
+            width: percent(1.0_f32),
+            height: percent(1.0_f32),
+        },
+        min_size: taffy::Size {
+            width: length(0.0_f32),
+            height: length(0.0_f32),
+        },
+        max_size: taffy::Size {
+            width: percent(1.0_f32),
+            height: percent(1.0_f32),
+        },
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
+        ..Default::default()
+    }
+}
+
+pub(super) fn xaml_overlay_content_style() -> taffy::Style {
+    taffy::Style {
+        display: taffy::Display::Flex,
+        flex_direction: taffy::FlexDirection::Column,
+        align_items: Some(taffy::AlignItems::Stretch),
+        position: taffy::Position::Absolute,
+        inset: taffy::Rect {
+            left: length(0.0_f32),
+            right: length(0.0_f32),
+            top: length(0.0_f32),
+            bottom: length(0.0_f32),
+        },
+        size: taffy::Size {
+            width: percent(1.0_f32),
+            height: percent(1.0_f32),
+        },
+        min_size: taffy::Size {
+            width: length(0.0_f32),
+            height: length(0.0_f32),
+        },
+        max_size: taffy::Size {
+            width: percent(1.0_f32),
+            height: percent(1.0_f32),
+        },
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
+        ..Default::default()
+    }
+}
+
+pub(super) fn xaml_bottom_overlay_style(height: f32) -> taffy::Style {
+    let height = height.max(0.0);
+    taffy::Style {
+        position: taffy::Position::Absolute,
+        inset: taffy::Rect {
+            left: length(0.0_f32),
+            right: length(0.0_f32),
+            top: auto(),
+            bottom: length(0.0_f32),
+        },
+        size: taffy::Size {
+            width: percent(1.0_f32),
+            height: length(height),
+        },
+        min_size: taffy::Size {
+            width: length(0.0_f32),
+            height: length(height),
+        },
+        max_size: taffy::Size {
+            width: percent(1.0_f32),
+            height: length(height),
+        },
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
+        ..Default::default()
+    }
+}
+
 fn xaml_template_base_child_style(
     parent_axis: TemplateAxis,
     child_axis: Option<TemplateAxis>,
@@ -508,9 +593,9 @@ fn xaml_template_base_child_style(
             None => taffy::Display::Block,
         },
         align_items: child_axis.map(|_| taffy::AlignItems::Stretch),
-        gap: length(0.0),
-        padding: length(0.0),
-        margin: length(0.0),
+        gap: length(0.0_f32),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     };
 
@@ -523,18 +608,18 @@ fn xaml_template_base_child_style(
 
     match parent_axis {
         TemplateAxis::Rows => {
-            style.size.width = percent(1.0);
-            style.max_size.width = percent(1.0);
+            style.size.width = percent(1.0_f32);
+            style.max_size.width = percent(1.0_f32);
         }
         TemplateAxis::Cols => {
-            style.size.height = percent(1.0);
-            style.max_size.height = percent(1.0);
+            style.size.height = percent(1.0_f32);
+            style.max_size.height = percent(1.0_f32);
         }
     }
 
     style.min_size = taffy::Size {
-        width: length(0.0),
-        height: length(0.0),
+        width: length(0.0_f32),
+        height: length(0.0_f32),
     };
     style
 }
@@ -556,16 +641,16 @@ fn apply_template_sizing(
             style.flex_shrink = 1.0;
         }
         (TemplateAxis::Rows, TemplateSizing::Star(weight)) => {
-            style.size.height = length(0.0);
-            style.max_size.height = percent(1.0);
-            style.flex_basis = length(0.0);
+            style.size.height = length(0.0_f32);
+            style.max_size.height = percent(1.0_f32);
+            style.flex_basis = length(0.0_f32);
             style.flex_grow = weight.max(0.0);
             style.flex_shrink = 1.0;
         }
         (TemplateAxis::Cols, TemplateSizing::Star(weight)) => {
-            style.size.width = length(0.0);
-            style.max_size.width = percent(1.0);
-            style.flex_basis = length(0.0);
+            style.size.width = length(0.0_f32);
+            style.max_size.width = percent(1.0_f32);
+            style.flex_basis = length(0.0_f32);
             style.flex_grow = weight.max(0.0);
             style.flex_shrink = 1.0;
         }
@@ -612,22 +697,22 @@ pub(super) fn xaml_fixed_height_vertical_stack_style(height: f32, gap: f32) -> t
         flex_direction: taffy::FlexDirection::Column,
         align_items: Some(taffy::AlignItems::Stretch),
         size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: length(height.max(0.0)),
         },
         min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
+            width: length(0.0_f32),
+            height: length(0.0_f32),
         },
         max_size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: length(height.max(0.0)),
         },
         flex_grow: 0.0,
         flex_shrink: 0.0,
         gap: length(gap.max(0.0)),
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -636,22 +721,65 @@ pub(super) fn xaml_shrinkable_fixed_height_block_style(height: f32) -> taffy::St
     taffy::Style {
         display: taffy::Display::Block,
         size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: length(height.max(0.0)),
         },
         min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
+            width: length(0.0_f32),
+            height: length(0.0_f32),
         },
         max_size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: length(height.max(0.0)),
         },
         flex_grow: 0.0,
         flex_shrink: 1.0,
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod overlay_style_tests {
+    use super::*;
+
+    #[test]
+    fn overlay_host_owns_relative_full_size_layout() {
+        let style = xaml_overlay_host_style();
+
+        assert_eq!(style.position, taffy::Position::Relative);
+        assert_eq!(style.size.width, percent(1.0_f32));
+        assert_eq!(style.size.height, percent(1.0_f32));
+    }
+
+    #[test]
+    fn bottom_overlay_is_absolute_and_height_bounded() {
+        let style = xaml_bottom_overlay_style(72.0);
+
+        assert_eq!(style.position, taffy::Position::Absolute);
+        assert_eq!(style.inset.left, length(0.0_f32));
+        assert_eq!(style.inset.right, length(0.0_f32));
+        assert_eq!(style.inset.bottom, length(0.0_f32));
+        assert_eq!(style.size.height, length(72.0_f32));
+        assert_eq!(style.min_size.height, length(72.0_f32));
+        assert_eq!(style.max_size.height, length(72.0_f32));
+    }
+
+    #[test]
+    fn overlay_content_is_an_absolute_full_size_layer() {
+        let style = xaml_overlay_content_style();
+
+        assert_eq!(style.display, taffy::Display::Flex);
+        assert_eq!(style.flex_direction, taffy::FlexDirection::Column);
+        assert_eq!(style.align_items, Some(taffy::AlignItems::Stretch));
+        assert_eq!(style.position, taffy::Position::Absolute);
+        assert_eq!(style.inset.left, length(0.0_f32));
+        assert_eq!(style.inset.right, length(0.0_f32));
+        assert_eq!(style.inset.top, length(0.0_f32));
+        assert_eq!(style.inset.bottom, length(0.0_f32));
+        assert_eq!(style.size.width, percent(1.0_f32));
+        assert_eq!(style.size.height, percent(1.0_f32));
     }
 }
 
@@ -661,16 +789,16 @@ pub(super) fn xaml_vertical_root_style(height: f32) -> taffy::Style {
         flex_direction: taffy::FlexDirection::Column,
         align_items: Some(taffy::AlignItems::Stretch),
         size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: length(height.max(0.0)),
         },
         min_size: taffy::Size {
-            width: percent(1.0),
-            height: length(0.0),
+            width: percent(1.0_f32),
+            height: length(0.0_f32),
         },
-        gap: length(0.0),
-        padding: length(0.0),
-        margin: length(0.0),
+        gap: length(0.0_f32),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -681,20 +809,20 @@ pub(super) fn xaml_vertical_auto_root_style() -> taffy::Style {
         flex_direction: taffy::FlexDirection::Column,
         align_items: Some(taffy::AlignItems::Stretch),
         size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: auto(),
         },
         min_size: taffy::Size {
-            width: percent(1.0),
-            height: length(0.0),
+            width: percent(1.0_f32),
+            height: length(0.0_f32),
         },
         max_size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: auto(),
         },
-        gap: length(0.0),
-        padding: length(0.0),
-        margin: length(0.0),
+        gap: length(0.0_f32),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -705,16 +833,16 @@ pub(super) fn xaml_vertical_auto_section_style() -> taffy::Style {
         flex_direction: taffy::FlexDirection::Column,
         align_items: Some(taffy::AlignItems::Stretch),
         size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: auto(),
         },
         min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
+            width: length(0.0_f32),
+            height: length(0.0_f32),
         },
-        gap: length(0.0),
-        padding: length(0.0),
-        margin: length(0.0),
+        gap: length(0.0_f32),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -723,15 +851,15 @@ pub(super) fn xaml_auto_height_block_style() -> taffy::Style {
     taffy::Style {
         display: taffy::Display::Block,
         size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: auto(),
         },
         min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
+            width: length(0.0_f32),
+            height: length(0.0_f32),
         },
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -740,21 +868,21 @@ pub(super) fn xaml_fixed_height_block_style(height: f32) -> taffy::Style {
     taffy::Style {
         display: taffy::Display::Block,
         size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: length(height.max(0.0)),
         },
         min_size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: length(height.max(0.0)),
         },
         max_size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: length(height.max(0.0)),
         },
         flex_grow: 0.0,
         flex_shrink: 0.0,
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -763,18 +891,18 @@ pub(super) fn xaml_grow_block_style() -> taffy::Style {
     taffy::Style {
         display: taffy::Display::Block,
         size: taffy::Size {
-            width: percent(1.0),
-            height: length(0.0),
+            width: percent(1.0_f32),
+            height: length(0.0_f32),
         },
         min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
+            width: length(0.0_f32),
+            height: length(0.0_f32),
         },
-        flex_basis: length(0.0),
+        flex_basis: length(0.0_f32),
         flex_grow: 1.0,
         flex_shrink: 1.0,
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -798,8 +926,8 @@ pub(super) fn xaml_fixed_size_flex_cell_style(width: f32, height: f32) -> taffy:
         flex_shrink: 0.0,
         align_items: Some(taffy::AlignItems::Stretch),
         justify_content: Some(taffy::JustifyContent::Center),
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -809,22 +937,22 @@ pub(super) fn xaml_fixed_width_stretch_height_flex_cell_style(width: f32) -> taf
         display: taffy::Display::Flex,
         size: taffy::Size {
             width: length(width.max(0.0)),
-            height: percent(1.0),
+            height: percent(1.0_f32),
         },
         min_size: taffy::Size {
             width: length(width.max(0.0)),
-            height: length(0.0),
+            height: length(0.0_f32),
         },
         max_size: taffy::Size {
             width: length(width.max(0.0)),
-            height: percent(1.0),
+            height: percent(1.0_f32),
         },
         flex_grow: 0.0,
         flex_shrink: 0.0,
         align_items: Some(taffy::AlignItems::Stretch),
         justify_content: Some(taffy::JustifyContent::Center),
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -833,22 +961,22 @@ pub(super) fn xaml_weighted_width_stretch_height_cell_style(weight: f32) -> taff
     taffy::Style {
         display: taffy::Display::Block,
         size: taffy::Size {
-            width: length(0.0),
-            height: percent(1.0),
+            width: length(0.0_f32),
+            height: percent(1.0_f32),
         },
         min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
+            width: length(0.0_f32),
+            height: length(0.0_f32),
         },
         max_size: taffy::Size {
-            width: percent(1.0),
-            height: percent(1.0),
+            width: percent(1.0_f32),
+            height: percent(1.0_f32),
         },
-        flex_basis: length(0.0),
+        flex_basis: length(0.0_f32),
         flex_grow: weight.max(0.0),
         flex_shrink: 1.0,
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -858,20 +986,20 @@ pub(super) fn xaml_fixed_width_stretch_height_gap_style(width: f32) -> taffy::St
         display: taffy::Display::Block,
         size: taffy::Size {
             width: length(width.max(0.0)),
-            height: percent(1.0),
+            height: percent(1.0_f32),
         },
         min_size: taffy::Size {
             width: length(width.max(0.0)),
-            height: length(0.0),
+            height: length(0.0_f32),
         },
         max_size: taffy::Size {
             width: length(width.max(0.0)),
-            height: percent(1.0),
+            height: percent(1.0_f32),
         },
         flex_grow: 0.0,
         flex_shrink: 0.0,
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -885,20 +1013,20 @@ pub(super) fn xaml_fixed_height_row_style(
         flex_direction: taffy::FlexDirection::Row,
         align_items: Some(taffy::AlignItems::Stretch),
         size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: length(row.height),
         },
         min_size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: length(row.height),
         },
         max_size: taffy::Size {
-            width: percent(1.0),
+            width: percent(1.0_f32),
             height: length(row.height),
         },
         gap: length(gap.max(0.0)),
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -942,20 +1070,20 @@ pub(super) fn xaml_measured_fixed_width_cell_style(measured: MeasuredUiElement) 
         display: taffy::Display::Block,
         size: taffy::Size {
             width: length(measured.size.width),
-            height: percent(1.0),
+            height: percent(1.0_f32),
         },
         min_size: taffy::Size {
             width: length(measured.size.width),
-            height: length(0.0),
+            height: length(0.0_f32),
         },
         max_size: taffy::Size {
             width: length(measured.size.width),
-            height: percent(1.0),
+            height: percent(1.0_f32),
         },
         flex_grow: 0.0,
         flex_shrink: 0.0,
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -967,17 +1095,17 @@ pub(super) fn xaml_measured_shrinkable_width_cell_style(
         display: taffy::Display::Block,
         size: taffy::Size {
             width: length(measured.size.width),
-            height: percent(1.0),
+            height: percent(1.0_f32),
         },
         min_size: taffy::Size {
-            width: length(0.0),
-            height: length(0.0),
+            width: length(0.0_f32),
+            height: length(0.0_f32),
         },
         flex_basis: length(measured.size.width),
         flex_grow: 0.0,
         flex_shrink: 1.0,
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }
@@ -990,18 +1118,18 @@ pub(super) fn xaml_star_width_cell_style(
     taffy::Style {
         display: taffy::Display::Block,
         size: taffy::Size {
-            width: length(0.0),
-            height: percent(1.0),
+            width: length(0.0_f32),
+            height: percent(1.0_f32),
         },
         min_size: taffy::Size {
             width: length(min_width.max(0.0)),
             height: length(row.height),
         },
-        flex_basis: length(0.0),
+        flex_basis: length(0.0_f32),
         flex_grow: star.max(0.0),
         flex_shrink: 1.0,
-        padding: length(0.0),
-        margin: length(0.0),
+        padding: length(0.0_f32),
+        margin: length(0.0_f32),
         ..Default::default()
     }
 }

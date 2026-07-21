@@ -139,7 +139,7 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "youtube_login_rescue.drop_url_note" => "Paste a URL, or drop a .url / text file.",
         "youtube_login_rescue.paste_clipboard" => "Paste clipboard",
         "youtube_login_rescue.cookie_note" => {
-            "Sign in there. After cookies are found, the window closes and applies them automatically."
+            "Sign in there, then click the top-page “I have finished signing in, save cookies” button."
         }
         "youtube_login_rescue.no_browser_title" => "No supported browser found",
         "youtube_login_rescue.no_browser_body" => {
@@ -151,14 +151,14 @@ pub fn text<'a>(key: &'a str) -> &'a str {
             "Waiting for the {browser} login window to connect..."
         }
         "youtube_login_rescue.waiting_for_cookie" => {
-            "Login window is connected. Waiting for website cookies..."
+            "Login window is connected. Sign in, then click the save button at the top of the page."
         }
         "youtube_login_rescue.cookie_exported" => "Cookie has been saved.",
         "youtube_login_rescue.cookie_exported_note" => {
             "Saved {site} Cookie. Downloads from that website will use it automatically."
         }
         "youtube_login_rescue.do_not_close_note" => {
-            "Please keep the login browser open while this check is running."
+            "Please keep the login browser open until you click the in-page save button."
         }
         "youtube_login_rescue.cdp_ready" => "Login window is connected.",
         "youtube_login_rescue.ready_next_step_note" => {
@@ -177,12 +177,18 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_aria2_for_faster_downloads" => "Use Aria2 for faster downloads",
         "advance.download_control" => "Download control",
         "advance.concurrent_fragments" => "Concurrent fragments",
+        "advance.live_streams" => "Live streams",
+        "advance.download_live_streams_from_start_experimental" => {
+            "Download live streams from the start (experimental)"
+        }
         "advance.1_default" => "1 (default)",
         "advance.rate_limit" => "Rate limit",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => {
             "e.g. 2M, 800K; leave empty for unlimited"
         }
         "advance.chapters" => "Chapters",
+        "advance.download_range" => "Download range",
+        "advance.always_show_download_range" => "Always show range selection",
         "advance.chapter_download_compatibility_mode" => "Chapter download compatibility mode",
         "advance.file_time" => "File time",
         "advance.file_time.none" => "Do not change",
@@ -395,6 +401,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "executable",
         "main.controlled_by_config" => "Controlled by config: ",
         "main.controlled_by_config_2" => "Controlled by config",
+        "picker.section_tab.chapters" => "Chapters",
+        "picker.section_tab.time_range" => "Time range",
+        "picker.section_chapter_instructions" => {
+            "Select one or more chapters. Adjacent chapters become one output."
+        }
+        "picker.section_time_instructions" => {
+            "Move the playhead, set the start and end, then add the range."
+        }
+        "picker.section_time_unavailable" => {
+            "The video duration is unavailable, so a custom time range cannot be created."
+        }
+        "picker.section_select_all" => "Select all",
+        "picker.section_from_selected_to_end" => "From first selected to end",
+        "picker.section_set_start" => "Set start",
+        "picker.section_set_end" => "Set end",
+        "picker.section_add_range" => "Add range",
+        "picker.section_no_custom_ranges" => "No custom time ranges added.",
         "picker.no_chapters_available" => "No chapters available.",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "Choose the range to download for this item. Default is the full video."
@@ -427,6 +450,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "Decided by video format",
         "picker.not_selected" => "Not selected",
         "picker.full_video" => "Full video",
+        "picker.section_summary.chapters" => "{chapters} chapters selected · {outputs} outputs",
+        "picker.section_summary.custom" => "{ranges} time ranges · {outputs} outputs",
+        "picker.section_summary.combined" => {
+            "{chapters} chapters + {ranges} time ranges · {outputs} outputs"
+        }
         "picker.no_translation" => "No translation",
         "picker.until_end" => "end",
         "prepare.status.ready" => "Ready",

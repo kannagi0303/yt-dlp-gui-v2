@@ -34,7 +34,7 @@ pub(super) fn render_youtube_login_rescue_dialog(ctx: &egui::Context, state: &mu
             ui.set_min_width(dialog_width);
             ui.set_max_width(dialog_width);
 
-            match state.youtube_login_rescue_phase {
+            match state.youtube_login_rescue_phase() {
                 YoutubeLoginRescuePhase::Confirm => {
                     render_youtube_login_rescue_confirm(ui, state, dialog_width)
                 }
@@ -55,7 +55,7 @@ pub(super) fn render_youtube_login_rescue_dialog(ctx: &egui::Context, state: &mu
         });
 }
 fn youtube_login_rescue_phase_window_id(state: &AppState) -> &'static str {
-    match state.youtube_login_rescue_phase {
+    match state.youtube_login_rescue_phase() {
         YoutubeLoginRescuePhase::Confirm => "confirm",
         YoutubeLoginRescuePhase::NoSupportedBrowser => "no-browser",
         YoutubeLoginRescuePhase::Starting => "starting",
@@ -69,21 +69,13 @@ fn youtube_login_rescue_phase_window_id(state: &AppState) -> &'static str {
 }
 fn youtube_login_rescue_dialog_width(ctx: &egui::Context, ui: &Ui, state: &AppState) -> f32 {
     let browser_name = state
-        .youtube_login_rescue_browser
-        .as_ref()
-        .map(|browser| browser.display_name.clone())
-        .unwrap_or_else(|| "Chrome".to_owned());
-    let site_name = state
-        .youtube_login_rescue_site_name
-        .as_deref()
-        .unwrap_or("Cookie");
-    let error_text = state
-        .youtube_login_rescue_error
-        .as_deref()
-        .unwrap_or_default();
+        .youtube_login_rescue_browser_display_name()
+        .unwrap_or("Chrome")
+        .to_owned();
+    let site_name = state.youtube_login_rescue_site_name().unwrap_or("Cookie");
+    let error_text = state.youtube_login_rescue_error().unwrap_or_default();
     let target_error_text = state
-        .youtube_login_rescue_target_error
-        .as_deref()
+        .youtube_login_rescue_target_error()
         .unwrap_or_default();
 
     let confirm_body = state.ui_i18n_text_with_replacements(
@@ -144,7 +136,7 @@ fn youtube_login_rescue_dialog_width(ctx: &egui::Context, ui: &Ui, state: &AppSt
     let no_actions: [&str; 0] = [];
 
     let (texts, action_texts, min_width): (&[&str], &[&str], f32) =
-        match state.youtube_login_rescue_phase {
+        match state.youtube_login_rescue_phase() {
             YoutubeLoginRescuePhase::Confirm => (
                 &confirm_texts,
                 &confirm_actions,
@@ -272,23 +264,22 @@ fn render_youtube_login_rescue_confirm(ui: &mut Ui, state: &mut AppState, dialog
     }
 
     let browser_name = state
-        .youtube_login_rescue_browser
-        .as_ref()
-        .map(|browser| browser.display_name.clone())
-        .unwrap_or_else(|| "Chrome".to_owned());
-    let mut target_url = state.youtube_login_rescue_target_url.clone();
+        .youtube_login_rescue_browser_display_name()
+        .unwrap_or("Chrome")
+        .to_owned();
+    let mut target_url = state.youtube_login_rescue_target_url().to_owned();
     let response = AppTextBox::new(&mut target_url)
         .hint_text(state.ui_i18n_text_for_key("youtube_login_rescue.target_url_hint"))
         .language(state.language())
         .syntax(AppTextBoxSyntax::Url)
         .desired_width(dialog_width)
-        .error(state.youtube_login_rescue_target_error.is_some())
+        .error(state.youtube_login_rescue_target_error().is_some())
         .ui(ui);
     if response.changed() {
         state.set_youtube_login_rescue_target_url(target_url);
     }
 
-    if let Some(error) = state.youtube_login_rescue_target_error.as_ref() {
+    if let Some(error) = state.youtube_login_rescue_target_error() {
         ui.colored_label(ui.visuals().error_fg_color, state.localize_message(error));
     }
 
@@ -363,11 +354,10 @@ fn render_youtube_login_rescue_no_browser(ui: &mut Ui, state: &mut AppState) {
 }
 fn render_youtube_login_rescue_running(ui: &mut Ui, state: &mut AppState) {
     let browser_name = state
-        .youtube_login_rescue_browser
-        .as_ref()
-        .map(|browser| browser.display_name.clone())
-        .unwrap_or_else(|| "Chrome".to_owned());
-    let key = match state.youtube_login_rescue_phase {
+        .youtube_login_rescue_browser_display_name()
+        .unwrap_or("Chrome")
+        .to_owned();
+    let key = match state.youtube_login_rescue_phase() {
         YoutubeLoginRescuePhase::Starting => "youtube_login_rescue.opening",
         YoutubeLoginRescuePhase::WaitingForCookie => "youtube_login_rescue.waiting_for_cookie",
         _ => "youtube_login_rescue.waiting_for_cdp",
@@ -384,10 +374,7 @@ fn render_youtube_login_rescue_exported(ui: &mut Ui, state: &mut AppState) {
     ui.label(
         RichText::new(state.ui_i18n_text_for_key("youtube_login_rescue.cookie_exported")).strong(),
     );
-    let site_name = state
-        .youtube_login_rescue_site_name
-        .as_deref()
-        .unwrap_or("Cookie");
+    let site_name = state.youtube_login_rescue_site_name().unwrap_or("Cookie");
     ui.label(state.ui_i18n_text_with_replacements(
         "youtube_login_rescue.cookie_exported_note",
         &[("{site}", site_name)],
@@ -411,7 +398,7 @@ fn render_youtube_login_rescue_exported(ui: &mut Ui, state: &mut AppState) {
 }
 fn render_youtube_login_rescue_failed(ui: &mut Ui, state: &mut AppState) {
     ui.label(RichText::new(state.ui_i18n_text_for_key("youtube_login_rescue.failed")).strong());
-    if let Some(error) = state.youtube_login_rescue_error.as_ref() {
+    if let Some(error) = state.youtube_login_rescue_error() {
         ui.label(error);
     }
     ui.add_space(semantic_ui_metrics::cookie_acquisition_dialog_field_to_body_vertical_spacing());

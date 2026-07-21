@@ -1,3 +1,5 @@
+use super::{DownloadContainerPreference, DownloadRangeSelection};
+
 #[derive(Clone)]
 pub struct VideoMetadata {
     pub title: String,
@@ -8,6 +10,7 @@ pub struct VideoMetadata {
     pub creator: String,
     pub creator_url: String,
     pub duration_text: String,
+    pub duration_millis: Option<u64>,
     pub webpage_url: String,
     pub description: String,
     pub view_count_text: String,
@@ -30,6 +33,7 @@ impl VideoMetadata {
             creator: String::new(),
             creator_url: String::new(),
             duration_text: String::new(),
+            duration_millis: None,
             webpage_url: String::new(),
             description: String::new(),
             view_count_text: String::new(),
@@ -49,7 +53,8 @@ pub struct ChapterOption {
     pub title: String,
     pub start_text: String,
     pub end_text: Option<String>,
-    pub download_sections: String,
+    pub start_millis: u64,
+    pub end_millis: Option<u64>,
 }
 
 impl ChapterOption {
@@ -58,14 +63,16 @@ impl ChapterOption {
         title: impl Into<String>,
         start_text: impl Into<String>,
         end_text: Option<String>,
-        download_sections: impl Into<String>,
+        start_millis: u64,
+        end_millis: Option<u64>,
     ) -> Self {
         Self {
             id: id.into(),
             title: title.into(),
             start_text: start_text.into(),
             end_text,
-            download_sections: download_sections.into(),
+            start_millis,
+            end_millis,
         }
     }
 
@@ -492,7 +499,8 @@ pub struct DownloadSelection {
     pub use_aria2: bool,
     pub output_dir: String,
     pub file_name: String,
-    pub download_sections: String,
+    pub container_preference: DownloadContainerPreference,
+    pub download_range: DownloadRangeSelection,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -501,7 +509,8 @@ pub struct CompletedSelection {
     pub audio_selector: String,
     pub subtitle_selector: String,
     pub file_name: String,
-    pub download_sections: String,
+    pub container_preference: DownloadContainerPreference,
+    pub download_range: DownloadRangeSelection,
     pub write_thumbnail: bool,
     pub embed_thumbnail: bool,
     pub write_subtitles: bool,
@@ -517,7 +526,8 @@ impl CompletedSelection {
             audio_selector: selection.audio_selector.clone(),
             subtitle_selector: selection.subtitle_selector.clone(),
             file_name: selection.file_name.clone(),
-            download_sections: selection.download_sections.clone(),
+            container_preference: selection.container_preference,
+            download_range: selection.download_range.clone(),
             write_thumbnail: selection.write_thumbnail,
             embed_thumbnail: selection.embed_thumbnail,
             write_subtitles: selection.write_subtitles,
@@ -546,7 +556,8 @@ impl Default for DownloadSelection {
             use_aria2: false,
             output_dir: "Desktop".to_owned(),
             file_name: String::new(),
-            download_sections: String::new(),
+            container_preference: DownloadContainerPreference::Auto,
+            download_range: DownloadRangeSelection::default(),
         }
     }
 }

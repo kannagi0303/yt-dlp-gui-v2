@@ -170,10 +170,14 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_aria2_for_faster_downloads" => "使用 Aria2 加速下载",
         "advance.download_control" => "下载控制",
         "advance.concurrent_fragments" => "并行分片",
+        "advance.live_streams" => "直播",
+        "advance.download_live_streams_from_start_experimental" => "从直播开头开始下载（实验性）",
         "advance.1_default" => "1（默认）",
         "advance.rate_limit" => "限速",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => "例如 2M、800K，留空不限速",
         "advance.chapters" => "章节",
+        "advance.download_range" => "下载范围",
+        "advance.always_show_download_range" => "始终显示范围选择",
         "advance.chapter_download_compatibility_mode" => "章节下载兼容模式",
         "advance.file_time" => "文件时间",
         "advance.file_time.none" => "不更改",
@@ -356,6 +360,19 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "可执行文件",
         "main.controlled_by_config" => "由配置控制：",
         "main.controlled_by_config_2" => "由配置控制",
+        "picker.section_tab.chapters" => "章节",
+        "picker.section_tab.time_range" => "时间范围",
+        "picker.section_chapter_instructions" => {
+            "选择一个或多个章节；相邻章节会合并为同一个输出文件。"
+        }
+        "picker.section_time_instructions" => "移动播放头，依次设置起点和终点，然后添加范围。",
+        "picker.section_time_unavailable" => "无法获取视频总时长，因此目前不能创建自定义时间范围。",
+        "picker.section_select_all" => "全选",
+        "picker.section_from_selected_to_end" => "从第一个已选章节到结尾",
+        "picker.section_set_start" => "设为起点",
+        "picker.section_set_end" => "设为终点",
+        "picker.section_add_range" => "添加范围",
+        "picker.section_no_custom_ranges" => "尚未添加自定义时间范围。",
         "picker.no_chapters_available" => "没有可用章节。",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "选择此项目要下载的范围。默认是完整视频。"
@@ -382,6 +399,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "由 Video 格式决定",
         "picker.not_selected" => "未选择",
         "picker.full_video" => "完整视频",
+        "picker.section_summary.chapters" => "已选 {chapters} 个章节 · {outputs} 个输出文件",
+        "picker.section_summary.custom" => "{ranges} 个时间范围 · {outputs} 个输出文件",
+        "picker.section_summary.combined" => {
+            "{chapters} 个章节 + {ranges} 个时间范围 · {outputs} 个输出文件"
+        }
         "picker.no_translation" => "无翻译",
         "picker.until_end" => "结尾",
         "prepare.status.ready" => "已就绪",

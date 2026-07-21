@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use eframe::egui::{
     self, Align2, Color32, Response, RichText, Sense, Stroke, TextStyle, TextWrapMode, Ui,
     WidgetText,
@@ -20,6 +22,20 @@ pub(super) enum CompactRowVisualState {
     Failed,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum CompactRowActivityPulse {
+    #[default]
+    None,
+    CachePreparing,
+    MixNextStandby,
+}
+
+impl CompactRowActivityPulse {
+    fn is_active(self) -> bool {
+        self != Self::None
+    }
+}
+
 pub(super) struct CompactRowSpec<'a> {
     pub id_salt: u64,
     pub title: &'a str,
@@ -31,7 +47,9 @@ pub(super) struct CompactRowSpec<'a> {
     pub show_progress: bool,
     pub is_current: bool,
     pub is_playing: bool,
+    pub activity_pulse: CompactRowActivityPulse,
     pub play_enabled: bool,
+    pub cover_uses_mix_next: bool,
     pub remove_enabled: bool,
 }
 
@@ -62,6 +80,10 @@ pub(super) fn render_music_compact_row(ui: &mut Ui, spec: CompactRowSpec<'_>) ->
         stroke,
         egui::StrokeKind::Outside,
     );
+
+    if spec.activity_pulse.is_active() {
+        render_activity_breathing_row(ui, row_rect, spec.activity_pulse);
+    }
 
     let progress = spec.progress.clamp(0.0, 1.0);
     if spec.show_progress && progress > 0.0 && progress < 0.999 {
@@ -99,14 +121,26 @@ pub(super) fn render_music_compact_row(ui: &mut Ui, spec: CompactRowSpec<'_>) ->
             Sense::hover()
         },
     );
+    play_response.clone().on_hover_text(if spec.is_playing {
+        "Pause"
+    } else if spec.cover_uses_mix_next {
+        "Mix next"
+    } else {
+        "Play"
+    });
     render_compact_cover(ui, cover_rect, spec.thumbnail_url, spec.thumbnail_source);
     render_cover_play_overlay(
         ui,
         cover_rect,
         &play_response,
-        spec.play_enabled && (response.hovered() || spec.is_current),
+        spec.play_enabled
+            && (response.hovered() || spec.is_current || spec.activity_pulse.is_active()),
         spec.is_playing,
+        spec.cover_uses_mix_next,
     );
+    if spec.activity_pulse.is_active() {
+        render_activity_breathing_cover(ui, cover_rect, spec.activity_pulse);
+    }
 
     if spec.is_current {
         let marker_rect = semantic_ui_metrics::music_compact_current_marker_rect_for_row(row_rect);
@@ -198,6 +232,61 @@ fn compact_progress_fill(ui: &Ui) -> Color32 {
     } else {
         Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 90)
     }
+}
+
+fn render_activity_breathing_row(ui: &Ui, rect: egui::Rect, activity: CompactRowActivityPulse) {
+    ui.ctx().request_repaint_after(Duration::from_millis(80));
+    let phase = ui.input(|input| input.time) * std::f64::consts::TAU / 1.35;
+    let pulse = ((phase.sin() as f32) * 0.5 + 0.5).clamp(0.0, 1.0);
+    let color = accent_blue_for_ui(ui);
+    let (tint_base, tint_span, glow_base, glow_span, stroke_base, stroke_span) = match activity {
+        CompactRowActivityPulse::MixNextStandby => (20.0, 30.0, 80.0, 95.0, 1.15, 0.75),
+        CompactRowActivityPulse::CachePreparing => (10.0, 18.0, 52.0, 68.0, 0.95, 0.55),
+        CompactRowActivityPulse::None => return,
+    };
+    let corner_radius = semantic_ui_metrics::music_compact_row_corner_radius();
+    let tint = Color32::from_rgba_unmultiplied(
+        color.r(),
+        color.g(),
+        color.b(),
+        (tint_base + tint_span * pulse).round().clamp(0.0, 72.0) as u8,
+    );
+    let glow = Color32::from_rgba_unmultiplied(
+        color.r(),
+        color.g(),
+        color.b(),
+        (glow_base + glow_span * pulse).round().clamp(0.0, 210.0) as u8,
+    );
+    ui.painter().rect_filled(rect, corner_radius, tint);
+    ui.painter().rect_stroke(
+        rect.expand(0.75 + 1.25 * pulse),
+        corner_radius,
+        Stroke::new(stroke_base + stroke_span * pulse, glow),
+        egui::StrokeKind::Outside,
+    );
+}
+
+fn render_activity_breathing_cover(ui: &Ui, rect: egui::Rect, activity: CompactRowActivityPulse) {
+    let phase = ui.input(|input| input.time) * std::f64::consts::TAU / 1.18;
+    let pulse = ((phase.sin() as f32) * 0.5 + 0.5).clamp(0.0, 1.0);
+    let color = accent_blue_for_ui(ui);
+    let (glow_base, glow_span, stroke_base, stroke_span) = match activity {
+        CompactRowActivityPulse::MixNextStandby => (96.0, 96.0, 1.2, 0.8),
+        CompactRowActivityPulse::CachePreparing => (62.0, 72.0, 1.0, 0.6),
+        CompactRowActivityPulse::None => return,
+    };
+    let glow = Color32::from_rgba_unmultiplied(
+        color.r(),
+        color.g(),
+        color.b(),
+        (glow_base + glow_span * pulse).round().clamp(0.0, 220.0) as u8,
+    );
+    ui.painter().rect_stroke(
+        rect.expand(1.0 + 1.2 * pulse),
+        semantic_ui_metrics::music_compact_cover_corner_radius(),
+        Stroke::new(stroke_base + stroke_span * pulse, glow),
+        egui::StrokeKind::Outside,
+    );
 }
 
 fn subtle_tint(ui: &Ui, color: Color32, strength: f32) -> Color32 {
@@ -292,6 +381,7 @@ fn render_cover_play_overlay(
     response: &Response,
     visible: bool,
     is_playing: bool,
+    uses_mix_next: bool,
 ) {
     if !visible && !response.hovered() {
         return;
@@ -306,6 +396,8 @@ fn render_cover_play_overlay(
     ui.painter().circle_filled(center, radius, fill);
     let icon = if is_playing {
         AppIcon::Pause
+    } else if uses_mix_next {
+        AppIcon::SkipNext
     } else {
         AppIcon::Play
     };

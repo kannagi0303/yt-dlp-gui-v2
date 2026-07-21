@@ -1,21 +1,19 @@
 use std::time::{SystemTime as StdSystemTime, UNIX_EPOCH};
 
 fn main() {
-    emit_build_date();
+    let build_date = build_date_string();
+    emit_build_date(&build_date);
 
     #[cfg(target_os = "windows")]
-    embed_windows_resources();
+    embed_windows_resources(&build_date);
 }
 
-fn emit_build_date() {
+fn emit_build_date(build_date: &str) {
     println!("cargo:rerun-if-env-changed=YT_DLP_GUI_BUILD_DATE");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=src");
-    println!(
-        "cargo:rustc-env=YT_DLP_GUI_BUILD_DATE={}",
-        build_date_string()
-    );
+    println!("cargo:rustc-env=YT_DLP_GUI_BUILD_DATE={build_date}");
 }
 
 fn build_date_string() -> String {
@@ -103,10 +101,36 @@ unsafe extern "system" {
 }
 
 #[cfg(target_os = "windows")]
-fn embed_windows_resources() {
+fn embed_windows_resources(build_date: &str) {
+    let windows_version = windows_version_from_build_date(build_date);
+    let display_version = format!("{build_date}.0");
     let mut resource = winres::WindowsResource::new();
-    resource.set_icon("assets/logo.ico");
+    resource
+        .set_icon("assets/logo.ico")
+        .set("FileVersion", &display_version)
+        .set("ProductVersion", &display_version)
+        .set_version_info(winres::VersionInfo::FILEVERSION, windows_version)
+        .set_version_info(winres::VersionInfo::PRODUCTVERSION, windows_version);
     resource
         .compile()
         .expect("failed to embed Windows application icon");
+}
+
+#[cfg(target_os = "windows")]
+fn windows_version_from_build_date(build_date: &str) -> u64 {
+    let mut parts = build_date.split('.');
+    let year = parts
+        .next()
+        .and_then(|value| value.parse::<u64>().ok())
+        .expect("build date year must be numeric");
+    let month = parts
+        .next()
+        .and_then(|value| value.parse::<u64>().ok())
+        .expect("build date month must be numeric");
+    let day = parts
+        .next()
+        .and_then(|value| value.parse::<u64>().ok())
+        .expect("build date day must be numeric");
+    assert!(parts.next().is_none(), "build date must have three parts");
+    (year << 48) | (month << 32) | (day << 16)
 }

@@ -183,12 +183,18 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_aria2_for_faster_downloads" => "Использовать Aria2 для более быстрых загрузок",
         "advance.download_control" => "Управление загрузкой",
         "advance.concurrent_fragments" => "Одновременные фрагменты",
+        "advance.live_streams" => "Прямые трансляции",
+        "advance.download_live_streams_from_start_experimental" => {
+            "Скачивать прямые трансляции с начала (экспериментально)"
+        }
         "advance.1_default" => "1 (по умолчанию)",
         "advance.rate_limit" => "Ограничение скорости",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => {
             "например 2M, 800K; оставьте пустым без ограничения"
         }
         "advance.chapters" => "Главы",
+        "advance.download_range" => "Диапазон загрузки",
+        "advance.always_show_download_range" => "Всегда показывать выбор диапазона",
         "advance.chapter_download_compatibility_mode" => "Режим совместимости загрузки глав",
         "advance.file_time" => "Время файла",
         "advance.file_time.none" => "Не изменять",
@@ -407,6 +413,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "исполняемый файл",
         "main.controlled_by_config" => "Задано конфигурацией: ",
         "main.controlled_by_config_2" => "Задано конфигурацией",
+        "picker.section_tab.chapters" => "Главы",
+        "picker.section_tab.time_range" => "Диапазон времени",
+        "picker.section_chapter_instructions" => {
+            "Выберите одну или несколько глав. Смежные главы образуют один выходной файл."
+        }
+        "picker.section_time_instructions" => {
+            "Переместите позицию, задайте начало и конец, затем добавьте диапазон."
+        }
+        "picker.section_time_unavailable" => {
+            "Длительность видео недоступна, поэтому создать свой диапазон нельзя."
+        }
+        "picker.section_select_all" => "Выбрать все",
+        "picker.section_from_selected_to_end" => "От первой выбранной до конца",
+        "picker.section_set_start" => "Задать начало",
+        "picker.section_set_end" => "Задать конец",
+        "picker.section_add_range" => "Добавить диапазон",
+        "picker.section_no_custom_ranges" => "Пользовательские диапазоны времени не добавлены.",
         "picker.no_chapters_available" => "Нет доступных глав.",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "Выберите диапазон загрузки для этого элемента. По умолчанию загружается всё видео."
@@ -433,6 +456,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "Определяется форматом видео",
         "picker.not_selected" => "Не выбрано",
         "picker.full_video" => "Полное видео",
+        "picker.section_summary.chapters" => "Выбрано глав: {chapters} · файлов: {outputs}",
+        "picker.section_summary.custom" => "Диапазонов: {ranges} · файлов: {outputs}",
+        "picker.section_summary.combined" => {
+            "Глав: {chapters} + диапазонов: {ranges} · файлов: {outputs}"
+        }
         "picker.no_translation" => "Без перевода",
         "picker.until_end" => "конец",
         "prepare.status.ready" => "Готово",

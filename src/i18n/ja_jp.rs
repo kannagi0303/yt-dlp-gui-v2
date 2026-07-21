@@ -179,10 +179,16 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_aria2_for_faster_downloads" => "Aria2で高速化",
         "advance.download_control" => "ダウンロード制御",
         "advance.concurrent_fragments" => "同時フラグメント",
+        "advance.live_streams" => "ライブ配信",
+        "advance.download_live_streams_from_start_experimental" => {
+            "ライブ配信を最初からダウンロード（試験的）"
+        }
         "advance.1_default" => "1（既定）",
         "advance.rate_limit" => "速度制限",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => "例: 2M、800K。空欄なら無制限",
         "advance.chapters" => "チャプター",
+        "advance.download_range" => "ダウンロード範囲",
+        "advance.always_show_download_range" => "範囲選択を常に表示",
         "advance.chapter_download_compatibility_mode" => "チャプター互換モード",
         "advance.file_time" => "ファイル日時",
         "advance.file_time.none" => "変更しない",
@@ -401,6 +407,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "実行ファイル",
         "main.controlled_by_config" => "設定ファイルで制御: ",
         "main.controlled_by_config_2" => "設定ファイルで制御",
+        "picker.section_tab.chapters" => "チャプター",
+        "picker.section_tab.time_range" => "時間範囲",
+        "picker.section_chapter_instructions" => {
+            "1つ以上のチャプターを選択します。連続するチャプターは1つの出力になります。"
+        }
+        "picker.section_time_instructions" => {
+            "再生位置を動かして開始点と終了点を設定し、範囲を追加します。"
+        }
+        "picker.section_time_unavailable" => {
+            "動画の長さを取得できないため、カスタム時間範囲を作成できません。"
+        }
+        "picker.section_select_all" => "すべて選択",
+        "picker.section_from_selected_to_end" => "最初の選択から最後まで",
+        "picker.section_set_start" => "開始点に設定",
+        "picker.section_set_end" => "終了点に設定",
+        "picker.section_add_range" => "範囲を追加",
+        "picker.section_no_custom_ranges" => "カスタム時間範囲はありません。",
         "picker.no_chapters_available" => "選択できるチャプターがありません。",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "この項目でダウンロードする範囲を選択します。既定は動画全体です。"
@@ -433,6 +456,11 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "Video形式で決定",
         "picker.not_selected" => "未選択",
         "picker.full_video" => "フル動画",
+        "picker.section_summary.chapters" => "{chapters}チャプター選択 · {outputs}出力",
+        "picker.section_summary.custom" => "{ranges}時間範囲 · {outputs}出力",
+        "picker.section_summary.combined" => {
+            "{chapters}チャプター + {ranges}時間範囲 · {outputs}出力"
+        }
         "picker.no_translation" => "翻訳なし",
         "picker.until_end" => "最後",
         "prepare.status.ready" => "準備完了",

@@ -47,6 +47,11 @@ pub(super) fn about_component_ids(state: &AppState) -> Vec<ManagedComponentId> {
     ]
     .into_iter()
     .filter(|id| {
+        if crate::infrastructure::app_self_update_disabled_for_custom_edition()
+            && *id == ManagedComponentId::App
+        {
+            return false;
+        }
         if *id != ManagedComponentId::Aria2c {
             return true;
         }

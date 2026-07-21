@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fs::{self, File};
 use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
@@ -11,6 +12,16 @@ const USER_AGENT: &str = "yt-dlp-gui-v2";
 const TOOL_INSTALL_CANCELLED: &str = "Dependency deployment cancelled.";
 const TOOL_DOWNLOAD_RETRY_ATTEMPTS: usize = 3;
 const TOOL_DOWNLOAD_RETRY_BACKOFF_BASE_MS: u64 = 600;
+const PORTABLE_TOOL_SEARCH_MAX_DEPTH: usize = 4;
+const PORTABLE_TOOL_SEARCH_SKIPPED_DIRS: &[&str] = &[
+    ".git",
+    "cache",
+    "data",
+    "download",
+    "downloads",
+    "node_modules",
+    "target",
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DependencyTool {
@@ -174,8 +185,95 @@ pub fn ffprobe_companion_path(ffmpeg_path: &str) -> PathBuf {
         .unwrap_or_else(|| resolve_support_path(".\\tools\\ffmpeg\\ffprobe.exe"))
 }
 
-pub fn detect_dependency_tool_in_system_path(tool: DependencyTool) -> Option<PathBuf> {
-    find_dependency_tool_in_system_path(tool)
+pub fn detect_dependency_tool(tool: DependencyTool) -> Option<PathBuf> {
+    find_dependency_tool_in_base_dirs(tool, &portable_tool_search_base_dirs())
+        .or_else(|| find_dependency_tool_in_system_path(tool))
+}
+
+fn portable_tool_search_base_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Some(executable_dir) = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+    {
+        dirs.push(executable_dir);
+    }
+    let portable_root = portable_root_dir();
+    if !dirs.iter().any(|dir| dir == &portable_root) {
+        dirs.push(portable_root);
+    }
+    dirs
+}
+
+fn find_dependency_tool_in_base_dirs(
+    tool: DependencyTool,
+    base_dirs: &[PathBuf],
+) -> Option<PathBuf> {
+    for base_dir in base_dirs {
+        if let Some(path) = find_dependency_tool_under_base(tool, base_dir) {
+            return Some(path);
+        }
+    }
+    None
+}
+
+fn find_dependency_tool_under_base(tool: DependencyTool, base_dir: &Path) -> Option<PathBuf> {
+    if !base_dir.is_dir() {
+        return None;
+    }
+
+    if let Some(path) = find_dependency_tool_directly_in(tool, base_dir) {
+        return Some(path);
+    }
+
+    let mut queue = VecDeque::new();
+    queue.push_back((base_dir.to_path_buf(), 0_usize));
+    while let Some((dir, depth)) = queue.pop_front() {
+        if depth >= PORTABLE_TOOL_SEARCH_MAX_DEPTH {
+            continue;
+        }
+
+        let mut child_dirs = fs::read_dir(&dir)
+            .ok()
+            .into_iter()
+            .flat_map(|entries| entries.flatten())
+            .filter_map(|entry| {
+                let file_type = entry.file_type().ok()?;
+                if !file_type.is_dir() || file_type.is_symlink() {
+                    return None;
+                }
+                let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+                if PORTABLE_TOOL_SEARCH_SKIPPED_DIRS.contains(&name.as_str()) {
+                    return None;
+                }
+                Some(entry.path())
+            })
+            .collect::<Vec<_>>();
+        child_dirs.sort();
+
+        for child_dir in child_dirs {
+            if let Some(path) = find_dependency_tool_directly_in(tool, &child_dir) {
+                return Some(path);
+            }
+            queue.push_back((child_dir, depth + 1));
+        }
+    }
+    None
+}
+
+fn find_dependency_tool_directly_in(tool: DependencyTool, dir: &Path) -> Option<PathBuf> {
+    for name in system_path_executable_candidates(tool) {
+        let candidate = dir.join(name);
+        if dependency_tool_candidate_is_available(tool, &candidate) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn dependency_tool_candidate_is_available(tool: DependencyTool, candidate: &Path) -> bool {
+    candidate.is_file()
+        && (tool != DependencyTool::Ffmpeg || ffprobe_for_ffmpeg_path(candidate).is_file())
 }
 
 fn find_dependency_tool_in_system_path(tool: DependencyTool) -> Option<PathBuf> {
@@ -183,16 +281,61 @@ fn find_dependency_tool_in_system_path(tool: DependencyTool) -> Option<PathBuf> 
     for dir in std::env::split_paths(&path_value) {
         for name in system_path_executable_candidates(tool) {
             let candidate = dir.join(name);
-            if !candidate.is_file() {
-                continue;
+            if dependency_tool_candidate_is_available(tool, &candidate) {
+                return Some(candidate);
             }
-            if tool == DependencyTool::Ffmpeg && !ffprobe_for_ffmpeg_path(&candidate).is_file() {
-                continue;
-            }
-            return Some(candidate);
         }
     }
     None
+}
+
+#[cfg(test)]
+mod portable_detection_tests {
+    use super::*;
+
+    fn unique_test_root(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "yt-dlp-gui-v2-{name}-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ))
+    }
+
+    #[test]
+    fn portable_detection_finds_tool_beside_gui_or_in_nested_folder() {
+        let root = unique_test_root("portable-tool-detection");
+        let nested = root.join("vendor").join("yt-dlp");
+        fs::create_dir_all(&nested).expect("create nested tool folder");
+        let yt_dlp = nested.join("yt-dlp.exe");
+        fs::write(&yt_dlp, b"test").expect("create yt-dlp candidate");
+
+        let found = find_dependency_tool_in_base_dirs(DependencyTool::YtDlp, &[root.clone()]);
+
+        assert_eq!(found, Some(yt_dlp));
+        fs::remove_dir_all(root).expect("remove test folder");
+    }
+
+    #[test]
+    fn portable_ffmpeg_detection_requires_ffprobe_companion() {
+        let root = unique_test_root("portable-ffmpeg-detection");
+        fs::create_dir_all(&root).expect("create portable root");
+        let ffmpeg = root.join("ffmpeg.exe");
+        fs::write(&ffmpeg, b"test").expect("create ffmpeg candidate");
+
+        assert_eq!(
+            find_dependency_tool_in_base_dirs(DependencyTool::Ffmpeg, &[root.clone()]),
+            None
+        );
+
+        fs::write(root.join("ffprobe.exe"), b"test").expect("create ffprobe companion");
+        assert_eq!(
+            find_dependency_tool_in_base_dirs(DependencyTool::Ffmpeg, &[root.clone()]),
+            Some(ffmpeg)
+        );
+        fs::remove_dir_all(root).expect("remove test folder");
+    }
 }
 
 fn system_path_executable_candidates(tool: DependencyTool) -> &'static [&'static str] {

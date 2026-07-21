@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 use super::cookie_site_index::{
     CookieSiteIndexEntry, read_cookie_site_index_or_default, write_cookie_site_index,
 };
+use super::process_guard::{TrackedChildProcess, track_child_process};
 
 const CDP_POLL_ATTEMPTS: usize = 80;
 const CDP_POLL_INTERVAL: Duration = Duration::from_millis(250);
@@ -52,6 +53,7 @@ pub struct YoutubeLoginRescueSession {
     pub cdp_version_url: String,
     pub cdp_websocket_url: Option<String>,
     child: Option<Child>,
+    process_guard: Option<TrackedChildProcess>,
 }
 
 impl YoutubeLoginRescueSession {
@@ -114,6 +116,7 @@ impl YoutubeLoginRescueSession {
             }
         }
         self.child = None;
+        self.process_guard = None;
 
         if self.user_data_dir.exists() {
             let _ = fs::remove_dir_all(&self.user_data_dir);
@@ -215,6 +218,10 @@ pub fn launch_youtube_login_rescue_session(
         format!("Could not launch {}: {error}", browser.display_name)
     })?;
     let process_id = child.id();
+    let process_guard = track_child_process(
+        &child,
+        format!("cookie rescue browser {}", browser.display_name),
+    );
 
     match wait_for_cdp_version(&version_url) {
         Ok((cdp_version_url, cdp_websocket_url)) => Ok(YoutubeLoginRescueSession {
@@ -225,6 +232,7 @@ pub fn launch_youtube_login_rescue_session(
             cdp_version_url,
             cdp_websocket_url,
             child: Some(child),
+            process_guard: Some(process_guard),
         }),
         Err(error) => {
             let mut session = YoutubeLoginRescueSession {
@@ -235,6 +243,7 @@ pub fn launch_youtube_login_rescue_session(
                 cdp_version_url: version_url,
                 cdp_websocket_url: None,
                 child: Some(child),
+                process_guard: Some(process_guard),
             };
             let _ = session.close();
             Err(error)
@@ -284,7 +293,10 @@ fn run_youtube_login_rescue_cookie_export_inner(
         .filter(|cookie| is_cookie_rescue_auth_cookie(cookie, &site))
         .count();
     if filtered.is_empty() {
-        return Err(format!("No cookies were found for {}.", site.display_name));
+        return Err(format!(
+            "No cookies were found for {} after confirmation.",
+            site.display_name
+        ));
     }
 
     let cookie_file_path = cookie_dir_path.join(format!("{}.cookies.txt", site.site_id));
@@ -320,6 +332,8 @@ fn wait_for_cookie_rescue_cookies(
 
     for _ in 0..COOKIE_POLL_ATTEMPTS {
         session.ensure_login_browser_is_still_open()?;
+        let mut latest_cookies = None;
+
         match read_all_browser_cookies(session) {
             Ok(cookies) => {
                 let filtered = filter_cookies_for_site(cookies.clone(), target_site);
@@ -327,18 +341,34 @@ fn wait_for_cookie_rescue_cookies(
                     .iter()
                     .filter(|cookie| is_cookie_rescue_auth_cookie(cookie, target_site))
                     .count();
-                if target_site.is_youtube {
+                latest_cookies = Some(cookies);
+
+                if cookie_rescue_site_supports_auto_detection(target_site) {
                     if auth_cookie_count > 0 {
-                        return Ok(cookies);
+                        return latest_cookies.ok_or_else(|| {
+                            "Cookie Rescue could not read cookies after auto detection.".to_owned()
+                        });
                     }
-                    last_error = "Waiting for YouTube login cookies.".to_owned();
-                } else if auth_cookie_count > 0 {
-                    return Ok(cookies);
+
+                    if target_site.is_youtube {
+                        last_error = "Waiting for YouTube login cookies.".to_owned();
+                    } else if filtered.is_empty() {
+                        last_error =
+                            format!("Waiting for cookies from {}.", target_site.display_name);
+                    } else {
+                        last_error = format!(
+                            "Cookies were found for {}, but no known login cookie was detected yet.",
+                            target_site.display_name
+                        );
+                    }
                 } else if filtered.is_empty() {
-                    last_error = format!("Waiting for cookies from {}.", target_site.display_name);
+                    last_error = format!(
+                        "Waiting for cookies from {} or manual confirmation.",
+                        target_site.display_name
+                    );
                 } else {
                     last_error = format!(
-                        "Cookies were found for {}, but no login-like cookies were detected yet.",
+                        "Cookies were found for {}. Waiting for manual confirmation.",
                         target_site.display_name
                     );
                 }
@@ -351,20 +381,157 @@ fn wait_for_cookie_rescue_cookies(
                 last_error = error;
             }
         }
+
+        match cookie_rescue_confirmation_was_clicked(session) {
+            Ok(true) => {
+                if let Some(cookies) = latest_cookies {
+                    return Ok(cookies);
+                }
+                return read_all_browser_cookies(session);
+            }
+            Ok(false) => {}
+            Err(error) => {
+                session.ensure_login_browser_is_still_open()?;
+                if is_closed_login_browser_page_error(&error) {
+                    return Err("Login browser was closed before Cookie could be saved.".to_owned());
+                }
+                if last_error.trim().is_empty() {
+                    last_error = error;
+                }
+            }
+        }
+
         thread::sleep(COOKIE_POLL_INTERVAL);
     }
 
     if last_error.trim().is_empty() {
         Err(format!(
-            "Timed out waiting for login cookies from {}.",
+            "Timed out waiting for login cookies or confirmation from {}.",
             target_site.display_name
         ))
     } else {
         Err(format!(
-            "Timed out waiting for login cookies from {}. Last status: {last_error}",
+            "Timed out waiting for login cookies or confirmation from {}. Last status: {last_error}",
             target_site.display_name
         ))
     }
+}
+
+fn cookie_rescue_confirmation_was_clicked(
+    session: &YoutubeLoginRescueSession,
+) -> Result<bool, String> {
+    let targets = read_page_targets(session.remote_debugging_port)?;
+    let mut last_error = String::new();
+    let mut saw_page = false;
+
+    for target in targets {
+        if !target.url.starts_with("http://") && !target.url.starts_with("https://") {
+            continue;
+        }
+        saw_page = true;
+        match inject_cookie_rescue_confirmation_button(&target.ws_url) {
+            Ok(true) => return Ok(true),
+            Ok(false) => {}
+            Err(error) => last_error = error,
+        }
+    }
+
+    if saw_page {
+        Ok(false)
+    } else if last_error.trim().is_empty() {
+        Err("No website page is available in the login browser yet.".to_owned())
+    } else {
+        Err(last_error)
+    }
+}
+
+fn inject_cookie_rescue_confirmation_button(ws_url: &str) -> Result<bool, String> {
+    let response = cdp_call(
+        ws_url,
+        "Runtime.evaluate",
+        Some(json!({
+            "expression": cookie_rescue_confirmation_button_script(),
+            "awaitPromise": false,
+            "returnByValue": true
+        })),
+    )?;
+
+    Ok(response
+        .get("result")
+        .and_then(|result| result.get("result"))
+        .and_then(|result| result.get("value"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false))
+}
+
+fn cookie_rescue_confirmation_button_script() -> &'static str {
+    r#"(() => {
+  const rootId = '__yt_dlp_gui_cookie_rescue_confirm_root';
+  const flag = '__ytDlpGuiCookieRescueConfirmed';
+  const buttonText = '我已完成登入，儲存 cookies';
+  const clickedText = '正在儲存 cookies...';
+
+  if (!document || !document.documentElement || !document.body) {
+    return !!window[flag];
+  }
+
+  let root = document.getElementById(rootId);
+  if (!root) {
+    root = document.createElement('div');
+    root.id = rootId;
+    root.setAttribute('data-yt-dlp-gui-cookie-rescue', 'true');
+    root.style.cssText = [
+      'position:fixed',
+      'top:0',
+      'left:0',
+      'right:0',
+      'z-index:2147483647',
+      'display:flex',
+      'justify-content:center',
+      'align-items:center',
+      'gap:10px',
+      'padding:10px 12px',
+      'box-sizing:border-box',
+      'background:rgba(17,24,39,.96)',
+      'color:white',
+      'font:14px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+      'box-shadow:0 8px 24px rgba(0,0,0,.25)',
+      'pointer-events:auto'
+    ].join(';');
+
+    const note = document.createElement('span');
+    note.textContent = 'yt-dlp-gui Cookie Rescue';
+    note.style.cssText = 'opacity:.86;white-space:nowrap';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = buttonText;
+    button.style.cssText = [
+      'appearance:none',
+      'border:0',
+      'border-radius:999px',
+      'padding:8px 14px',
+      'font:600 14px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+      'background:white',
+      'color:#111827',
+      'cursor:pointer',
+      'box-shadow:0 2px 8px rgba(0,0,0,.2)'
+    ].join(';');
+    button.addEventListener('click', () => {
+      window[flag] = true;
+      button.disabled = true;
+      button.textContent = clickedText;
+      button.style.cursor = 'default';
+      button.style.opacity = '.72';
+    });
+
+    root.appendChild(note);
+    root.appendChild(button);
+    document.documentElement.appendChild(root);
+  }
+
+  return !!window[flag];
+})()"#
 }
 
 fn is_closed_login_browser_page_error(error: &str) -> bool {
@@ -481,7 +648,7 @@ fn cookie_rescue_start_page_html(browser_name: &str) -> String {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>yt-dlp-gui-v2 Cookie Rescue</title>
+<title>yt-dlp-gui Cookie Rescue</title>
 <style>
 :root {{ color-scheme: light dark; }}
 body {{
@@ -513,9 +680,10 @@ kbd {{
 </head>
 <body>
 <main>
-  <h1>yt-dlp-gui-v2 Cookie Rescue</h1>
+  <h1>yt-dlp-gui Cookie Rescue</h1>
   <p>Please type the website that needs login in the browser address bar, then sign in there.</p>
-  <p>After cookies are detected, yt-dlp-gui-v2 will save them and close this dedicated {browser_name} window.</p>
+  <p>For supported mainstream sites, cookies may be saved automatically after known login cookies are detected.</p>
+  <p>For other sites, finish signing in and press the in-page button to save cookies in this dedicated {browser_name} window.</p>
   <p class="note">This is a dedicated temporary login environment. It does not read your regular browser profile.</p>
   <p class="note">You can use <kbd>Ctrl</kbd> + <kbd>L</kbd> to focus the address bar.</p>
 </main>
@@ -726,16 +894,43 @@ fn is_youtube_google_domain(domain: &str) -> bool {
         || normalized == "accounts.google.com"
 }
 
+fn cookie_rescue_site_supports_auto_detection(site: &CookieRescueSite) -> bool {
+    site.is_youtube
+        || matches!(
+            site.root_domain.as_str(),
+            "instagram.com"
+                | "facebook.com"
+                | "twitter.com"
+                | "x.com"
+                | "tiktok.com"
+                | "reddit.com"
+        )
+}
+
 fn is_cookie_rescue_auth_cookie(cookie: &CdpCookie, site: &CookieRescueSite) -> bool {
     if site.is_youtube {
         return is_youtube_auth_cookie(cookie);
     }
+
+    if cookie.value.trim().is_empty() {
+        return false;
+    }
+
     let name = cookie.name.to_ascii_lowercase();
-    [
-        "auth", "login", "session", "token", "sid", "uid", "user", "member", "passport", "account",
-    ]
-    .iter()
-    .any(|needle| name.contains(needle))
+    match site.root_domain.as_str() {
+        // Instagram sets visitor and CSRF cookies before login.  In particular,
+        // `csrftoken` used to match the old generic `token` substring and made
+        // Cookie Rescue close before the user actually signed in.
+        "instagram.com" => matches!(name.as_str(), "sessionid" | "ds_user_id"),
+        "facebook.com" => matches!(name.as_str(), "c_user" | "xs"),
+        "twitter.com" | "x.com" => matches!(name.as_str(), "auth_token" | "twid"),
+        "tiktok.com" => matches!(
+            name.as_str(),
+            "sessionid" | "sid_tt" | "uid_tt" | "sid_guard" | "passport_csrf_token"
+        ),
+        "reddit.com" => matches!(name.as_str(), "reddit_session" | "token_v2"),
+        _ => false,
+    }
 }
 
 fn is_youtube_auth_cookie(cookie: &CdpCookie) -> bool {
@@ -837,7 +1032,7 @@ fn write_netscape_cookie_file(
 
     let mut output = String::new();
     output.push_str("# Netscape HTTP Cookie File\n");
-    output.push_str("# Generated by yt-dlp-gui-v2 Cookie Rescue. Do not share this file.\n");
+    output.push_str("# Generated by yt-dlp-gui Cookie Rescue. Do not share this file.\n");
     output.push_str(&format!(
         "# This file contains cookies for {} and is used by yt-dlp.\n\n",
         site.display_name
@@ -1262,7 +1457,8 @@ fn detect_default_supported_browser() -> Result<Option<YoutubeLoginRescueBrowser
 
 #[cfg(target_os = "windows")]
 fn windows_default_https_prog_id() -> Result<Option<String>, String> {
-    let output = Command::new("reg")
+    let mut command = Command::new("reg");
+    let output = command
         .args([
             "query",
             r"HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice",

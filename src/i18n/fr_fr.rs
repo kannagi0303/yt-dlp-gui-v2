@@ -189,12 +189,18 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         }
         "advance.download_control" => "Contrôle du téléchargement",
         "advance.concurrent_fragments" => "Fragments simultanés",
+        "advance.live_streams" => "Diffusions en direct",
+        "advance.download_live_streams_from_start_experimental" => {
+            "Télécharger les diffusions depuis le début (expérimental)"
+        }
         "advance.1_default" => "1 (par défaut)",
         "advance.rate_limit" => "Limite de débit",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => {
             "p. ex. 2M, 800K ; laisser vide pour illimité"
         }
         "advance.chapters" => "Chapitres",
+        "advance.download_range" => "Plage de téléchargement",
+        "advance.always_show_download_range" => "Toujours afficher la sélection de plage",
         "advance.chapter_download_compatibility_mode" => {
             "Mode de compatibilité du téléchargement par chapitres"
         }
@@ -425,6 +431,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "exécutable",
         "main.controlled_by_config" => "Contrôlé par la configuration : ",
         "main.controlled_by_config_2" => "Contrôlé par la configuration",
+        "picker.section_tab.chapters" => "Chapitres",
+        "picker.section_tab.time_range" => "Plage temporelle",
+        "picker.section_chapter_instructions" => {
+            "Sélectionnez un ou plusieurs chapitres. Les chapitres adjacents forment une seule sortie."
+        }
+        "picker.section_time_instructions" => {
+            "Déplacez la tête de lecture, définissez le début et la fin, puis ajoutez la plage."
+        }
+        "picker.section_time_unavailable" => {
+            "La durée de la vidéo est indisponible ; aucune plage personnalisée ne peut être créée."
+        }
+        "picker.section_select_all" => "Tout sélectionner",
+        "picker.section_from_selected_to_end" => "Du premier sélectionné à la fin",
+        "picker.section_set_start" => "Définir le début",
+        "picker.section_set_end" => "Définir la fin",
+        "picker.section_add_range" => "Ajouter la plage",
+        "picker.section_no_custom_ranges" => "Aucune plage temporelle personnalisée.",
         "picker.no_chapters_available" => "Aucun chapitre disponible.",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "Choisissez la plage à télécharger pour cet élément. Par défaut, toute la vidéo est utilisée."
@@ -457,6 +480,13 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "Défini par le format vidéo",
         "picker.not_selected" => "Non sélectionné",
         "picker.full_video" => "Vidéo complète",
+        "picker.section_summary.chapters" => {
+            "{chapters} chapitres sélectionnés · {outputs} sorties"
+        }
+        "picker.section_summary.custom" => "{ranges} plages temporelles · {outputs} sorties",
+        "picker.section_summary.combined" => {
+            "{chapters} chapitres + {ranges} plages · {outputs} sorties"
+        }
         "picker.no_translation" => "Aucune traduction",
         "picker.until_end" => "fin",
         "prepare.status.ready" => "Prêt",

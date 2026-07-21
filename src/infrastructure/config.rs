@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::i18n::LanguageSelection;
 
-use super::tool_install::{DependencyTool, detect_dependency_tool_in_system_path};
+use super::tool_install::{DependencyTool, detect_dependency_tool};
 use super::tools::{CacheLocationMode, FileTimeMode, ToolPaths};
 
 #[derive(Clone, Debug)]
@@ -38,6 +38,7 @@ pub struct AppConfig {
     pub youtube_subs_po_token: String,
     pub youtube_extractor_args: String,
     pub concurrent_fragments: usize,
+    pub live_from_start: bool,
     #[serde(alias = "ProxyEnabled")]
     pub proxy_enabled: bool,
     #[serde(alias = "ProxyUrl")]
@@ -48,6 +49,7 @@ pub struct AppConfig {
     #[serde(alias = "TimeRange")]
     pub download_sections: String,
     pub chapter_compatibility_mode: bool,
+    pub always_show_download_range: bool,
     #[serde(alias = "ModifiedType")]
     pub file_time_mode: FileTimeMode,
     #[serde(alias = "UseAria2")]
@@ -843,12 +845,14 @@ impl Default for AppConfig {
             youtube_subs_po_token: String::new(),
             youtube_extractor_args: String::new(),
             concurrent_fragments: 1,
+            live_from_start: true,
             proxy_enabled: false,
             proxy_url: String::new(),
             no_check_certificates: false,
             limit_rate: String::new(),
             download_sections: String::new(),
             chapter_compatibility_mode: true,
+            always_show_download_range: false,
             file_time_mode: FileTimeMode::None,
             use_aria2: false,
             thumbnail_mode: PostProcessMode::Off,
@@ -1012,6 +1016,7 @@ impl AppConfig {
             youtube_subs_po_token: self.youtube_subs_po_token.clone(),
             youtube_extractor_args: self.youtube_extractor_args.clone(),
             concurrent_fragments: self.concurrent_fragments,
+            live_from_start: self.live_from_start,
             proxy_enabled: self.proxy_enabled,
             proxy_url: self.proxy_url.clone(),
             no_check_certificates: self.no_check_certificates,
@@ -1037,10 +1042,10 @@ impl AppConfig {
             self.cache_dir = normalize_stored_path(&self.cache_dir);
         }
 
-        normalize_tool_path(&mut self.yt_dlp_path, tool_kind::YT_DLP);
-        normalize_tool_path(&mut self.ffmpeg_path, tool_kind::FFMPEG);
-        normalize_tool_path(&mut self.aria2c_path, tool_kind::ARIA2C);
-        normalize_tool_path(&mut self.deno_path, tool_kind::DENO);
+        normalize_tool_path(&mut self.yt_dlp_path, DependencyTool::YtDlp);
+        normalize_tool_path(&mut self.ffmpeg_path, DependencyTool::Ffmpeg);
+        normalize_tool_path(&mut self.aria2c_path, DependencyTool::Aria2c);
+        normalize_tool_path(&mut self.deno_path, DependencyTool::Deno);
 
         if !self.browser_cookie_file.trim().is_empty() {
             self.browser_cookie_file = normalize_stored_path(&self.browser_cookie_file);
@@ -1150,11 +1155,37 @@ mod tests {
         assert!(!yaml.contains("write_chapters"));
         assert!(!yaml.contains("embed_chapters"));
     }
+
+    #[test]
+    fn live_from_start_defaults_on_and_round_trips_when_disabled() {
+        assert!(AppConfig::default().live_from_start);
+
+        let mut config = AppConfig::default();
+        config.live_from_start = false;
+        let yaml = serde_yaml::to_string(&config).expect("serialize config");
+        let restored = serde_yaml::from_str::<AppConfig>(&yaml).expect("deserialize config");
+
+        assert!(yaml.contains("live_from_start: false"));
+        assert!(!restored.live_from_start);
+    }
+
+    #[test]
+    fn always_show_download_range_defaults_off_and_round_trips_when_enabled() {
+        assert!(!AppConfig::default().always_show_download_range);
+
+        let mut config = AppConfig::default();
+        config.always_show_download_range = true;
+        let yaml = serde_yaml::to_string(&config).expect("serialize config");
+        let restored = serde_yaml::from_str::<AppConfig>(&yaml).expect("deserialize config");
+
+        assert!(yaml.contains("always_show_download_range: true"));
+        assert!(restored.always_show_download_range);
+    }
 }
 
-fn normalize_tool_path(path: &mut String, kind: ToolKind) {
+fn normalize_tool_path(path: &mut String, kind: DependencyTool) {
     if path.trim().is_empty() || !resolved_file_exists(path.as_str()) {
-        *path = discover_tool(kind)
+        *path = detect_dependency_tool(kind)
             .map(|path| portable_path_string(&path))
             .unwrap_or_else(|| kind.default_portable_path().to_owned());
     } else {
@@ -1336,90 +1367,4 @@ fn portable_path_string(path: &Path) -> String {
     } else {
         path.display().to_string()
     }
-}
-
-fn discover_tool(kind: ToolKind) -> Option<PathBuf> {
-    for base in candidate_base_dirs() {
-        let tools_dir = base.join("tools");
-        if !tools_dir.is_dir() {
-            continue;
-        }
-
-        let mut stack = vec![tools_dir];
-        while let Some(dir) = stack.pop() {
-            let Ok(entries) = fs::read_dir(dir) else {
-                continue;
-            };
-
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    stack.push(path);
-                    continue;
-                }
-                if !path.is_file() {
-                    continue;
-                }
-
-                let file_name = path
-                    .file_name()
-                    .map(|value| value.to_string_lossy().to_ascii_lowercase())
-                    .unwrap_or_default();
-                if kind.matches(&file_name) {
-                    return Some(path);
-                }
-            }
-        }
-    }
-
-    detect_dependency_tool_in_system_path(kind.dependency_tool())
-}
-
-#[derive(Clone, Copy)]
-enum ToolKind {
-    YtDlp,
-    Ffmpeg,
-    Aria2c,
-    Deno,
-}
-
-impl ToolKind {
-    fn matches(self, file_name: &str) -> bool {
-        match self {
-            Self::YtDlp => {
-                (file_name.starts_with("yt-dlp") || file_name.starts_with("ytdl-patched"))
-                    && file_name.ends_with(".exe")
-            }
-            Self::Ffmpeg => file_name == "ffmpeg.exe",
-            Self::Aria2c => file_name.starts_with("aria2") && file_name.ends_with(".exe"),
-            Self::Deno => file_name == "deno.exe",
-        }
-    }
-
-    fn default_portable_path(self) -> &'static str {
-        match self {
-            Self::YtDlp => ".\\tools\\yt-dlp\\yt-dlp.exe",
-            Self::Ffmpeg => ".\\tools\\ffmpeg\\ffmpeg.exe",
-            Self::Aria2c => ".\\tools\\aria2c\\aria2c.exe",
-            Self::Deno => ".\\tools\\deno\\deno.exe",
-        }
-    }
-
-    fn dependency_tool(self) -> DependencyTool {
-        match self {
-            Self::YtDlp => DependencyTool::YtDlp,
-            Self::Ffmpeg => DependencyTool::Ffmpeg,
-            Self::Aria2c => DependencyTool::Aria2c,
-            Self::Deno => DependencyTool::Deno,
-        }
-    }
-}
-
-mod tool_kind {
-    use super::ToolKind;
-
-    pub const YT_DLP: ToolKind = ToolKind::YtDlp;
-    pub const FFMPEG: ToolKind = ToolKind::Ffmpeg;
-    pub const ARIA2C: ToolKind = ToolKind::Aria2c;
-    pub const DENO: ToolKind = ToolKind::Deno;
 }

@@ -16,6 +16,8 @@ use super::tool_install::{self, DependencyTool};
 use super::yaml_store::{read_yaml_file, write_yaml_file};
 
 const USER_AGENT: &str = "yt-dlp-gui";
+// GitHub owner: かんなぎ (Kannagi) / Shirase Hiyori.
+// Keep the value itself as the repository owner so update checks continue to work.
 const APP_OWNER: &str = "kannagi0303";
 const APP_REPO: &str = "yt-dlp-gui-v2";
 const DOWNLOAD_BUFFER: usize = 1024 * 1024;
@@ -591,6 +593,28 @@ pub fn clear_pending_app_update_manifest() {
     let _ = fs::remove_file(pending_app_update_manifest_path());
 }
 
+pub fn app_self_update_disabled_for_custom_edition() -> bool {
+    super::edition::current_exe_has_edition_manifest()
+}
+
+fn custom_edition_app_update_blocked_entry() -> ComponentUpdateEntry {
+    let mut entry = ComponentUpdateEntry::new(ManagedComponentId::App);
+    entry.ownership = ComponentOwnership::ManagedPortable;
+    entry.local_version = current_app_build_version();
+    entry.status = ComponentUpdateStatus::Skipped;
+    entry.message = "app self-update is disabled for Custom Edition".to_owned();
+    entry
+}
+
+fn runtime_component_ids() -> Vec<ManagedComponentId> {
+    ManagedComponentId::ALL
+        .into_iter()
+        .filter(|id| {
+            !(app_self_update_disabled_for_custom_edition() && *id == ManagedComponentId::App)
+        })
+        .collect()
+}
+
 pub fn run_component_update_action(
     action: ComponentUpdateAction,
     proxy_url: Option<String>,
@@ -605,7 +629,7 @@ pub fn run_component_update_action(
         ComponentUpdateAction::UpdateOne(id) => format!("updating {}", id.label()),
     };
     if snapshot.entries.is_empty() {
-        snapshot.entries = ManagedComponentId::ALL
+        snapshot.entries = runtime_component_ids()
             .into_iter()
             .map(ComponentUpdateEntry::new)
             .collect();
@@ -680,7 +704,7 @@ fn mark_action_entries_started(
 fn component_update_action_initial_ids(action: &ComponentUpdateAction) -> Vec<ManagedComponentId> {
     match action {
         ComponentUpdateAction::CheckAll | ComponentUpdateAction::UpdateAllManaged => {
-            ManagedComponentId::ALL.to_vec()
+            runtime_component_ids()
         }
         ComponentUpdateAction::UpdateMany(ids) => deduplicate_component_ids(ids.clone()),
         ComponentUpdateAction::UpdateOne(id) => vec![*id],
@@ -698,21 +722,31 @@ fn deduplicate_component_ids(ids: Vec<ManagedComponentId>) -> Vec<ManagedCompone
 }
 
 fn refresh_snapshot_local_component_state(snapshot: &mut ComponentUpdateSnapshot) {
-    for id in ManagedComponentId::ALL {
+    for id in runtime_component_ids() {
         let ownership = component_ownership(id);
         let local_version = local_component_version(id);
         let entry = snapshot.ensure_entry_mut(id);
         apply_local_component_probe(entry, ownership, local_version);
     }
+    if app_self_update_disabled_for_custom_edition() {
+        snapshot
+            .ensure_entry_mut(ManagedComponentId::App)
+            .clone_from(&custom_edition_app_update_blocked_entry());
+    }
 }
 
 fn refresh_snapshot_local_component_presence(snapshot: &mut ComponentUpdateSnapshot) {
-    for id in ManagedComponentId::ALL {
+    for id in runtime_component_ids() {
         let ownership = component_ownership(id);
         let entry = snapshot.ensure_entry_mut(id);
         let cached_version =
             startup_cached_local_version(id, ownership, entry.local_version.clone());
         apply_local_component_probe(entry, ownership, cached_version);
+    }
+    if app_self_update_disabled_for_custom_edition() {
+        snapshot
+            .ensure_entry_mut(ManagedComponentId::App)
+            .clone_from(&custom_edition_app_update_blocked_entry());
     }
 }
 
@@ -761,7 +795,8 @@ fn check_all_components(
     proxy_url: Option<&str>,
     emit: &mut impl FnMut(ComponentUpdateEvent),
 ) -> Result<(), String> {
-    check_components(snapshot, &ManagedComponentId::ALL, proxy_url, emit)
+    let ids = runtime_component_ids();
+    check_components(snapshot, &ids, proxy_url, emit)
 }
 
 fn check_components(
@@ -794,7 +829,8 @@ fn update_all_managed(
 ) -> Result<(), String> {
     check_all_components(snapshot, proxy_url, emit)?;
 
-    let targets = component_update_targets(snapshot, &ManagedComponentId::ALL, false);
+    let ids = runtime_component_ids();
+    let targets = component_update_targets(snapshot, &ids, false);
     update_managed_targets(snapshot, targets, proxy_url, emit)
 }
 
@@ -804,7 +840,12 @@ fn update_many_managed(
     proxy_url: Option<&str>,
     emit: &mut impl FnMut(ComponentUpdateEvent),
 ) -> Result<(), String> {
-    let ids = deduplicate_component_ids(ids);
+    let ids = deduplicate_component_ids(ids)
+        .into_iter()
+        .filter(|id| {
+            !(app_self_update_disabled_for_custom_edition() && *id == ManagedComponentId::App)
+        })
+        .collect::<Vec<_>>();
     if ids.is_empty() {
         snapshot.message = "no managed components selected".to_owned();
         return Ok(());
@@ -986,6 +1027,14 @@ fn update_one_component(
     proxy_url: Option<&str>,
     emit: &mut impl FnMut(ComponentUpdateEvent),
 ) -> Result<(), String> {
+    if id == ManagedComponentId::App && app_self_update_disabled_for_custom_edition() {
+        let entry = custom_edition_app_update_blocked_entry();
+        snapshot.ensure_entry_mut(id).clone_from(&entry);
+        snapshot.selected = Some(id);
+        emit(ComponentUpdateEvent::Snapshot(snapshot.clone()));
+        return Ok(());
+    }
+
     snapshot.selected = Some(id);
     let entry = update_component_to_entry_with_progress(id, proxy_url, |entry| {
         snapshot.ensure_entry_mut(id).clone_from(&entry);
@@ -999,6 +1048,10 @@ fn update_one_component(
 }
 
 fn check_component(id: ManagedComponentId, proxy_url: Option<&str>) -> ComponentUpdateEntry {
+    if id == ManagedComponentId::App && app_self_update_disabled_for_custom_edition() {
+        return custom_edition_app_update_blocked_entry();
+    }
+
     let mut entry = ComponentUpdateEntry::new(id);
     entry.status = ComponentUpdateStatus::Checking;
     entry.ownership = component_ownership(id);
@@ -2336,6 +2389,10 @@ fn prepare_update_runner() -> Result<PathBuf, String> {
 }
 
 pub fn launch_pending_app_update(restart: bool) -> Result<(), String> {
+    if app_self_update_disabled_for_custom_edition() {
+        return Err("App self-update is disabled for Custom Edition.".to_owned());
+    }
+
     let mut manifest = pending_app_update_manifest()
         .ok_or_else(|| "No pending app update was found.".to_owned())?;
     if !manifest.staged_exe.is_file() {
@@ -2434,6 +2491,10 @@ pub fn parse_apply_update_args() -> Option<ApplyUpdateArgs> {
 }
 
 pub fn resume_pending_app_update_on_launch() -> Result<bool, String> {
+    if app_self_update_disabled_for_custom_edition() {
+        return Ok(false);
+    }
+
     let Some(manifest) = pending_app_update_manifest() else {
         return Ok(false);
     };

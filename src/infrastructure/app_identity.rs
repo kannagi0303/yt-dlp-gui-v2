@@ -2,6 +2,8 @@
 pub(crate) use windows_app_identity::{APP_AUMID, APP_DISPLAY_NAME};
 
 #[cfg(not(target_os = "windows"))]
+// App identity namespace for かんなぎ (Kannagi) / Shirase Hiyori.
+// Keep this stable because Windows shortcuts/notifications can depend on it.
 pub(crate) const APP_AUMID: &str = "kannagi.ytdlpgui.v2";
 #[cfg(not(target_os = "windows"))]
 pub(crate) const APP_DISPLAY_NAME: &str = "yt-dlp-gui";
@@ -43,6 +45,8 @@ mod windows_app_identity {
     use win32_notif::registration::RegistrationBuilder;
     use windows_sys::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
 
+    // App identity namespace for かんなぎ (Kannagi) / Shirase Hiyori.
+    // Keep this stable because Windows shortcuts/notifications can depend on it.
     pub(crate) const APP_AUMID: &str = "kannagi.ytdlpgui.v2";
     pub(crate) const APP_DISPLAY_NAME: &str = "yt-dlp-gui";
 

@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::cookie_site_index::read_cookie_site_index;
+use super::process_guard::run_tracked_command_output;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
@@ -106,6 +107,7 @@ pub struct DownloadRequest {
     pub is_muxed_video: bool,
     pub video_ext: String,
     pub audio_ext: String,
+    pub merge_output_container: Option<String>,
     pub upload_date: String,
     pub subtitle_lang: Option<String>,
     pub subtitle_ext: String,
@@ -125,7 +127,7 @@ pub struct DownloadRequest {
     pub output_path: Option<String>,
     pub output_dir: String,
     pub file_name: String,
-    pub download_sections: String,
+    pub download_section_args: Vec<String>,
 }
 
 pub struct PreparedDownload {
@@ -184,6 +186,7 @@ pub struct ToolPaths {
     pub youtube_subs_po_token: String,
     pub youtube_extractor_args: String,
     pub concurrent_fragments: usize,
+    pub live_from_start: bool,
     pub proxy_enabled: bool,
     pub proxy_url: String,
     pub no_check_certificates: bool,
@@ -209,6 +212,7 @@ impl Default for ToolPaths {
             youtube_subs_po_token: String::new(),
             youtube_extractor_args: String::new(),
             concurrent_fragments: 1,
+            live_from_start: true,
             proxy_enabled: false,
             proxy_url: String::new(),
             no_check_certificates: false,
@@ -252,6 +256,12 @@ impl ToolPaths {
         self.effective_config_path()
             .as_deref()
             .is_some_and(config_contains_download_sections_arg)
+    }
+
+    pub fn effective_config_owns_live_from_start(&self) -> bool {
+        self.effective_config_path()
+            .as_deref()
+            .is_some_and(config_contains_live_from_start_arg)
     }
 
     pub fn effective_config_owns_mtime(&self) -> bool {
@@ -657,6 +667,13 @@ impl ToolPaths {
                 .arg(self.concurrent_fragments.to_string());
         }
 
+        apply_live_from_start_arg(
+            &mut command,
+            request.target_kind,
+            self.live_from_start,
+            self.effective_config_owns_live_from_start(),
+        );
+
         if request.target_kind != DownloadTargetKind::Subtitle
             && !self.effective_config_owns_limit_rate()
             && !self.limit_rate.trim().is_empty()
@@ -664,13 +681,12 @@ impl ToolPaths {
             command.arg("--limit-rate").arg(self.limit_rate.trim());
         }
 
-        let has_item_download_section = request.target_kind != DownloadTargetKind::Subtitle
-            && !request.download_sections.trim().is_empty();
-        if has_item_download_section && !self.effective_config_owns_download_sections() {
-            command
-                .arg("--download-sections")
-                .arg(request.download_sections.trim());
-        }
+        let has_item_download_section = apply_download_section_args(
+            &mut command,
+            request.target_kind,
+            &request.download_section_args,
+            self.effective_config_owns_download_sections(),
+        );
 
         let use_section_compatibility_mode = has_item_download_section
             && self.chapter_compatibility_mode
@@ -727,6 +743,24 @@ impl ToolPaths {
             command.arg("--format").arg(format_selector);
         }
 
+        apply_merge_output_container_arg(
+            &mut command,
+            request.target_kind,
+            request.merge_output_container.as_deref(),
+        );
+
+        let forces_webm_container = request.target_kind == DownloadTargetKind::Normal
+            && request
+                .merge_output_container
+                .as_deref()
+                .is_some_and(|container| container.trim().eq_ignore_ascii_case("webm"));
+        if forces_webm_container {
+            // WebM cannot carry the cover-art attachment used by yt-dlp's
+            // thumbnail embedder. The explicit per-item container choice owns
+            // this conflict even when a loaded config requests embedding.
+            command.arg("--no-embed-thumbnail");
+        }
+
         if !self.has_explicit_config() {
             if let Some(remux_extension) = output_plan.remux_extension.as_deref() {
                 command.arg("--remux-video").arg(remux_extension);
@@ -754,34 +788,7 @@ impl ToolPaths {
 
         let should_write_subtitles = request.target_kind == DownloadTargetKind::Subtitle
             || (request.write_subtitles && !self.has_explicit_config());
-        if should_write_subtitles {
-            if let Some(subtitle_lang) = request.subtitle_lang.as_deref() {
-                command.arg("--sub-langs").arg(subtitle_lang);
-                if request.write_auto_subs {
-                    command.arg("--write-auto-subs");
-                    if request.subtitle_is_auto_translated {
-                        command.arg("--sleep-subtitles").arg("1");
-                    }
-                } else {
-                    command.arg("--write-subs");
-                }
-
-                let subtitle_ext =
-                    normalized_extension(&request.subtitle_ext).unwrap_or_else(|| "srt".to_owned());
-                if request.target_kind == DownloadTargetKind::Subtitle {
-                    command
-                        .arg("--sub-format")
-                        .arg(subtitle_format_preference(&subtitle_ext));
-                    if subtitle_conversion_is_supported(&subtitle_ext) {
-                        command.arg("--convert-subs").arg(&subtitle_ext);
-                    }
-                } else if request.embed_subtitles {
-                    command.arg("--embed-subs");
-                } else {
-                    command.arg("--convert-subs").arg("srt");
-                }
-            }
-        }
+        apply_subtitle_download_args(&mut command, request, should_write_subtitles);
 
         if !self.has_explicit_config() {
             if request.write_chapters && request.target_kind == DownloadTargetKind::Normal {
@@ -798,7 +805,7 @@ impl ToolPaths {
                 command.arg("--embed-chapters");
             }
 
-            if request.write_thumbnail && request.embed_thumbnail {
+            if request.write_thumbnail && request.embed_thumbnail && !forces_webm_container {
                 command
                     .arg("--embed-thumbnail")
                     .arg("--convert-thumbnails")
@@ -1050,12 +1057,13 @@ impl ToolPaths {
         let command_line = format_command_line(tool_path, &command);
         println!("[analyze] command: {command_line}");
 
-        let output = command.output().map_err(|error| {
-            AnalyzeError::new(
-                format!("Could not start yt-dlp: {error}"),
-                Some(command_line.clone()),
-            )
-        })?;
+        let output =
+            run_tracked_command_output(&mut command, "yt-dlp analyze").map_err(|error| {
+                AnalyzeError::new(
+                    format!("Could not start yt-dlp: {error}"),
+                    Some(command_line.clone()),
+                )
+            })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
@@ -1150,6 +1158,91 @@ fn aria2_downloader_args(proxy_url: Option<&str>, no_check_certificates: bool) -
 
 fn config_contains_download_sections_arg(path: &Path) -> bool {
     config_contains_any_arg(path, &["--download-sections"], &["--download-sections="])
+}
+
+fn config_contains_live_from_start_arg(path: &Path) -> bool {
+    config_contains_any_arg(path, &["--live-from-start", "--no-live-from-start"], &[])
+}
+
+fn apply_download_section_args(
+    command: &mut Command,
+    target_kind: DownloadTargetKind,
+    download_section_args: &[String],
+    config_owns_download_sections: bool,
+) -> bool {
+    let has_item_download_section =
+        target_kind != DownloadTargetKind::Subtitle && !download_section_args.is_empty();
+    if has_item_download_section && !config_owns_download_sections {
+        for section in download_section_args {
+            command.arg("--download-sections").arg(section.trim());
+        }
+    }
+    has_item_download_section
+}
+
+fn apply_live_from_start_arg(
+    command: &mut Command,
+    target_kind: DownloadTargetKind,
+    enabled: bool,
+    config_owns_setting: bool,
+) {
+    if target_kind != DownloadTargetKind::Subtitle && enabled && !config_owns_setting {
+        command.arg("--live-from-start");
+    }
+}
+
+fn apply_merge_output_container_arg(
+    command: &mut Command,
+    target_kind: DownloadTargetKind,
+    container: Option<&str>,
+) {
+    if target_kind != DownloadTargetKind::Normal {
+        return;
+    }
+    if let Some(container) = container.and_then(normalized_download_merge_container) {
+        command.arg("--merge-output-format").arg(container);
+    }
+}
+
+fn apply_subtitle_download_args(
+    command: &mut Command,
+    request: &DownloadRequest,
+    should_write_subtitles: bool,
+) {
+    if !should_write_subtitles {
+        return;
+    }
+    let Some(subtitle_lang) = request.subtitle_lang.as_deref() else {
+        return;
+    };
+
+    command.arg("--sub-langs").arg(subtitle_lang);
+    if request.write_auto_subs {
+        command.arg("--write-auto-subs");
+        if request.subtitle_is_auto_translated {
+            command.arg("--sleep-subtitles").arg("1");
+        }
+    } else if request.target_kind == DownloadTargetKind::Subtitle || !request.embed_subtitles {
+        // yt-dlp keeps the sidecar when --write-subs and --embed-subs are
+        // explicitly combined. Embed mode intentionally relies on --embed-subs
+        // to request normal subtitles and remove its temporary sidecar.
+        command.arg("--write-subs");
+    }
+
+    let subtitle_ext =
+        normalized_extension(&request.subtitle_ext).unwrap_or_else(|| "srt".to_owned());
+    if request.target_kind == DownloadTargetKind::Subtitle {
+        command
+            .arg("--sub-format")
+            .arg(subtitle_format_preference(&subtitle_ext));
+        if subtitle_conversion_is_supported(&subtitle_ext) {
+            command.arg("--convert-subs").arg(&subtitle_ext);
+        }
+    } else if request.embed_subtitles {
+        command.arg("--embed-subs");
+    } else {
+        command.arg("--convert-subs").arg("srt");
+    }
 }
 
 fn config_contains_mtime_arg(path: &Path) -> bool {
@@ -1653,19 +1746,31 @@ fn build_directory_output_plan(request: &DownloadRequest, output_dir: &Path) -> 
         base_name
     };
 
-    let final_extension = forced_extension
-        .clone()
-        .unwrap_or_else(|| expected_extension.clone());
+    let has_explicit_merge_container = request
+        .merge_output_container
+        .as_deref()
+        .and_then(normalized_download_merge_container)
+        .is_some();
+    let final_extension = if has_explicit_merge_container {
+        expected_extension.clone()
+    } else {
+        forced_extension
+            .clone()
+            .unwrap_or_else(|| expected_extension.clone())
+    };
     let final_output_path = output_dir.join(format!("{base_name}.{final_extension}"));
+    let output_base_name =
+        output_base_name_with_section_number(&base_name, request.download_section_args.len());
 
-    if request.target_kind != DownloadTargetKind::Subtitle
+    if !has_explicit_merge_container
+        && request.target_kind != DownloadTargetKind::Subtitle
         && forced_extension
             .as_deref()
             .is_some_and(|ext| !ext.eq_ignore_ascii_case(&expected_extension))
     {
         OutputPlan {
             output_argument: output_dir
-                .join(format!("{base_name}.%(ext)s"))
+                .join(format!("{output_base_name}.%(ext)s"))
                 .display()
                 .to_string(),
             final_output_path,
@@ -1675,7 +1780,10 @@ fn build_directory_output_plan(request: &DownloadRequest, output_dir: &Path) -> 
         }
     } else {
         OutputPlan {
-            output_argument: output_argument_for_kind(request.target_kind, &final_output_path),
+            output_argument: output_argument_for_kind(
+                request.target_kind,
+                &output_dir.join(format!("{output_base_name}.{final_extension}")),
+            ),
             final_output_path,
             remux_extension: None,
             extract_audio: false,
@@ -1737,6 +1845,16 @@ fn subtitle_conversion_is_supported(extension: &str) -> bool {
 }
 
 fn determine_expected_container(request: &DownloadRequest) -> String {
+    if request.target_kind == DownloadTargetKind::Normal {
+        if let Some(container) = request
+            .merge_output_container
+            .as_deref()
+            .and_then(normalized_download_merge_container)
+        {
+            return container;
+        }
+    }
+
     match request.target_kind {
         DownloadTargetKind::Audio => {
             return normalized_extension(&request.audio_ext).unwrap_or_else(|| "m4a".to_owned());
@@ -1788,10 +1906,13 @@ fn build_explicit_output_plan(
         .clone()
         .unwrap_or_else(|| expected_extension.clone());
     let final_output_path = parent.join(format!("{base_name}.{final_extension}"));
+    let output_base_name =
+        output_base_name_with_section_number(&base_name, request.download_section_args.len());
+    let output_path = parent.join(format!("{output_base_name}.{final_extension}"));
 
     match request.target_kind {
         DownloadTargetKind::Audio => Ok(OutputPlan {
-            output_argument: parent.join(base_name).display().to_string(),
+            output_argument: parent.join(output_base_name).display().to_string(),
             final_output_path,
             remux_extension: None,
             extract_audio: true,
@@ -1804,13 +1925,21 @@ fn build_explicit_output_plan(
                 .filter(|ext| !ext.eq_ignore_ascii_case(&expected_extension))
                 .map(ToOwned::to_owned);
             Ok(OutputPlan {
-                output_argument: output_argument_for_kind(request.target_kind, &final_output_path),
+                output_argument: output_argument_for_kind(request.target_kind, &output_path),
                 final_output_path,
                 remux_extension,
                 extract_audio: false,
                 audio_format: None,
             })
         }
+    }
+}
+
+fn output_base_name_with_section_number(base_name: &str, section_count: usize) -> String {
+    if section_count > 1 {
+        format!("{base_name} - %(section_number)02d")
+    } else {
+        base_name.to_owned()
     }
 }
 
@@ -1938,9 +2067,189 @@ fn normalized_extension(extension: &str) -> Option<String> {
     }
 }
 
+fn normalized_download_merge_container(container: &str) -> Option<String> {
+    normalized_extension(container).filter(|container| matches!(container.as_str(), "mkv" | "webm"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn subtitle_test_request(write_auto_subs: bool, embed_subtitles: bool) -> DownloadRequest {
+        DownloadRequest {
+            target_kind: DownloadTargetKind::Normal,
+            url: "https://example.invalid/video".to_owned(),
+            format_selector: String::new(),
+            video_selector: String::new(),
+            audio_selector: String::new(),
+            is_muxed_video: true,
+            video_ext: "mkv".to_owned(),
+            audio_ext: String::new(),
+            merge_output_container: None,
+            upload_date: String::new(),
+            subtitle_lang: Some("en".to_owned()),
+            subtitle_ext: "vtt".to_owned(),
+            subtitle_source_ext: "vtt".to_owned(),
+            subtitle_url: None,
+            write_auto_subs,
+            subtitle_is_auto_translated: false,
+            write_subtitles: true,
+            embed_subtitles,
+            write_chapters: false,
+            embed_chapters: false,
+            write_thumbnail: false,
+            embed_thumbnail: false,
+            use_cookies: false,
+            use_aria2: false,
+            emit_json: false,
+            output_path: None,
+            output_dir: ".".to_owned(),
+            file_name: "video".to_owned(),
+            download_section_args: Vec::new(),
+        }
+    }
+
+    fn command_args(command: &Command) -> Vec<String> {
+        command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn live_from_start_applies_only_to_media_downloads() {
+        let mut media = Command::new("yt-dlp");
+        apply_live_from_start_arg(&mut media, DownloadTargetKind::Normal, true, false);
+        assert_eq!(command_args(&media), vec!["--live-from-start"]);
+
+        let mut subtitle = Command::new("yt-dlp");
+        apply_live_from_start_arg(&mut subtitle, DownloadTargetKind::Subtitle, true, false);
+        assert!(command_args(&subtitle).is_empty());
+
+        let mut config_owned = Command::new("yt-dlp");
+        apply_live_from_start_arg(&mut config_owned, DownloadTargetKind::Normal, true, true);
+        assert!(command_args(&config_owned).is_empty());
+    }
+
+    #[test]
+    fn multiple_item_ranges_repeat_download_sections_in_timeline_order() {
+        let mut command = Command::new("yt-dlp");
+        let ranges = vec![
+            "*00:00:10-00:00:20".to_owned(),
+            "*00:00:30-00:00:50".to_owned(),
+        ];
+
+        assert!(apply_download_section_args(
+            &mut command,
+            DownloadTargetKind::Normal,
+            &ranges,
+            false,
+        ));
+        assert_eq!(
+            command_args(&command),
+            vec![
+                "--download-sections",
+                "*00:00:10-00:00:20",
+                "--download-sections",
+                "*00:00:30-00:00:50",
+            ]
+        );
+    }
+
+    #[test]
+    fn multiple_item_ranges_add_section_number_to_output_template() {
+        let mut request = subtitle_test_request(false, false);
+        request.target_kind = DownloadTargetKind::Normal;
+        request.subtitle_lang = None;
+        request.video_ext = "mkv".to_owned();
+        request.download_section_args = vec![
+            "*00:00:10-00:00:20".to_owned(),
+            "*00:00:30-00:00:50".to_owned(),
+        ];
+
+        let plan = build_directory_output_plan(&request, Path::new("output"));
+
+        assert!(
+            plan.output_argument
+                .contains("video - %(section_number)02d.mkv")
+        );
+        assert!(
+            plan.final_output_path
+                .ends_with(Path::new("output").join("video.mkv"))
+        );
+    }
+
+    #[test]
+    fn explicit_webm_container_controls_merge_and_expected_output() {
+        let mut request = subtitle_test_request(false, false);
+        request.merge_output_container = Some("webm".to_owned());
+        request.video_ext = "webm".to_owned();
+        request.audio_ext = "webm".to_owned();
+        request.file_name = "video.mkv".to_owned();
+        let plan = build_directory_output_plan(&request, Path::new("output"));
+        assert!(
+            plan.final_output_path
+                .ends_with(Path::new("output").join("video.webm"))
+        );
+
+        let mut command = Command::new("yt-dlp");
+        apply_merge_output_container_arg(
+            &mut command,
+            DownloadTargetKind::Normal,
+            request.merge_output_container.as_deref(),
+        );
+        assert_eq!(
+            command_args(&command),
+            vec!["--merge-output-format", "webm"]
+        );
+    }
+
+    #[test]
+    fn merge_container_is_not_applied_to_standalone_exports() {
+        let mut command = Command::new("yt-dlp");
+        apply_merge_output_container_arg(&mut command, DownloadTargetKind::Video, Some("webm"));
+        assert!(command_args(&command).is_empty());
+
+        apply_merge_output_container_arg(&mut command, DownloadTargetKind::Normal, Some("invalid"));
+        assert!(command_args(&command).is_empty());
+    }
+
+    #[test]
+    fn embedded_normal_subtitles_do_not_request_a_persistent_sidecar() {
+        let request = subtitle_test_request(false, true);
+        let mut command = Command::new("yt-dlp");
+
+        apply_subtitle_download_args(&mut command, &request, true);
+
+        let args = command_args(&command);
+        assert!(args.iter().any(|arg| arg == "--embed-subs"));
+        assert!(!args.iter().any(|arg| arg == "--write-subs"));
+    }
+
+    #[test]
+    fn embedded_auto_subtitles_keep_auto_source_selection_and_embed() {
+        let request = subtitle_test_request(true, true);
+        let mut command = Command::new("yt-dlp");
+
+        apply_subtitle_download_args(&mut command, &request, true);
+
+        let args = command_args(&command);
+        assert!(args.iter().any(|arg| arg == "--write-auto-subs"));
+        assert!(args.iter().any(|arg| arg == "--embed-subs"));
+        assert!(!args.iter().any(|arg| arg == "--write-subs"));
+    }
+
+    #[test]
+    fn downloaded_subtitles_still_request_a_sidecar() {
+        let request = subtitle_test_request(false, false);
+        let mut command = Command::new("yt-dlp");
+
+        apply_subtitle_download_args(&mut command, &request, true);
+
+        let args = command_args(&command);
+        assert!(args.iter().any(|arg| arg == "--write-subs"));
+        assert!(!args.iter().any(|arg| arg == "--embed-subs"));
+    }
 
     #[test]
     fn music_album_parse_metadata_args_use_current_yt_dlp_from_to_syntax() {

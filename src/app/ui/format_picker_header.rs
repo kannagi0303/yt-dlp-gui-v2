@@ -1,4 +1,6 @@
-use crate::app::state::{AppState, FormatPickerKind, FormatPickerViewMode, SubtitlePickerTab};
+use crate::app::state::{
+    AppState, FormatPickerKind, FormatPickerViewMode, SectionPickerTab, SubtitlePickerTab,
+};
 use eframe::egui::{self, Ui};
 use egui_taffy::{Tui, TuiBuilderLogic as _, taffy};
 
@@ -13,12 +15,14 @@ pub(super) struct FormatPickerHeaderContext {
     row_contract: xaml_layout_contracts::SingleLineControlRowContract,
     gap: f32,
     back_text: &'static str,
+    clear_text: Option<&'static str>,
     confirm_text: &'static str,
     pending_selection: Option<String>,
     selection_summary: Option<String>,
     back_cell_style: taffy::Style,
     center_cell_style: taffy::Style,
     summary_cell_style: Option<taffy::Style>,
+    clear_cell_style: Option<taffy::Style>,
     confirm_cell_style: taffy::Style,
 }
 
@@ -32,11 +36,15 @@ impl FormatPickerHeaderContext {
             );
         let gap = ui.spacing().item_spacing.x;
         let back_text = state.ui_i18n_text_for_key(UiText::BACK_TO_MAIN);
+        let clear_text = (state.format_picker.kind == Some(FormatPickerKind::Section))
+            .then(|| state.ui_i18n_text_for_key("action.clear"));
         let confirm_text = state.ui_i18n_text_for_key(UiText::CONFIRM);
         let back_element =
             semantic_ui_metrics::xaml_button_ui_element_for_visible_text(ui, back_text);
         let confirm_element =
             semantic_ui_metrics::xaml_button_ui_element_for_visible_text(ui, confirm_text);
+        let clear_element = clear_text
+            .map(|text| semantic_ui_metrics::xaml_button_ui_element_for_visible_text(ui, text));
         let center_element = format_picker_header_center_ui_element(ui, state, row_contract, gap);
         let summary_element = selection_summary.as_deref().map(|summary| {
             xaml_layout_contracts::UiElement::label(xaml_layout_contracts::LayoutSize::new(
@@ -53,6 +61,8 @@ impl FormatPickerHeaderContext {
         let summary_cell_style = summary_element.map(|element| {
             xaml_taffy_styles::xaml_shrinkable_auto_width_cell_style(row_contract, element).1
         });
+        let clear_cell_style = clear_element
+            .map(|element| xaml_taffy_styles::xaml_auto_width_cell_style(row_contract, element).1);
         let (_, confirm_cell_style) =
             xaml_taffy_styles::xaml_auto_width_cell_style(row_contract, confirm_element);
 
@@ -60,12 +70,14 @@ impl FormatPickerHeaderContext {
             row_contract,
             gap,
             back_text,
+            clear_text,
             confirm_text,
             pending_selection,
             selection_summary,
             back_cell_style,
             center_cell_style,
             summary_cell_style,
+            clear_cell_style,
             confirm_cell_style,
         }
     }
@@ -112,6 +124,21 @@ fn show_header_row(tui: &mut Tui, state: &mut AppState, header: &FormatPickerHea
                     ui.label(egui::RichText::new(summary).color(ui.visuals().weak_text_color()));
                 });
             }
+        });
+    }
+    if let Some(clear_cell_style) = header.clear_cell_style.clone() {
+        tui.style(clear_cell_style).ui(|ui| {
+            ui.centered_and_justified(|ui| {
+                if ui
+                    .add_enabled(
+                        !state.pending_download_range_is_empty(),
+                        egui::Button::new(header.clear_text.unwrap_or_default()),
+                    )
+                    .clicked()
+                {
+                    state.clear_pending_download_range_selection();
+                }
+            });
         });
     }
     tui.style(header.confirm_cell_style.clone()).ui(|ui| {
@@ -189,13 +216,26 @@ fn format_picker_header_center_ui_element(
             )
         }
         FormatPickerKind::Section => {
-            let title = state.ui_i18n_text_for_key(UiText::SELECT_SECTION_TITLE);
-            xaml_layout_contracts::UiElement::label(xaml_layout_contracts::LayoutSize::new(
-                semantic_ui_metrics::format_picker_header_center_title_width_for_visible_text(
-                    ui, title,
-                ),
-                row_contract.height,
-            ))
+            let chapters_text = state.ui_i18n_text_for_key(SectionPickerTab::Chapters.label_key());
+            let time_range_text =
+                state.ui_i18n_text_for_key(SectionPickerTab::TimeRange.label_key());
+            let measured_group = row_contract.measure_auto_width_ui_element_sequence(
+                [
+                    semantic_ui_metrics::xaml_selectable_button_ui_element_for_visible_text(
+                        ui,
+                        chapters_text,
+                    ),
+                    semantic_ui_metrics::xaml_selectable_button_ui_element_for_visible_text(
+                        ui,
+                        time_range_text,
+                    ),
+                ],
+                gap,
+            );
+            xaml_layout_contracts::UiElement::fixed_width_stretch_height(
+                measured_group.width,
+                row_contract,
+            )
         }
     }
 }
@@ -231,6 +271,10 @@ fn render_header_center(ui: &mut Ui, state: &mut AppState) {
         render_subtitle_header_tabs(ui, state);
         return;
     }
+    if kind == FormatPickerKind::Section {
+        render_section_header_tabs(ui, state);
+        return;
+    }
 
     let title = match kind {
         FormatPickerKind::Video => UiText::SELECT_VIDEO_TITLE,
@@ -239,6 +283,24 @@ fn render_header_center(ui: &mut Ui, state: &mut AppState) {
         FormatPickerKind::Section => UiText::SELECT_SECTION_TITLE,
     };
     ui.label(state.ui_i18n_text_for_key(title));
+}
+
+fn render_section_header_tabs(ui: &mut Ui, state: &mut AppState) {
+    let chapters_label = state.ui_i18n_text_for_key(SectionPickerTab::Chapters.label_key());
+    let time_range_label = state.ui_i18n_text_for_key(SectionPickerTab::TimeRange.label_key());
+
+    ui.horizontal(|ui| {
+        ui.selectable_value(
+            &mut state.format_picker.section_tab,
+            SectionPickerTab::Chapters,
+            chapters_label,
+        );
+        ui.selectable_value(
+            &mut state.format_picker.section_tab,
+            SectionPickerTab::TimeRange,
+            time_range_label,
+        );
+    });
 }
 
 fn render_subtitle_header_tabs(ui: &mut Ui, state: &mut AppState) {

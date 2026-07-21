@@ -2,12 +2,15 @@ pub(crate) mod app_identity;
 mod component_update;
 mod config;
 pub(crate) mod cookie_site_index;
+pub(crate) mod edition;
 mod media_session;
 mod notification;
 mod output_actions;
 mod portable_cleanup;
 mod prepare_check;
+mod process_guard;
 mod sha256;
+pub(crate) mod startup_diagnostics;
 mod tool_install;
 mod tools;
 pub(crate) mod yaml_store;
@@ -16,9 +19,10 @@ mod youtube_login_rescue;
 pub use component_update::{
     AppInstanceGuard, ComponentOwnership, ComponentUpdateAction, ComponentUpdateEntry,
     ComponentUpdateEvent, ComponentUpdateSnapshot, ComponentUpdateStatus, ManagedComponentId,
-    apply_update_args_requested, cleanup_applied_update, component_update_startup_snapshot,
-    launch_pending_app_update, parse_apply_update_args, register_app_instance,
-    resume_pending_app_update_on_launch, run_apply_update, run_component_update_action,
+    app_self_update_disabled_for_custom_edition, apply_update_args_requested,
+    cleanup_applied_update, component_update_startup_snapshot, launch_pending_app_update,
+    parse_apply_update_args, register_app_instance, resume_pending_app_update_on_launch,
+    run_apply_update, run_component_update_action,
 };
 pub use config::{
     AppConfig, AudioPolicy, CompatibilityTarget, ConfigFileOption, ContainerPolicy,
@@ -27,6 +31,10 @@ pub use config::{
     TranscodeIntentMode, TranscodeIntentSettings, TranscodeSettingKey, VideoCodecPolicy,
     WindowPosition, WindowSize, YoutubeVideoPlaylistMode, available_yt_dlp_config_files,
     normalize_ui_scale_percent, yt_dlp_configs_dir_display,
+};
+pub use edition::{
+    load_current_runtime_edition, parse_edition_command, run_edition_command, runtime_window_title,
+    set_runtime_edition,
 };
 pub use media_session::{
     MediaSession, MediaSessionCommand, MediaSessionPlaybackStatus, MediaSessionTimeline,
@@ -42,9 +50,16 @@ pub use prepare_check::{
     PrepareReport, PrepareRequirement, PrepareStatus, collect_dependency_presence_report,
     collect_prepare_report,
 };
+pub use process_guard::{
+    force_cleanup_tracked_processes, install_process_cleanup_panic_hook,
+    run_tracked_command_output, track_child_process,
+};
+pub use startup_diagnostics::{
+    enable_startup_diagnostics_if_requested, record_startup_checkpoint, record_startup_error,
+    record_startup_event,
+};
 pub use tool_install::{
-    DependencyTool, dependency_tool_exists, dependency_tool_is_available,
-    detect_dependency_tool_in_system_path,
+    DependencyTool, dependency_tool_exists, dependency_tool_is_available, detect_dependency_tool,
 };
 pub use tools::{
     AnalyzeError, AnalyzeOutput, BrowserCookieProfileOption, BrowserCookieSourceOption,
@@ -56,7 +71,7 @@ pub use tools::{
     youtube_url_has_video_and_playlist,
 };
 pub use youtube_login_rescue::{
-    YoutubeLoginRescueBrowserInfo, YoutubeLoginRescueEvent,
+    YoutubeLoginRescueBrowserInfo, YoutubeLoginRescueCookieExport, YoutubeLoginRescueEvent,
     detect_default_youtube_login_rescue_browser, normalize_cookie_rescue_target_url,
     run_youtube_login_rescue_cookie_export,
 };

@@ -1,10 +1,14 @@
 use eframe::egui::{Align, Ui};
 
-use crate::app::state::{AppState, ItemTitleVisualState, ThumbnailRenderSource};
+use crate::app::state::{
+    AppState, ItemTitleVisualState, MusicItemCacheActivity, ThumbnailRenderSource,
+};
 use crate::domain::{CompactMusicState, QueueItemId};
 
 use super::common::UiText;
-use super::compact_row::{CompactRowSpec, CompactRowVisualState, render_music_compact_row};
+use super::compact_row::{
+    CompactRowActivityPulse, CompactRowSpec, CompactRowVisualState, render_music_compact_row,
+};
 
 pub(super) fn render_music_queue_item_row(
     ui: &mut Ui,
@@ -25,6 +29,13 @@ pub(super) fn render_music_queue_item_row(
     let playback_progress = state.music_item_playback_progress_ratio(item_id);
     let is_current = state.music_current_item_id() == Some(item_id);
     let is_playing = state.music_item_is_playing(item_id);
+    let cue_pending = state.music_mix_next_pending_item_indicator(item_id);
+    let cover_uses_mix_next = state.music_item_navigation_uses_mix(item_id);
+    let has_complete_cache = state.music_item_has_complete_cache(item_id);
+    let cache_activity = (!has_complete_cache)
+        .then(|| state.music_item_cache_activity(item_id))
+        .flatten();
+    let activity_pulse = compact_row_activity_pulse(cue_pending, cache_activity);
     let (mut visual_state, mut status_text) = compact_music_visual_state(
         state,
         music_state,
@@ -36,12 +47,18 @@ pub(super) fn render_music_queue_item_row(
     if let Some(progress_text) = state.music_item_compact_progress_status_text(item_id) {
         status_text = progress_text;
     }
+    if let Some(cache_activity) = cache_activity {
+        status_text = compact_cache_activity_status_text(state, cache_activity, cache_progress);
+    }
+    if cue_pending {
+        status_text = compact_mix_next_status_text(cache_activity, cache_progress);
+    }
     if state.item_title_visual_state(index) == ItemTitleVisualState::Completed {
         visual_state = CompactRowVisualState::Downloaded;
         status_text = state
             .ui_i18n_text_for_key("music.status.completed")
             .to_owned();
-    } else if state.music_item_has_complete_cache(item_id) {
+    } else if has_complete_cache {
         visual_state = CompactRowVisualState::Finished;
     }
 
@@ -58,7 +75,9 @@ pub(super) fn render_music_queue_item_row(
             show_progress: show_row_progress,
             is_current,
             is_playing,
+            activity_pulse,
             play_enabled: true,
+            cover_uses_mix_next,
             remove_enabled: true,
         },
     );
@@ -72,6 +91,56 @@ pub(super) fn render_music_queue_item_row(
     ui.add_space(ui.spacing().item_spacing.y);
 
     output.remove_clicked.then_some(item_id)
+}
+
+fn compact_row_activity_pulse(
+    cue_pending: bool,
+    cache_activity: Option<MusicItemCacheActivity>,
+) -> CompactRowActivityPulse {
+    if cue_pending {
+        CompactRowActivityPulse::MixNextStandby
+    } else if cache_activity.is_some() {
+        CompactRowActivityPulse::CachePreparing
+    } else {
+        CompactRowActivityPulse::None
+    }
+}
+
+fn compact_cache_activity_status_text(
+    state: &AppState,
+    activity: MusicItemCacheActivity,
+    cache_progress: f32,
+) -> String {
+    match activity {
+        MusicItemCacheActivity::Preparing => state
+            .ui_i18n_text_for_key("music.status.resolving")
+            .to_owned(),
+        MusicItemCacheActivity::Caching if cache_progress > 0.0 && cache_progress < 0.999 => {
+            format!(
+                "{}%",
+                (cache_progress * 100.0).round().clamp(1.0, 99.0) as u32
+            )
+        }
+        MusicItemCacheActivity::Caching => state
+            .ui_i18n_text_for_key("music.status.caching")
+            .to_owned(),
+    }
+}
+
+fn compact_mix_next_status_text(
+    cache_activity: Option<MusicItemCacheActivity>,
+    cache_progress: f32,
+) -> String {
+    if cache_activity == Some(MusicItemCacheActivity::Caching)
+        && cache_progress > 0.0
+        && cache_progress < 0.999
+    {
+        return format!(
+            "Mix next · {}%",
+            (cache_progress * 100.0).round().clamp(1.0, 99.0) as u32
+        );
+    }
+    "Mix next".to_owned()
 }
 
 fn compact_music_visual_state(
@@ -157,9 +226,40 @@ pub(super) fn render_empty_music_compact_item(ui: &mut Ui, state: &AppState) {
             show_progress: false,
             is_current: false,
             is_playing: false,
+            activity_pulse: CompactRowActivityPulse::None,
             play_enabled: false,
+            cover_uses_mix_next: false,
             remove_enabled: false,
         },
     );
     let _ = output;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mix_next_pulse_has_priority_over_cache_activity() {
+        assert_eq!(
+            compact_row_activity_pulse(true, Some(MusicItemCacheActivity::Caching)),
+            CompactRowActivityPulse::MixNextStandby
+        );
+    }
+
+    #[test]
+    fn cache_activity_uses_cache_pulse_without_mix_next() {
+        assert_eq!(
+            compact_row_activity_pulse(false, Some(MusicItemCacheActivity::Preparing)),
+            CompactRowActivityPulse::CachePreparing
+        );
+    }
+
+    #[test]
+    fn mix_next_status_keeps_cache_progress_visible() {
+        assert_eq!(
+            compact_mix_next_status_text(Some(MusicItemCacheActivity::Caching), 0.34),
+            "Mix next · 34%"
+        );
+    }
 }

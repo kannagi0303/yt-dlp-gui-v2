@@ -1,10 +1,12 @@
 use eframe::egui::{self, Ui};
 use egui_taffy::Tui;
 
-use crate::app::state::AppState;
+use crate::app::state::{AppMode, AppState};
 use crate::app::widgets::icon::AppIcon;
+use crate::domain::{DownloadContainerPreference, QueueItemId};
 
 use super::common::{UiText, icon_text_button};
+use super::item_card::draw_item_output_container_picker;
 use super::main_tab_dependency_notice::missing_tool_icon_text_button;
 use super::{semantic_ui_metrics, xaml_layout_contracts, xaml_taffy_styles};
 
@@ -18,6 +20,45 @@ pub(super) struct TargetSelectButton {
 pub(super) struct DownloadButton {
     cell: xaml_taffy_styles::XamlSingleLineRowCell,
     button_size: xaml_layout_contracts::LayoutSize,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct DownloadContainerPicker {
+    cell: xaml_taffy_styles::XamlSingleLineRowCell,
+    item_id: QueueItemId,
+    selected: DownloadContainerPreference,
+}
+
+impl DownloadContainerPicker {
+    pub(super) fn resolve(
+        row: xaml_taffy_styles::XamlSingleLineRowLayout,
+        state: &AppState,
+    ) -> Option<Self> {
+        if state.app_mode() != AppMode::Origin
+            || state.queue_items.is_empty()
+            || state.item_is_busy(0)
+            || !state.item_supports_webm_download_container(0)
+        {
+            return None;
+        }
+        Some(Self {
+            cell: row.fixed_width_stretch_cell(
+                semantic_ui_metrics::item_card_output_container_picker_width(),
+            ),
+            item_id: state.queue_items[0].id,
+            selected: state.resolved_item_download_container(0)?,
+        })
+    }
+
+    pub(super) fn show(self, tui: &mut Tui, state: &mut AppState) {
+        self.cell.show(tui, |ui| {
+            if let Some(container) =
+                draw_item_output_container_picker(ui, self.item_id, self.selected)
+            {
+                state.set_item_download_container_preference(0, container);
+            }
+        });
+    }
 }
 
 impl TargetSelectButton {

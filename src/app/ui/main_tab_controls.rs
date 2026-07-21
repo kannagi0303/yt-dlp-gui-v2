@@ -4,7 +4,7 @@ use egui_taffy::Tui;
 use crate::app::state::AppState;
 
 use super::main_tab_monitor_control::MonitorToggleButton;
-use super::main_tab_output_actions::{DownloadButton, TargetSelectButton};
+use super::main_tab_output_actions::{DownloadButton, DownloadContainerPicker, TargetSelectButton};
 use super::main_tab_text_fields::{PathTextBox, UrlTextBox};
 use super::main_tab_url_action::StartButton;
 use super::xaml_taffy_styles;
@@ -27,6 +27,7 @@ pub(super) struct MainTabControls {
     pub(super) start: MainTabButtonRole,
     pub(super) target_select: MainTabButtonRole,
     pub(super) path: MainTabTextBoxRole,
+    pub(super) download_container: Option<DownloadContainerPicker>,
     pub(super) download: MainTabButtonRole,
 }
 
@@ -64,6 +65,7 @@ impl MainTabControls {
                 row, ui, state,
             )),
             path: MainTabTextBoxRole::Path(PathTextBox::resolve(row)),
+            download_container: DownloadContainerPicker::resolve(row, state),
             download: MainTabButtonRole::Download(DownloadButton::resolve(row, ui, state)),
         }
     }

@@ -27,7 +27,7 @@ pub(super) fn render_log_table(ui: &mut Ui, state: &mut AppState, layout: &LogTa
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
 
-            let actions = state.tool_logs.iter().cloned().collect::<Vec<_>>();
+            let actions = state.tool_log_actions().iter().cloned().collect::<Vec<_>>();
             if actions.is_empty() {
                 render_empty_log_row(ui, "No command logs yet.");
                 return;
@@ -35,7 +35,7 @@ pub(super) fn render_log_table(ui: &mut Ui, state: &mut AppState, layout: &LogTa
 
             for action in actions.iter() {
                 render_tool_action_row(ui, state, action, layout);
-                if state.log_viewer_expanded_action == Some(action.id) {
+                if state.log_viewer_expanded_action() == Some(action.id) {
                     render_tool_action_steps(ui, state, action, layout);
                 }
             }
@@ -111,7 +111,7 @@ fn render_tool_action_row(
     action: &ToolLogAction,
     layout: &LogTableLayout,
 ) {
-    let expanded = state.log_viewer_expanded_action == Some(action.id);
+    let expanded = state.log_viewer_expanded_action() == Some(action.id);
     let selected = expanded;
     let status = action.status;
     let row_height = semantic_ui_metrics::processing_log_table_action_row_height();
@@ -119,11 +119,11 @@ fn render_tool_action_row(
     let (rect, response) = ui.allocate_exact_size(desired, egui::Sense::click());
 
     if response.clicked() {
-        state.log_viewer_selected_step = None;
+        state.set_log_viewer_selected_step(None);
         if expanded {
-            state.log_viewer_expanded_action = None;
+            state.set_log_viewer_expanded_action(None);
         } else {
-            state.log_viewer_expanded_action = Some(action.id);
+            state.set_log_viewer_expanded_action(Some(action.id));
         }
     }
 
@@ -214,7 +214,7 @@ fn render_chain_text_step(
     rect: egui::Rect,
     layout: &LogTableLayout,
 ) {
-    let selected = state.log_viewer_selected_step == Some(step.id);
+    let selected = state.log_viewer_selected_step() == Some(step.id);
     let response = ui.interact(
         rect,
         ui.id().with(("log-chain-text-step", action.id, step.id)),
@@ -222,7 +222,7 @@ fn render_chain_text_step(
     );
 
     if response.clicked() {
-        state.log_viewer_selected_step = Some(step.id);
+        state.set_log_viewer_selected_step(Some(step.id));
     }
 
     paint_table_row_background(ui, rect, selected, response.hovered());
@@ -458,14 +458,14 @@ pub(super) fn measure_log_table_widths(ui: &Ui, state: &AppState) -> LogTableWid
         time: semantic_ui_metrics::processing_log_table_time_column_width_for_visible_timestamps(
             ui,
             state
-                .tool_logs
+                .tool_log_actions()
                 .iter()
                 .map(|action| action.timestamp.as_str()),
         ),
         status: semantic_ui_metrics::processing_log_table_status_column_width(ui),
         action: semantic_ui_metrics::processing_log_table_action_column_width_for_visible_actions(
             ui,
-            state.tool_logs.iter().flat_map(|action| {
+            state.tool_log_actions().iter().flat_map(|action| {
                 std::iter::once(action.action.as_str())
                     .chain(action.steps.iter().map(|step| step.action.as_str()))
             }),

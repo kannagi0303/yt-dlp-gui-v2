@@ -1,7 +1,7 @@
 [package]
 name = "yt-dlp-gui-v2"
-version = "0.1.0"
 edition = "2024"
+authors = ["かんなぎ (Kannagi) / Shirase Hiyori"]
 description = "Rust and egui rewrite of a portable GUI for yt-dlp."
 readme = ".github/README.md"
 license = "MIT"
@@ -13,11 +13,11 @@ path = "src/main.rs"
 
 [dependencies]
 arboard = "3.6.1"
-eframe = { version = "0.34.3", default-features = false, features = ["default_fonts", "glow"] }
-egui_extras = { version = "0.34.3", default-features = false, features = ["http", "image", "svg", "webp"] }
-egui_commonmark = { version = "0.23", default-features = false }
-egui_taffy = "0.12"
-cpal = "0.17.3"
+eframe = { version = "0.35.0", default-features = false, features = ["default_fonts", "glow"] }
+egui_extras = { version = "0.35.0", default-features = false, features = ["http", "image", "svg", "webp"] }
+egui_commonmark = { version = "0.24", default-features = false }
+egui_taffy = "0.13"
+cpal = "0.18.1"
 image = { version = "0.25.10", default-features = false, features = ["ico", "jpeg", "png", "webp"] }
 ureq = "3.3.0"
 rfd = "0.17.2"
@@ -26,6 +26,7 @@ serde_json = "1.0.150"
 serde_yaml = "0.9.34"
 symphonia = { version = "0.6.0", default-features = false, features = ["aac", "isomp4", "mkv", "ogg", "vorbis", "mp3", "flac", "pcm"] }
 symphonia-adapter-libopus = { version = "0.3.0", features = ["bundled"] }
+timestretch = "0.8.0"
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 
 

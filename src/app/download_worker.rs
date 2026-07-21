@@ -17,7 +17,7 @@ use super::download_resilience::{
 use crate::domain::{QueueItemId, WorkflowKind, WorkflowRunId};
 use crate::infrastructure::{
     DownloadRequest, DownloadTargetKind, FINAL_OUTPUT_PATH_PREFIX, FileTimeMode, PreparedDownload,
-    ToolPaths, configure_background_command, humanize_yt_dlp_error,
+    ToolPaths, configure_background_command, humanize_yt_dlp_error, track_child_process,
 };
 
 pub(super) const DOWNLOAD_CANCELLED_MESSAGE: &str = "Download cancelled.";
@@ -382,6 +382,8 @@ fn run_download_attempt(
         )
     })?;
 
+    let _process_guard = track_child_process(&child, "yt-dlp download");
+
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     if let Ok(mut guard) = child_handle.lock() {
@@ -623,23 +625,38 @@ fn finalize_download_output(
     stdout_lines: &[String],
 ) -> Result<String, String> {
     if request.target_kind != DownloadTargetKind::Subtitle {
-        let actual_output_path = resolve_completed_output_path(output_path, stdout_lines);
-        apply_file_time_mode(tool_paths, request, &actual_output_path, stdout_lines);
-        return Ok(actual_output_path.display().to_string());
+        let mut actual_output_paths = reported_final_output_paths(stdout_lines)
+            .into_iter()
+            .filter(|path| path.is_file())
+            .collect::<Vec<_>>();
+        if actual_output_paths.is_empty() {
+            actual_output_paths.push(resolve_completed_output_path(output_path, stdout_lines));
+        }
+        for actual_output_path in &actual_output_paths {
+            apply_file_time_mode(tool_paths, request, actual_output_path, stdout_lines);
+        }
+        let representative_output_path = actual_output_paths
+            .last()
+            .cloned()
+            .unwrap_or_else(|| output_path.to_path_buf());
+        return Ok(representative_output_path.display().to_string());
     }
 
     finalize_subtitle_export(request, output_path)
 }
 
 fn resolve_completed_output_path(expected_path: &Path, stdout_lines: &[String]) -> PathBuf {
-    if let Some(reported_path) = reported_final_output_path(stdout_lines) {
-        if reported_path.is_file() {
-            return reported_path;
+    let reported_paths = reported_final_output_paths(stdout_lines);
+    if let Some(reported_path) = reported_paths.iter().rev().find(|path| path.is_file()) {
+        return reported_path.clone();
+    }
+    for reported_path in reported_paths {
+        if !reported_path.is_file() {
+            eprintln!(
+                "[download] yt-dlp reported final path, but it does not exist: {}",
+                reported_path.display()
+            );
         }
-        eprintln!(
-            "[download] yt-dlp reported final path, but it does not exist: {}",
-            reported_path.display()
-        );
     }
 
     if expected_path.is_file() {
@@ -649,14 +666,25 @@ fn resolve_completed_output_path(expected_path: &Path, stdout_lines: &[String]) 
     find_same_stem_output_candidate(expected_path).unwrap_or_else(|| expected_path.to_path_buf())
 }
 
-fn reported_final_output_path(lines: &[String]) -> Option<PathBuf> {
-    lines.iter().rev().find_map(|line| {
-        let payload = line.trim().strip_prefix(FINAL_OUTPUT_PATH_PREFIX)?.trim();
+fn reported_final_output_paths(lines: &[String]) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    for line in lines {
+        let Some(payload) = line.trim().strip_prefix(FINAL_OUTPUT_PATH_PREFIX) else {
+            continue;
+        };
+        let payload = payload.trim();
         let parsed = serde_json::from_str::<String>(payload)
             .unwrap_or_else(|_| payload.trim_matches('"').to_owned());
         let trimmed = parsed.trim();
-        (!trimmed.is_empty()).then(|| PathBuf::from(trimmed))
-    })
+        if trimmed.is_empty() {
+            continue;
+        }
+        let path = PathBuf::from(trimmed);
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+    paths
 }
 
 fn apply_file_time_mode(
@@ -1038,7 +1066,9 @@ impl DownloadProgressContext {
             shared_av_progress: request.target_kind == DownloadTargetKind::Normal
                 && request.is_muxed_video,
             format_selector: request.format_selector.clone(),
-            section_duration_seconds: parse_section_duration_seconds(&request.download_sections),
+            section_duration_seconds: parse_section_duration_seconds(
+                &request.download_section_args,
+            ),
         }
     }
 
@@ -1566,12 +1596,18 @@ fn format_progress_bytes(bytes: f64) -> String {
     }
 }
 
-fn parse_section_duration_seconds(download_sections: &str) -> Option<f32> {
-    let section = download_sections.trim().strip_prefix('*')?;
-    let (start, end) = section.split_once('-')?;
-    let start = parse_progress_timestamp_seconds(start.trim())?;
-    let end = parse_progress_timestamp_seconds(end.trim())?;
-    (end > start).then_some(end - start)
+fn parse_section_duration_seconds(download_sections: &[String]) -> Option<f32> {
+    if download_sections.is_empty() {
+        return None;
+    }
+
+    download_sections.iter().try_fold(0.0, |total, section| {
+        let section = section.trim().strip_prefix('*')?;
+        let (start, end) = section.split_once('-')?;
+        let start = parse_progress_timestamp_seconds(start.trim())?;
+        let end = parse_progress_timestamp_seconds(end.trim())?;
+        (end > start).then_some(total + end - start)
+    })
 }
 
 fn parse_progress_timestamp_seconds(value: &str) -> Option<f32> {
@@ -1674,6 +1710,33 @@ mod progress_parser_tests {
         assert_eq!(
             download_slot_for_format_id(Some("399"), &normal_context),
             Some(DownloadProgressSlot::Both)
+        );
+    }
+
+    #[test]
+    fn sums_multiple_closed_download_section_durations() {
+        let sections = vec![
+            "*00:00:10-00:00:20".to_owned(),
+            "*00:00:30-00:00:55.500".to_owned(),
+        ];
+
+        assert_eq!(parse_section_duration_seconds(&sections), Some(35.5));
+    }
+
+    #[test]
+    fn collects_all_unique_reported_final_output_paths() {
+        let lines = vec![
+            format!("{FINAL_OUTPUT_PATH_PREFIX}\"C:\\\\out\\\\video - 01.mkv\""),
+            format!("{FINAL_OUTPUT_PATH_PREFIX}\"C:\\\\out\\\\video - 02.mkv\""),
+            format!("{FINAL_OUTPUT_PATH_PREFIX}\"C:\\\\out\\\\video - 02.mkv\""),
+        ];
+
+        assert_eq!(
+            reported_final_output_paths(&lines),
+            vec![
+                PathBuf::from(r"C:\out\video - 01.mkv"),
+                PathBuf::from(r"C:\out\video - 02.mkv"),
+            ]
         );
     }
 }

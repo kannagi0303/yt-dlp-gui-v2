@@ -183,12 +183,18 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "advance.use_aria2_for_faster_downloads" => "Usar Aria2 para descargas más rápidas",
         "advance.download_control" => "Control de descarga",
         "advance.concurrent_fragments" => "Fragmentos simultáneos",
+        "advance.live_streams" => "Emisiones en directo",
+        "advance.download_live_streams_from_start_experimental" => {
+            "Descargar emisiones en directo desde el inicio (experimental)"
+        }
         "advance.1_default" => "1 (predeterminado)",
         "advance.rate_limit" => "Límite de velocidad",
         "advance.e_g_2m_800k_leave_empty_for_unlimited" => {
             "p. ej. 2M, 800K; dejar vacío para ilimitado"
         }
         "advance.chapters" => "Capítulos",
+        "advance.download_range" => "Rango de descarga",
+        "advance.always_show_download_range" => "Mostrar siempre la selección de rango",
         "advance.chapter_download_compatibility_mode" => {
             "Modo de compatibilidad para descarga de capítulos"
         }
@@ -417,6 +423,23 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "options.executable" => "ejecutable",
         "main.controlled_by_config" => "Controlado por configuración: ",
         "main.controlled_by_config_2" => "Controlado por configuración",
+        "picker.section_tab.chapters" => "Capítulos",
+        "picker.section_tab.time_range" => "Rango de tiempo",
+        "picker.section_chapter_instructions" => {
+            "Selecciona uno o más capítulos. Los capítulos adyacentes forman una sola salida."
+        }
+        "picker.section_time_instructions" => {
+            "Mueve el cabezal, define el inicio y el final y añade el rango."
+        }
+        "picker.section_time_unavailable" => {
+            "La duración del video no está disponible; no se puede crear un rango personalizado."
+        }
+        "picker.section_select_all" => "Seleccionar todo",
+        "picker.section_from_selected_to_end" => "Del primero seleccionado al final",
+        "picker.section_set_start" => "Definir inicio",
+        "picker.section_set_end" => "Definir final",
+        "picker.section_add_range" => "Añadir rango",
+        "picker.section_no_custom_ranges" => "No se añadieron rangos de tiempo personalizados.",
         "picker.no_chapters_available" => "No hay capítulos disponibles",
         "picker.choose_the_range_to_download_for_this_item_d" => {
             "Elige el rango de descarga para este elemento. El valor predeterminado es el vídeo completo."
@@ -449,6 +472,13 @@ pub fn text<'a>(key: &'a str) -> &'a str {
         "picker.audio_from_video" => "Decidido por el formato de video",
         "picker.not_selected" => "No seleccionado",
         "picker.full_video" => "Video completo",
+        "picker.section_summary.chapters" => {
+            "{chapters} capítulos seleccionados · {outputs} salidas"
+        }
+        "picker.section_summary.custom" => "{ranges} rangos de tiempo · {outputs} salidas",
+        "picker.section_summary.combined" => {
+            "{chapters} capítulos + {ranges} rangos · {outputs} salidas"
+        }
         "picker.no_translation" => "Sin traducción",
         "picker.until_end" => "fin",
         "prepare.status.ready" => "Listo",

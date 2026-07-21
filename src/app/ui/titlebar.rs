@@ -161,10 +161,11 @@ fn render_title_region(ui: &mut Ui) {
         rect.left() + semantic_ui_metrics::titlebar_title_left_padding(),
         rect.center().y,
     );
+    let title = crate::infrastructure::runtime_window_title();
     ui.painter().text(
         title_pos,
         Align2::LEFT_CENTER,
-        "yt-dlp-gui",
+        title,
         FontId::proportional(semantic_ui_metrics::titlebar_app_title_font_size()),
         title_text_color(ui),
     );

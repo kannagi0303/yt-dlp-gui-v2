@@ -460,7 +460,7 @@ impl Widget for AppTextBox<'_> {
             && response.clicked()
             && ui.input(|input| input.modifiers.ctrl)
             && let Some(link) = output.cursor_range.and_then(|range| {
-                app_textbox_link_at_cursor(editor_text.as_str(), range.primary.index, syntax)
+                app_textbox_link_at_cursor(editor_text.as_str(), range.primary.index.into(), syntax)
             })
         {
             match link {

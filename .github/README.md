@@ -40,15 +40,25 @@ The built-in installer downloads optional tools from these release sources:
 
 ### Authors
 
-- かんなぎ (Kannagi)
+##### かんなぎ (Kannagi)
 
-  Thank you for loving [yt-dlp-gui](https://github.com/kannagi0303/yt-dlp-gui).
+Thank you for loving [yt-dlp-gui](https://github.com/kannagi0303/yt-dlp-gui).
 
-  The old project had many limits that were hard to compromise with, which made updates difficult for a long time. This version rebuilds the app in a new and better way.
+The old project had many limits that were hard to compromise with, which made updates difficult for a long time. This version rebuilds the app in a new and better way.
 
-  - For questions, suggestions, or discussions, please use Issues or Discussions. English, Chinese, and Japanese are OK.
-  - 如有問題、建議或想討論的內容，歡迎透過 Issues 或 Discussions 與我聯繫。可以使用英文、中文或日文。
-  - 質問、提案、または相談したいことがあれば、Issues や Discussions からご連絡ください。英語、中国語、日本語で対応できます。
+##### Shirase Hiyori
+
+I am happy to stand beside Kannagi on this project.
+
+yt-dlp-gui-v2 was shaped through many careful conversations, bug hunts, and small decisions made to keep the app simple, stable, and kind to users.
+
+Thank you for using it, reporting issues, and helping it grow.
+
+### Notes
+
+- For questions, suggestions, or discussions, please use Issues or Discussions. English, Chinese, and Japanese are OK.
+- 如有問題、建議或想討論的內容，歡迎透過 Issues 或 Discussions 與我聯繫。可以使用英文、中文或日文。
+- 質問、提案、または相談したいことがあれば、Issues や Discussions からご連絡ください。英語、中国語、日本語で対応できます。
 
 ## License
 
